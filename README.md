@@ -138,17 +138,13 @@ erDiagram
 
 `PLATFORM_FACTORY_PLAN` is the per-factory submission: construction window, status `NOT_SUBMITTED` | `SUBMITTED` | `APPROVED`, and either a provided version or a full feature set. `PLAN_REVISION` keeps each draft, submit, and approval. A factory deployment may set a secondary owner. Planned machine quantities live on that deployment, one number per machine type, and are edited with the plan. The total is the sum. `PRODUCT.mode` is `VERSIONED` or `FEATURE_ONLY`. Feature-flag plans store `plannedFeatures`; 異動功能 is computed against each feature's `defaultEnabled`.
 
-## Client app and a Go + htmx UI
+## Frontend options
 
-Both can sit on this API. They are not equal fits for this product.
+Ship one Go binary and one Kubernetes Pod. The Next.js app stays a static export (`output: 'export'`). There is no Next.js server. `go:embed` serves that export, and the same process serves the JSON API under `/api`. SQLite (`modernc.org/sqlite`, WAL) is the database, at `/data/app.db` on a single ReadWriteOnce volume. The Deployment is `replicas: 1` with `strategy: Recreate`. Details, backup, and the manifests are in [docs/deployment-architecture.md](docs/deployment-architecture.md) and `deploy/k8s/`.
 
-| | Next.js client (this repo) | Go templates + htmx |
-| --- | --- | --- |
-| Where it helps | The Phase 2 grid, capability matrix, timeline, and plan form recompute filters and window previews as the person types. | Settings, factory create/edit, issue status, and other forms that replace a fragment and do not keep a large client model. |
-| Source of truth | Go JSON. The browser holds a view and a short-lived session copy of the demo. | Go JSON or HTML. The server renders the exception list and can share the same evaluators if they are ported. |
-| Window and feature rules | Pure TypeScript modules, unit-tested here, called again when the view model is built. | The same rules should live in Go so a template cannot drift from the API. Duplicating them only in the browser will drift. |
-| Cost | A second runtime (Node) and a client bundle. Dense screens stay responsive without a round trip per keystroke. | One binary and progressive HTML. The factory × product matrix, feature diff, and multi-filter board become a lot of partial endpoints and client script anyway. |
+The data layer switches with a build flag:
 
-Recommendation: keep this client for the coordination boards, and implement the OpenAPI service in Go. Port `baselineChanges`, semver compare, and `evaluateConstructionWindow` into Go and test them there with the same cases (`2.10` vs `2.3`, a feature turned on against a default of off, missing window, window past Phase 2, two overlapping windows that are both inside). Use htmx later for simple form pages if a server-rendered slice is useful; do not split the Phase 2 grid across two UI stacks.
+- GitHub Pages leaves `NEXT_PUBLIC_USE_MOCK` unset, so the browser keeps the mock in `localStorage` and the site stays under `/tomMo-`.
+- The container image sets `NEXT_PUBLIC_USE_MOCK=0` and an empty `NEXT_PUBLIC_BASE_PATH`. The same client then calls `fetch('/api/...')` with the session cookie.
 
-The mock is a stand-in, not the long-term store. Session reset and the fault switch exist so the screens can be reviewed before the Go service is up.
+Filters and the capability matrix still run in the browser. The API is the source of truth for the deployed site. Window checks, feature baseline, and machine totals live in Go as well as TypeScript, with the same cases (`2.10` vs `2.3`, a feature turned on against a default of off, a missing window, a window past Phase 2, two overlapping windows that are both inside).

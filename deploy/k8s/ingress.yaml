@@ -1,0 +1,20 @@
+# Optional. Apply only when the site should be reached by a hostname.
+# Inside the cluster, Service fpm on port 80 is enough.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fpm
+  labels:
+    app: fpm
+spec:
+  rules:
+    - host: fpm.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fpm
+                port:
+                  number: 80

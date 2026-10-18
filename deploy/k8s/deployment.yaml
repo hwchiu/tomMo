@@ -5,8 +5,10 @@ metadata:
   labels:
     app: fpm
 spec:
-  # SQLite is a single-writer file. Keep one replica on one volume.
+  # One writer for the SQLite file on the single ReadWriteOnce volume.
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: fpm

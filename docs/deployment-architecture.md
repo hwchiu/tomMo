@@ -1,119 +1,152 @@
 # 部署架構
 
-Factory coordination（工廠協調）以**一個 Go 行程**同時提供 JSON API 與前端靜態檔。沒有另外的 Node server。
+最終部署盡量單純：Kubernetes 裡**一個 Pod**、**一顆 PersistentVolume**，不做高可用、不做多副本、不另開資料庫服務。
+
+同一支 Go binary 同時提供網站與 API。SQLite 檔放在那顆磁碟上。
 
 ## 單體
 
-- `cmd/server` 聽 `:8080`，或環境變數 `PORT`。
-- `/api/v1/*` 是與 `src/api/router.ts` 相同的 REST 契約，JSON 欄位為 camelCase，對齊 `src/api/types.ts`。
-- 前端是 Next.js `output: "export"`。編譯進映像檔時，`web/dist` 被 `go:embed` 進同一支 binary。瀏覽器開 `/`，靜態檔與 `/login` 不需要 cookie；API 除了登入與 `/healthz` 以外都要 session。
+- 一支行程聽 `:8080`（`PORT` 可改）。
+- `go:embed` 把 Next.js 靜態匯出放進 binary。瀏覽器開 `/` 時由這支行程回 HTML、CSS 與 JS。沒有 Next.js server，也沒有另外的 Node 行程。
+- JSON REST 在 `/api`（路徑與 `src/api`、`docs/openapi.yaml` 相同，欄位是 camelCase）。
+- `GET /healthz` 回 `200 {"ok":true}`，不需要登入。liveness 與 readiness 都打這個路徑。
 
-## GitHub Pages 與 Docker 的差異
+GitHub Pages 的展示站仍是瀏覽器裡的 mock。正式與 Kubernetes 用的映像在 build 時關掉 mock，資料改走這支 API。
 
-| | GitHub Pages 展示 | Docker / Kubernetes |
+## 前端怎麼接上 API
+
+靜態匯出維持 `output: "export"`。資料層用建置旗標切換，執行時不再讀另一個位址。
+
+| | GitHub Pages 展示 | 單體映像 |
 | --- | --- | --- |
 | `NEXT_PUBLIC_USE_MOCK` | 未設定，或不是 `"0"` | 建置時設為 `0` |
 | `NEXT_PUBLIC_BASE_PATH` | 未設定時是 `/tomMo-` | 建置時設成空字串，站點在 `/` |
-| 資料 | 瀏覽器裡的 mock | 伺服器上的 SQLite |
+| 資料 | `localStorage` 裡的 mock | `fetch('/api/...')`，`credentials: "include"` |
 
-`NEXT_PUBLIC_*` 在 `next build` 時寫進靜態檔，所以 Docker 映像必須在 **node 階段**就設好這兩個變數。改 env 後要重新 build，不能只在 `docker run` 時改。
+`NEXT_PUBLIC_*` 在 `next build` 時寫進靜態檔。映像的 node 階段就要設好。改這兩個變數要重新 build，不能只在 `docker run` 或 Pod 環境變數裡改。
+
+mock 開啟時，編輯存在這個瀏覽器。mock 關閉時，同一個 `src/api` client 改打同源 `/api`，session 用 HttpOnly cookie。
 
 ## SQLite
 
-- 檔案：`$DATA_DIR/app.db`。未設 `DATA_DIR` 時是 `./data`。映像檔預設 `DATA_DIR=/data`。
+- 檔案：`/data/app.db`。`DATA_DIR` 預設在映像裡是 `/data`；本機未設定時是 `./data`。
 - 驅動是 `modernc.org/sqlite`（純 Go，`CGO_ENABLED=0`）。
-- 啟動時跑嵌入的 SQL migration，建立關聯表。`machine_quantities` 是真正的表（`id`, `deployment_id`, `machine_type_id`, `planned`），不是 JSON blob。陣列欄位（階段依賴、計畫的功能開關與特殊異動、修訂快照）可以用 JSON 欄。
-- 產品表**沒有** `code` 欄。
-- 空資料庫會灌入 `buildSeed()` 的展示資料（`internal/seed/seed.json`），再補上本機帳號。
-- `POST /api/v1/session/reset`（僅編輯者）把領域資料回復成 seed，**保留帳號**。
-- 寫入在交易裡整表回寫。行程重啟後變更仍在。
-- SQLite 同一時間只適合一個寫入行程。Deployment 請維持 **1 replica**，PVC 使用 `ReadWriteOnce`。不要用多副本共用同一個 `app.db`。
+- 開啟時設定 **WAL**（`journal_mode=WAL`）與 `busy_timeout`。同一個目錄會出現 `app.db-wal` 與 `app.db-shm`，三個檔都留在這顆 PV 上。
+- 連線數維持 1。SQLite 這份檔同時只給一個寫入行程。
+- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫會灌入展示 seed，再建立本機帳號。
+- 機台總數不另存一欄。各部署只存機種的計畫數量，工廠總數是那些列的加總。
 
-機台總數**不存成使用者輸入的總數**。每筆部署只存各機種的計畫數量；工廠總數是該廠所有產品的 `machine_quantities.planned` 加總（負數與非有限值在加總時視為 0）。
+## 備份
 
-## 驗證與帳號
+備份就是複製這個檔，放到同一顆 PV 的子目錄，或複製到別的磁碟。
 
-`AuthProvider`：
+WAL 開啟時，只複製 `app.db` 會漏掉尚未 checkpoint 的頁。兩種做法：
 
-```go
-type Principal struct {
-    AccountID, Username, Role, PersonID string // Role 是 "editor" 或 "viewer"
-}
-type AuthProvider interface {
-    Login(ctx context.Context, username, password string) (Principal, error)
-    PrincipalFromRequest(r *http.Request) (Principal, bool)
-    SetSession(w http.ResponseWriter, p Principal)
-    ClearSession(w http.ResponseWriter)
-}
+1. **檔案複製。** 維護時把 Deployment 縮成 0（或等 Pod 停掉），再複製 `/data/app.db`、`/data/app.db-wal`、`/data/app.db-shm` 到 `/data/backups/app-YYYYMMDD.db` 那一組。三個檔一起留。
+2. **`sqlite3 .backup`。** 服務可以繼續跑。用帶有 `sqlite3` 的映像掛上同一個 PVC，執行：
+
+   ```bash
+   mkdir -p /data/backups
+   sqlite3 /data/app.db ".backup /data/backups/app-$(date +%Y%m%d).db"
+   ```
+
+   這條指令會做出一份一致性的單檔複本。可以用 CronJob 每天跑一次。CronJob 只讀取並寫出備份檔，主 Pod 仍是唯一的應用程式寫入者。
+
+distroless 執行映像裡沒有 shell，也沒有 `sqlite3`。備份用上面的維護複製，或另外一支含 `sqlite3` 的 CronJob，不要把工具塞進執行映像。
+
+還原時先停掉 Pod，用備份檔換掉 `/data/app.db`，並清掉舊的 `-wal` 與 `-shm`，再把 replicas 調回 1。
+
+## 環境變數
+
+| 變數 | 用途 | 預設 |
+| --- | --- | --- |
+| `PORT` | 聽的埠 | `8080` |
+| `DATA_DIR` | SQLite 目錄，檔名固定 `app.db` | 映像 `/data`，本機 `./data` |
+| `SESSION_SECRET` | session cookie 的 HMAC 金鑰 | `dev-session-secret`（正式環境要改） |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 編輯者帳號 | `admin` / `admin` |
+| `VIEWER_USERNAME` / `VIEWER_PASSWORD` | 使用者帳號 | `viewer` / `viewer` |
+
+帳號對到人員目錄：編輯者是林品均（`u_lin`），使用者是陳浩宇（`u_chen`）。密碼以 bcrypt 存在 `accounts`。啟動時若環境變數的密碼與現有 hash 不同，會更新 hash。
+
+Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-Forwarded-Proto: https` 時加 Secure。編輯者可寫入；使用者的非 GET API 回 `403 {"message":"使用者只能閱讀"}`。未登入回 `401 {"message":"請先登入"}`。
+
+登入抽象成 `AuthProvider`。之後可換成 OIDC authorization code + PKCE：群組 `fpm-editors` 對應編輯者，其餘為使用者，並以 `sub` 或員工編號對上 `people.external_id`。人員的 `source` 為 `manual` 或 `external`。這段尚未實作。
+
+## Dockerfile
+
+多階段映像在儲存庫根目錄的 `Dockerfile`：node 產出靜態檔，Go 以 `CGO_ENABLED=0` 編成單一 binary，最後放進 distroless。
+
+```dockerfile
+# Frontend static export. NEXT_PUBLIC_* is inlined at build time.
+FROM node:22-bookworm AS web
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+ENV NEXT_PUBLIC_USE_MOCK=0
+ENV NEXT_PUBLIC_BASE_PATH=
+RUN npm run build
+
+# Go monolith. The export replaces the placeholder in web/dist before compile.
+FROM golang:1.22-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=web /src/out ./web/dist
+ENV CGO_ENABLED=0
+RUN go build -o /out/server ./cmd/server
+RUN mkdir -p /data && touch /data/.keep && chown -R 65532:65532 /data
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/server /server
+COPY --from=build --chown=65532:65532 /data /data
+ENV DATA_DIR=/data
+ENV PORT=8080
+EXPOSE 8080
+ENTRYPOINT ["/server"]
 ```
 
-現在的實作是 `LocalAuth`：
+```bash
+docker build -t fpm .
+docker run --rm -p 8080:8080 \
+  -e ADMIN_PASSWORD=admin \
+  -e SESSION_SECRET=dev-session-secret \
+  -v fpm-data:/data \
+  fpm
+```
 
-- `accounts` 表存 bcrypt 密碼、`role`、`person_id`。
-- Cookie 名稱 `fpm_session`，`HttpOnly`、`SameSite=Lax`、`Path=/`。只有在 TLS 或 `X-Forwarded-Proto: https` 時才加 `Secure`。
-- Cookie 值是 `base64url(payload) + "." + hex(HMAC-SHA256(payload, SESSION_SECRET))`。payload 含 `accountId`、`username`、`role`、`personId`、`exp`（7 天）。
-- `SESSION_SECRET` 預設 `dev-session-secret`。**正式環境一定要改**，否則任何人都能偽造 cookie。
+映像以 uid 65532 執行。掛上的磁碟要讓這個 uid 可寫。
 
-啟動時若帳號不存在就建立；若環境變數密碼與現有 hash 不同，會更新 hash，讓 Kubernetes Secret 生效。
-
-| 環境變數 | 預設 | 角色 | 人員 |
-| --- | --- | --- | --- |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `admin` | editor 編輯者 | 林品均（`u_lin`） |
-| `VIEWER_USERNAME` / `VIEWER_PASSWORD` | `viewer` / `viewer` | viewer 使用者 | 陳浩宇（`u_chen`） |
-
-- 編輯者可以修改與核准。
-- 使用者只能閱讀。非 GET 的 `/api/*` 會回 `403 {"message":"使用者只能閱讀"}`。登出例外，兩種角色都可以。
-- 未登入呼叫 API 回 `401 {"message":"請先登入"}`。
-- `GET /healthz` 不需登入，回 `200 {"ok":true}`。
-- 登入失敗回 `401 {"message":"帳號或密碼不正確"}`。
-
-## 規劃中的 OIDC（尚未實作）
-
-下一個 `AuthProvider` 可以是 authorization code + PKCE：
-
-1. 瀏覽器導向 IdP，帶 `code_challenge`。
-2. Callback 用 authorization code 換 token。
-3. 依 claim 的群組對應角色：`fpm-editors` → `editor`，其餘 → `viewer`。
-4. 用 OIDC `sub` 或員工編號對上 `people.external_id`，帳號仍指向 `people` 的一列。
-5. 人員讀取繼續走同一張 `people` 表。`source` 為 `manual`（可在這裡改）或 `external`（目錄同步，API 拒絕修改，訊息是「外部人員由目錄同步，不能在這裡修改」）。
-
-在那之前，登入只走本機帳號。
-
-## 怎麼跑
-
-需要已建好的前端時，在本機：
+本機沒有 Docker 時，先做出給 embed 的靜態檔再跑 Go：
 
 ```bash
-# 產生 web/dist 之後
+NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_BASE_PATH= npm run build
+rm -rf web/dist && cp -a out web/dist
 go run ./cmd/server
 ```
 
-Docker（映像內會自己 build 前端，`NEXT_PUBLIC_USE_MOCK=0`、base path 為空）：
-
-```bash
-docker build -t fpm . && docker run --rm -p 8080:8080 -e ADMIN_PASSWORD=admin -e SESSION_SECRET=dev fpm
-```
-
-要留下 SQLite，掛一個 volume 到 `/data`：
-
-```bash
-docker run --rm -p 8080:8080 -e ADMIN_PASSWORD=admin -e SESSION_SECRET=dev -v fpm-data:/data fpm
-```
-
-映像以 distroless `nonroot`（uid 65532）執行。Kubernetes 的 PVC 要設 `fsGroup: 65532`，否則行程寫不了 `app.db`。
-
 ## Kubernetes
 
-清單在 `deploy/k8s/`：
+清單在 `deploy/k8s/`。目標是一個 Pod 配一顆磁碟。
 
-- `deployment.yaml`：1 replica，port 8080，`DATA_DIR=/data`，readiness / liveness 打 `/healthz`。`SESSION_SECRET`、`ADMIN_PASSWORD`、`VIEWER_PASSWORD` 來自 Secret `fpm-auth`。
-- `service.yaml`：ClusterIP 80 → 8080。
-- `pvc.yaml`：掛在 `/data`，給 SQLite 檔。
-- `secret.example.yaml`：placeholder `change-me`，不是真正的密鑰。套用前請改掉。
+| 檔案 | 內容 |
+| --- | --- |
+| `pvc.yaml` | `PersistentVolumeClaim`，`accessModes: [ReadWriteOnce]`，1Gi，掛在 `/data` |
+| `deployment.yaml` | `replicas: 1`，`strategy: Recreate`，讀寫 `/data/app.db`，探針打 `/healthz` |
+| `service.yaml` | ClusterIP，80 → 8080 |
+| `ingress.yaml` | 選擇性。只在要從叢集外用網域進來時套用 |
+| `secret.example.yaml` | `ADMIN_PASSWORD`、`VIEWER_PASSWORD`、`SESSION_SECRET` 的範例，值是 `change-me` |
+
+`Recreate` 讓舊 Pod 先結束，再起新的。同一時間只有一個行程打開這個 SQLite 檔。PVC 是 `ReadWriteOnce`，跟著這一個 Pod。`fsGroup: 65532` 讓 distroless 的非 root 使用者寫得了 `app.db`。
 
 ```bash
 kubectl apply -f deploy/k8s/secret.example.yaml
-kubectl apply -f deploy/k8s/pvc.yaml -f deploy/k8s/deployment.yaml -f deploy/k8s/service.yaml
+kubectl apply -f deploy/k8s/pvc.yaml
+kubectl apply -f deploy/k8s/deployment.yaml
+kubectl apply -f deploy/k8s/service.yaml
+# 需要對外網域時再套用
+kubectl apply -f deploy/k8s/ingress.yaml
 ```
 
-把 Deployment 的 `image: fpm:latest` 換成你推上去的映像。沒有指定 namespace，會落到目前 context 的 namespace。
+套用前把 Secret 裡的 `change-me` 換成真正的值，並把 Deployment 的 `image: fpm:latest` 換成已推上的映像。清單沒有指定 namespace，會落到目前 context 的 namespace。

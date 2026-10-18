@@ -1,0 +1,1069 @@
+openapi: 3.0.3
+info:
+  title: 廠務協調台 API
+  version: 0.1.0
+  description: |
+    JSON contract for the factory coordination service. The Next.js client calls
+    these paths through `src/api`. With `NEXT_PUBLIC_API_BASE_URL` unset, the
+    same paths are served by the in-memory mock. A Go service should implement
+    this document and accept `X-Actor-Id` until real authentication exists.
+
+    Dates are `YYYY-MM-DD`. Timestamps are ISO-8601. Construction windows are
+    judged one platform at a time against Phase 2 (平台建立). Overlapping windows
+    between platforms are parallel work and are not conflicts. Only a missing
+    window, or a window that starts before or ends after Phase 2, is flagged.
+servers:
+  - url: http://localhost:8080
+    description: Go service
+tags:
+  - name: session
+  - name: portfolio
+  - name: factories
+  - name: handoffs
+  - name: issues
+  - name: platforms
+  - name: plans
+security:
+  - actor: []
+paths:
+  /api/v1/bootstrap:
+    get:
+      tags: [session]
+      summary: Current user, enumerations, and the demo as-of date
+      operationId: getBootstrap
+      responses:
+        "200":
+          description: Shell bootstrap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bootstrap"
+  /api/v1/session:
+    post:
+      tags: [session]
+      summary: Remember the acting user
+      operationId: switchUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string }
+      responses:
+        "200":
+          description: Switched
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+  /api/v1/session/reset:
+    post:
+      tags: [session]
+      summary: Restore demo fixtures for this session
+      operationId: resetDemo
+      responses:
+        "200":
+          description: Reset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+  /api/v1/portfolio:
+    get:
+      tags: [portfolio]
+      summary: Exception-first factory portfolio
+      operationId: getPortfolio
+      responses:
+        "200":
+          description: Counts, exceptions, factories, milestones, and handoffs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [asOf, counts, exceptions, factories, milestones, handoffs]
+                properties:
+                  asOf: { type: string, format: date }
+                  counts:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      onTrack: { type: integer }
+                      atRisk: { type: integer }
+                      delayed: { type: integer }
+                  exceptions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Exception" }
+                  factories:
+                    type: array
+                    items: { $ref: "#/components/schemas/FactoryBoard" }
+                  milestones: { type: array, items: { type: object } }
+                  handoffs: { type: array, items: { $ref: "#/components/schemas/HandoffListItem" } }
+  /api/v1/platform-build:
+    get:
+      tags: [plans]
+      summary: Factory by platform matrix for Phase 2
+      description: |
+        Each cell includes deployment status, plan status, versions, owners,
+        machine counts, and a construction-window check against that factory's
+        Phase 2 dates. `windowState` is `MISSING`, `INSIDE`, or `OUTSIDE`.
+        There is no overlap or conflict field. Parallel windows stay `INSIDE`
+        when each one fits Phase 2.
+      operationId: getPlatformBuild
+      responses:
+        "200":
+          description: Platforms and one row per factory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [asOf, platforms, rows]
+                properties:
+                  asOf: { type: string, format: date }
+                  platforms: { type: array, items: { type: object } }
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        factoryId: { type: string }
+                        cells:
+                          type: array
+                          items: { $ref: "#/components/schemas/BuildCell" }
+  /api/v1/factories:
+    get:
+      tags: [factories]
+      summary: Factory directory
+      operationId: listFactories
+      responses:
+        "200":
+          description: Factories plus users and enumerations used by the directory
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asOf: { type: string, format: date }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/FactoryBoard" }
+    post:
+      tags: [factories]
+      summary: Create a factory and copy the four default phases
+      operationId: createFactory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FactoryWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/factories/{factoryId}/topics:
+    post:
+      tags: [factories]
+      summary: Add a discussion topic for one factory
+      operationId: createTopic
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TopicWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/topics/{topicId}:
+    patch:
+      tags: [factories]
+      summary: Edit a factory discussion topic
+      operationId: updateTopic
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TopicWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+        "404":
+          $ref: "#/components/responses/Error"
+  /api/v1/factories/{factoryId}:
+    get:
+      tags: [factories]
+      summary: Factory detail, phases, plans, deployments, handoffs, issues
+      operationId: getFactory
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+      responses:
+        "200":
+          description: Factory detail
+          content:
+            application/json:
+              schema: { type: object }
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [factories]
+      summary: Update factory attributes and planned end
+      operationId: updateFactory
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/FactoryWrite"
+                - type: object
+                  required: [plannedEnd]
+                  properties:
+                    plannedEnd: { type: string, format: date }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/factories/{factoryId}/phases:
+    post:
+      tags: [factories]
+      summary: Add a phase to one factory
+      operationId: createPhase
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PhaseWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/phases/{phaseId}:
+    patch:
+      tags: [factories]
+      summary: Edit one factory's phase copy
+      operationId: updatePhase
+      parameters:
+        - $ref: "#/components/parameters/phaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PhaseWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/phases/{phaseId}/milestones:
+    post:
+      tags: [factories]
+      summary: Add a milestone
+      operationId: createMilestone
+      parameters:
+        - $ref: "#/components/parameters/phaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MilestoneWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, factoryId]
+                properties:
+                  id: { type: string }
+                  factoryId: { type: string }
+  /api/v1/milestones/{milestoneId}:
+    patch:
+      tags: [factories]
+      summary: Update a milestone
+      operationId: updateMilestone
+      parameters:
+        - name: milestoneId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MilestoneWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  factoryId: { type: string }
+  /api/v1/handoffs:
+    get:
+      tags: [handoffs]
+      operationId: listHandoffs
+      responses:
+        "200":
+          description: All handoffs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asOf: { type: string, format: date }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/HandoffListItem" }
+    post:
+      tags: [handoffs]
+      operationId: createHandoff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HandoffWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/handoffs/{handoffId}:
+    get:
+      tags: [handoffs]
+      operationId: getHandoff
+      parameters:
+        - $ref: "#/components/parameters/handoffId"
+      responses:
+        "200":
+          description: Handoff, requirements, evaluation inputs, and activity
+    patch:
+      tags: [handoffs]
+      operationId: updateHandoff
+      parameters:
+        - $ref: "#/components/parameters/handoffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HandoffUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/handoffs/{handoffId}/transitions:
+    post:
+      tags: [handoffs]
+      summary: Move a handoff. Evaluation never accepts by itself.
+      description: |
+        `ACCEPTED` requires the caller to send `acknowledgeGaps` when any
+        requirement is still unmet. The server records the person's decision.
+      operationId: transitionHandoff
+      parameters:
+        - $ref: "#/components/parameters/handoffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/HandoffStatus" }
+                rejectionReason: { type: string }
+                blockers: { type: string }
+                acknowledgeGaps: { type: boolean }
+                unmet: { type: integer }
+      responses:
+        "200":
+          description: Transition recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/handoffs/{handoffId}/requirements:
+    post:
+      tags: [handoffs]
+      operationId: addRequirement
+      parameters:
+        - $ref: "#/components/parameters/handoffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, platformId, description]
+              properties:
+                kind: { $ref: "#/components/schemas/RequirementKind" }
+                platformId: { type: string }
+                minVersion: { type: string, nullable: true }
+                featureId: { type: string, nullable: true }
+                description: { type: string }
+      responses:
+        "200":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/issues:
+    get:
+      tags: [issues]
+      operationId: listIssues
+      responses:
+        "200":
+          description: Issues, including an overdue flag against asOf
+    post:
+      tags: [issues]
+      operationId: createIssue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/issues/{issueId}:
+    get:
+      tags: [issues]
+      operationId: getIssue
+      parameters:
+        - name: issueId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Issue detail
+    patch:
+      tags: [issues]
+      operationId: updateIssue
+      parameters:
+        - name: issueId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/platforms:
+    get:
+      tags: [platforms]
+      operationId: listPlatforms
+      responses:
+        "200":
+          description: Global platform catalog
+    post:
+      tags: [platforms]
+      operationId: createPlatform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/platforms/{platformId}:
+    get:
+      tags: [platforms]
+      operationId: getPlatform
+      parameters:
+        - $ref: "#/components/parameters/platformId"
+      responses:
+        "200":
+          description: Platform, versions, features, and per-factory deployments
+    patch:
+      tags: [platforms]
+      operationId: updatePlatform
+      parameters:
+        - $ref: "#/components/parameters/platformId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/capabilities:
+    get:
+      tags: [platforms]
+      summary: Desired versus actual feature matrix
+      operationId: getCapabilities
+      responses:
+        "200":
+          description: Cells distinguish supported, desired, and actual
+  /api/v1/deployments/{deploymentId}:
+    get:
+      tags: [platforms]
+      operationId: getDeployment
+      parameters:
+        - name: deploymentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deployment editor payload
+    patch:
+      tags: [platforms]
+      operationId: updateDeployment
+      parameters:
+        - name: deploymentId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeploymentWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/factories/{factoryId}/platforms/{platformId}/plan:
+    get:
+      tags: [plans]
+      summary: Current plan, window check, and revision history
+      operationId: getPlan
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+        - $ref: "#/components/parameters/platformId"
+      responses:
+        "200":
+          description: |
+            Includes `windowState` and `windowReasons`. Reasons are only
+            `MISSING_DATES`, `MISSING_PHASE`, `STARTS_BEFORE_PHASE`, and
+            `ENDS_AFTER_PHASE`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanPage" }
+    put:
+      tags: [plans]
+      summary: Save a draft or submit the current revision
+      operationId: savePlan
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+        - $ref: "#/components/parameters/platformId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanWrite" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/factories/{factoryId}/platforms/{platformId}/plan/approve:
+    post:
+      tags: [plans]
+      summary: Approve the current submitted plan
+      operationId: approvePlan
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+        - $ref: "#/components/parameters/platformId"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/feature-diff:
+    get:
+      tags: [plans]
+      summary: Feature changes between two versions of the same platform
+      operationId: featureDiff
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Added, removed, and changed features
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changes:
+                    type: array
+                    items: { $ref: "#/components/schemas/FeatureChange" }
+  /api/v1/activity:
+    get:
+      tags: [portfolio]
+      operationId: listActivity
+      responses:
+        "200":
+          description: Append-only activity
+  /api/v1/machine-types:
+    post:
+      tags: [session]
+      summary: Add a machine type
+      operationId: createMachineType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string }
+                name: { type: string, example: 機種C }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/machine-types/{machineTypeId}:
+    patch:
+      tags: [session]
+      summary: Rename or deactivate a machine type
+      operationId: updateMachineType
+      parameters:
+        - name: machineTypeId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, active]
+              properties:
+                name: { type: string }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/enumerations:
+    post:
+      tags: [session]
+      operationId: createEnumeration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [set, code, label, description]
+              properties:
+                set: { $ref: "#/components/schemas/EnumSet" }
+                code: { type: string }
+                label: { type: string }
+                description: { type: string }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/enumerations/{enumerationId}:
+    patch:
+      tags: [session]
+      operationId: updateEnumeration
+      parameters:
+        - name: enumerationId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, description, active]
+              properties:
+                label: { type: string }
+                description: { type: string }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+components:
+  securitySchemes:
+    actor:
+      type: apiKey
+      in: header
+      name: X-Actor-Id
+  parameters:
+    factoryId:
+      name: factoryId
+      in: path
+      required: true
+      schema: { type: string }
+    phaseId:
+      name: phaseId
+      in: path
+      required: true
+      schema: { type: string }
+    platformId:
+      name: platformId
+      in: path
+      required: true
+      schema: { type: string }
+    handoffId:
+      name: handoffId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message]
+            properties:
+              message: { type: string }
+  schemas:
+    Ok:
+      type: object
+      properties:
+        ok: { type: boolean }
+    Id:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+    EnumSet:
+      type: string
+      enum: [factoryCategory, factoryRegion, technologyNode]
+    FactoryStatus:
+      type: string
+      enum: [ON_TRACK, AT_RISK, DELAYED, COMPLETED]
+    PhaseStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, AT_RISK, DELAYED, COMPLETED]
+    HandoffStatus:
+      type: string
+      enum: [WORK_DONE, PROPOSED, PENDING_ACCEPTANCE, ACCEPTED, REJECTED, BLOCKED]
+    PlanStatus:
+      type: string
+      enum: [NOT_SUBMITTED, SUBMITTED, APPROVED]
+    DeploymentStatus:
+      type: string
+      enum: [PLANNED, IN_PROGRESS, DEPLOYED, ACCEPTED]
+    WindowState:
+      type: string
+      enum: [MISSING, INSIDE, OUTSIDE]
+    WindowReason:
+      type: string
+      enum: [MISSING_DATES, MISSING_PHASE, STARTS_BEFORE_PHASE, ENDS_AFTER_PHASE]
+    RequirementKind:
+      type: string
+      enum: [MIN_VERSION, FEATURE_ENABLED, DEPLOYMENT_COMPLETE]
+    ChangeType:
+      type: string
+      enum: [ADDED, REMOVED, CHANGED]
+    Bootstrap:
+      type: object
+      properties:
+        asOf: { type: string, format: date }
+        currentUser: { type: object }
+        users: { type: array, items: { type: object } }
+        enumerations: { type: array, items: { type: object } }
+    Exception:
+      type: object
+      properties:
+        id: { type: string }
+        rank: { type: integer }
+        tone: { type: string, enum: [danger, warning, info] }
+        title: { type: string }
+        detail: { type: string }
+        href: { type: string }
+        factoryName: { type: string }
+    FactoryBoard:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/FactoryStatus" }
+        category: { type: string }
+        region: { type: string }
+        technology: { type: string }
+        missingPlans: { type: integer }
+        outsideWindows: { type: integer }
+        openTopics: { type: integer, description: Topics still OPEN or IN_DISCUSSION }
+        pmContact: { $ref: "#/components/schemas/PmContact" }
+    PmContact:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name: { type: string, description: 廠區 PM 聯繫人姓名 }
+        email: { type: string, format: email }
+        phone: { type: string, description: Phone or extension }
+    TopicStatus:
+      type: string
+      enum: [OPEN, IN_DISCUSSION, RESOLVED, CLOSED]
+    Topic:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        ownerId: { type: string }
+        ownerName: { type: string }
+        status: { $ref: "#/components/schemas/TopicStatus" }
+        raisedOn: { type: string, format: date }
+    TopicWrite:
+      type: object
+      required: [title, description, ownerId, status, raisedOn]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        ownerId: { type: string }
+        status: { $ref: "#/components/schemas/TopicStatus" }
+        raisedOn: { type: string, format: date }
+    FactoryWrite:
+      type: object
+      required: [code, name, location, description, category, region, technology, pmId, pmContact, plannedStart, status]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        location: { type: string }
+        description: { type: string }
+        category: { type: string, description: Enumeration code in factoryCategory }
+        region: { type: string, description: Enumeration code in factoryRegion }
+        technology: { type: string, description: Enumeration code in technologyNode }
+        pmId: { type: string }
+        pmContact: { $ref: "#/components/schemas/PmContact" }
+        plannedStart: { type: string, format: date }
+        status: { $ref: "#/components/schemas/FactoryStatus" }
+    PhaseWrite:
+      type: object
+      required: [name, order, ownerId, plannedStart, plannedEnd, status, riskNote, dependsOnPhaseIds]
+      properties:
+        name: { type: string }
+        order: { type: integer }
+        ownerId: { type: string }
+        plannedStart: { type: string, format: date }
+        plannedEnd: { type: string, format: date }
+        actualStart: { type: string, format: date, nullable: true }
+        actualEnd: { type: string, format: date, nullable: true }
+        status: { $ref: "#/components/schemas/PhaseStatus" }
+        riskNote: { type: string }
+        dependsOnPhaseIds:
+          type: array
+          items: { type: string }
+    MilestoneWrite:
+      type: object
+      required: [name, dueDate, deliverables, ownerId, done]
+      properties:
+        name: { type: string }
+        dueDate: { type: string, format: date }
+        deliverables: { type: string }
+        ownerId: { type: string }
+        done: { type: boolean }
+    HandoffWrite:
+      type: object
+      required: [title, factoryId, fromPhaseId, toPhaseId, fromOwnerId, toOwnerId, plannedDate, deliverables, acceptanceCriteria, blockers, status]
+      properties:
+        title: { type: string }
+        factoryId: { type: string }
+        fromPhaseId: { type: string }
+        toPhaseId: { type: string }
+        fromOwnerId: { type: string }
+        toOwnerId: { type: string }
+        escalationOwnerId: { type: string, nullable: true }
+        plannedDate: { type: string, format: date }
+        deliverables: { type: string }
+        acceptanceCriteria: { type: string }
+        blockers: { type: string }
+        status: { $ref: "#/components/schemas/HandoffStatus" }
+    HandoffUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        fromPhaseId: { type: string }
+        toPhaseId: { type: string }
+        fromOwnerId: { type: string }
+        toOwnerId: { type: string }
+        escalationOwnerId: { type: string, nullable: true }
+        plannedDate: { type: string, format: date }
+        deliverables: { type: string }
+        acceptanceCriteria: { type: string }
+        blockers: { type: string }
+    HandoffListItem:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string }
+        title: { type: string }
+        factoryId: { type: string }
+        factoryName: { type: string }
+        status: { $ref: "#/components/schemas/HandoffStatus" }
+    IssueWrite:
+      type: object
+      required: [title, description, factoryId, ownerId, severity, priority, status]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        factoryId: { type: string }
+        phaseId: { type: string, nullable: true }
+        platformId: { type: string, nullable: true }
+        handoffId: { type: string, nullable: true }
+        ownerId: { type: string }
+        severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+        priority: { type: string, enum: [P0, P1, P2, P3] }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, BLOCKED, RESOLVED, CLOSED] }
+        dueDate: { type: string, format: date, nullable: true }
+        resolution: { type: string }
+    PlatformWrite:
+      type: object
+      required: [code, name, description, devDepartment, projectDepartment, primaryOwnerId]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        devDepartment: { type: string }
+        projectDepartment: { type: string }
+        primaryOwnerId: { type: string }
+    DeploymentWrite:
+      type: object
+      properties:
+        plannedVersionId: { type: string, nullable: true }
+        actualVersionId: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/DeploymentStatus" }
+        secondaryOwnerId: { type: string }
+        plannedDate: { type: string, format: date, nullable: true }
+        deployedAt: { type: string, format: date, nullable: true }
+        notes: { type: string }
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              phaseId: { type: string }
+              relation: { type: string, enum: [INTRODUCED, UPGRADED, ACCEPTED] }
+        features:
+          type: array
+          items:
+            type: object
+            properties:
+              featureId: { type: string }
+              desired: { type: boolean }
+              actual: { type: boolean, nullable: true }
+    PlannedMachine:
+      type: object
+      required: [machineTypeId, planned]
+      properties:
+        machineTypeId: { type: string }
+        planned: { type: integer, minimum: 0, description: Planned quantity only }
+    FeatureChange:
+      type: object
+      required: [featureId, changeType, summary]
+      properties:
+        featureId: { type: string }
+        changeType: { $ref: "#/components/schemas/ChangeType" }
+        summary: { type: string }
+    PlanWrite:
+      type: object
+      required: [intent]
+      properties:
+        providedVersionId: { type: string, nullable: true }
+        featureChanges:
+          type: array
+          items: { $ref: "#/components/schemas/FeatureChange" }
+        constructionStart: { type: string, format: date, nullable: true }
+        constructionEnd: { type: string, format: date, nullable: true }
+        machines:
+          type: array
+          description: Planned quantity per machine type. There is no actual or delivered count.
+          items: { $ref: "#/components/schemas/PlannedMachine" }
+        note: { type: string }
+        intent: { type: string, enum: [draft, submit] }
+    BuildCell:
+      type: object
+      properties:
+        planStatus: { $ref: "#/components/schemas/PlanStatus" }
+        deploymentStatus: { $ref: "#/components/schemas/DeploymentStatus" }
+        windowState: { $ref: "#/components/schemas/WindowState" }
+        windowReasons:
+          type: array
+          items: { $ref: "#/components/schemas/WindowReason" }
+        ready: { type: boolean }
+        flags:
+          type: array
+          items:
+            type: string
+            enum: [PLAN_MISSING, PLAN_NOT_APPROVED, WINDOW_MISSING, WINDOW_OUTSIDE, DEPLOYMENT_INCOMPLETE]
+    PlanPage:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/PlanStatus" }
+        windowState: { $ref: "#/components/schemas/WindowState" }
+        windowReasons:
+          type: array
+          items: { $ref: "#/components/schemas/WindowReason" }
+        constructionStart: { type: string, format: date, nullable: true }
+        constructionEnd: { type: string, format: date, nullable: true }
+        canEdit: { type: boolean }
+        canApprove: { type: boolean }

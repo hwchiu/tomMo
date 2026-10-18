@@ -1,0 +1,140 @@
+import { ApiError } from "./errors";
+import { getActorId } from "./session";
+import {
+  approvePlan,
+  createEnumeration,
+  createFactory,
+  createTopic,
+  createMachineType,
+  createHandoff,
+  createIssue,
+  createMilestone,
+  createPhase,
+  createPlatform,
+  createRequirement,
+  diffVersionFeatures,
+  getDb,
+  resetDb,
+  savePlan,
+  transitionHandoff,
+  updateDeployment,
+  updateEnumeration,
+  updateFactory,
+  updateTopic,
+  updateMachineType,
+  updateHandoff,
+  updateIssue,
+  updateMilestone,
+  updatePhase,
+  updatePlatform,
+} from "./store";
+import {
+  buildActivity,
+  buildBootstrap,
+  buildCapabilities,
+  buildDeployment,
+  buildFactories,
+  buildFactory,
+  buildHandoff,
+  buildHandoffs,
+  buildIssue,
+  buildIssues,
+  buildPlan,
+  buildPlatform,
+  buildPlatformBuild,
+  buildPlatforms,
+  buildPortfolio,
+} from "./views";
+
+interface Call {
+  method: string;
+  path: string;
+  body: unknown;
+}
+
+export function mockRoute<T>({ method, path, body }: Call): T {
+  const url = new URL(path, "http://mock.local");
+  const pathname = url.pathname.replace(/\/$/, "") || "/";
+  const actorId = getActorId();
+  const db = getDb();
+  const parts = pathname.split("/").filter(Boolean);
+
+  if (method === "POST" && pathname === "/api/v1/session/reset") {
+    resetDb();
+    return { ok: true } as T;
+  }
+  if (method === "POST" && pathname === "/api/v1/session") {
+    return { ok: true } as T;
+  }
+  if (method === "GET" && pathname === "/api/v1/bootstrap") return buildBootstrap(db, actorId) as T;
+  if (method === "GET" && pathname === "/api/v1/portfolio") return buildPortfolio(db) as T;
+  if (method === "GET" && pathname === "/api/v1/platform-build") return buildPlatformBuild(db) as T;
+  if (method === "GET" && pathname === "/api/v1/factories") return buildFactories(db) as T;
+  if (method === "POST" && pathname === "/api/v1/factories") return createFactory(db, actorId, body as never) as T;
+  if (method === "GET" && parts[0] === "api" && parts[2] === "factories" && parts.length === 4) return buildFactory(db, parts[3]) as T;
+  if (method === "PATCH" && parts[0] === "api" && parts[2] === "factories" && parts.length === 4) {
+    return updateFactory(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "POST" && parts[2] === "factories" && parts[4] === "topics" && parts.length === 5) {
+    return createTopic(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "PATCH" && parts[2] === "topics" && parts.length === 4) {
+    return updateTopic(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "POST" && parts[2] === "factories" && parts[4] === "phases" && parts.length === 5) {
+    return createPhase(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "PATCH" && parts[2] === "phases" && parts.length === 4) return updatePhase(db, actorId, parts[3], body as never) as T;
+  if (method === "POST" && parts[2] === "phases" && parts[4] === "milestones") {
+    return createMilestone(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "PATCH" && parts[2] === "milestones" && parts.length === 4) {
+    return updateMilestone(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "GET" && pathname === "/api/v1/handoffs") return buildHandoffs(db) as T;
+  if (method === "POST" && pathname === "/api/v1/handoffs") return createHandoff(db, actorId, body as never) as T;
+  if (method === "GET" && parts[2] === "handoffs" && parts.length === 4) return buildHandoff(db, parts[3]) as T;
+  if (method === "PATCH" && parts[2] === "handoffs" && parts.length === 4) return updateHandoff(db, actorId, parts[3], body as never) as T;
+  if (method === "POST" && parts[2] === "handoffs" && parts[4] === "transitions") {
+    return transitionHandoff(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "POST" && parts[2] === "handoffs" && parts[4] === "requirements") {
+    return createRequirement(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "GET" && pathname === "/api/v1/issues") return buildIssues(db) as T;
+  if (method === "POST" && pathname === "/api/v1/issues") return createIssue(db, actorId, body as never) as T;
+  if (method === "GET" && parts[2] === "issues" && parts.length === 4) return buildIssue(db, parts[3]) as T;
+  if (method === "PATCH" && parts[2] === "issues" && parts.length === 4) return updateIssue(db, actorId, parts[3], body as never) as T;
+  if (method === "GET" && pathname === "/api/v1/platforms") return buildPlatforms(db) as T;
+  if (method === "POST" && pathname === "/api/v1/platforms") return createPlatform(db, actorId, body as never) as T;
+  if (method === "GET" && parts[2] === "platforms" && parts.length === 4) return buildPlatform(db, parts[3]) as T;
+  if (method === "PATCH" && parts[2] === "platforms" && parts.length === 4) return updatePlatform(db, actorId, parts[3], body as never) as T;
+  if (method === "GET" && pathname === "/api/v1/capabilities") return buildCapabilities(db) as T;
+  if (method === "GET" && parts[2] === "deployments" && parts.length === 4) return buildDeployment(db, parts[3]) as T;
+  if (method === "PATCH" && parts[2] === "deployments" && parts.length === 4) {
+    return updateDeployment(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "GET" && parts[2] === "factories" && parts[4] === "platforms" && parts[6] === "plan") {
+    return buildPlan(db, parts[3], parts[5], actorId) as T;
+  }
+  if (method === "PUT" && parts[2] === "factories" && parts[4] === "platforms" && parts[6] === "plan") {
+    return savePlan(db, actorId, parts[3], parts[5], body as never) as T;
+  }
+  if (method === "POST" && parts[2] === "factories" && parts[4] === "platforms" && parts[6] === "plan" && parts[7] === "approve") {
+    return approvePlan(db, actorId, parts[3], parts[5]) as T;
+  }
+  if (method === "GET" && pathname === "/api/v1/activity") return buildActivity(db) as T;
+  if (method === "POST" && pathname === "/api/v1/enumerations") return createEnumeration(db, actorId, body as never) as T;
+  if (method === "POST" && pathname === "/api/v1/machine-types") return createMachineType(db, actorId, body as never) as T;
+  if (method === "PATCH" && parts[2] === "machine-types" && parts.length === 4) {
+    return updateMachineType(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "PATCH" && parts[2] === "enumerations" && parts.length === 4) {
+    return updateEnumeration(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "GET" && parts[2] === "feature-diff") {
+    return { changes: diffVersionFeatures(db, url.searchParams.get("from"), url.searchParams.get("to") ?? "") } as T;
+  }
+
+  throw new ApiError(`沒有這個 API：${method} ${pathname}`, 404);
+}

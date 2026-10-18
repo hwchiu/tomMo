@@ -33,9 +33,9 @@ The client then `fetch`es the paths in [docs/openapi.yaml](docs/openapi.yaml) an
 
 | Screen | Path | What it is for |
 | --- | --- | --- |
-| 總覽 | `/` | Exceptions first: missing plans, windows outside Phase 2, blocked handoffs, overdue issues. Filter and group by 類別 / 區域 / 製程. |
+| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, blocked handoffs, overdue issues. Filter and group by 類別 / 區域 / 製程. |
 | 平台建立 | `/platform-build` | Factory × platform grid. Status, versions, owners, machine counts, and Phase 2 → 3 readiness. |
-| 工廠 | `/factories` | Per-factory phases, milestone timeline, plan windows, deployments, handoffs, issues. |
+| 工廠 | `/factories` | Per-factory month-and-week timeline, PM contact, discussion topics, plan windows, deployments, handoffs, issues. |
 | 施工計畫 | `/factories/{id}/plans/{platformId}` | Version to provide, feature changes, construction window, revision history, submit and approve. |
 | 交接 | `/handoffs` | Requirements evaluated against actual deployments. A person still accepts. |
 | 問題 | `/issues` | Blockers tied to a factory, phase, platform, or handoff. |

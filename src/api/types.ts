@@ -13,6 +13,8 @@ import type {
   PhaseLinkRelation,
   PhaseStatus,
   PlanStatus,
+  PmContact,
+  TopicStatus,
   RevisionAction,
   User,
 } from "@/domain/types";
@@ -56,6 +58,10 @@ export interface PhaseBar {
   name: string;
   order: number;
   status: PhaseStatus;
+  plannedStart: string;
+  plannedEnd: string;
+  actualStart: string | null;
+  actualEnd: string | null;
 }
 
 export interface FactoryBoardRow {
@@ -71,6 +77,8 @@ export interface FactoryBoardRow {
   technology: string;
   technologyLabel: string;
   pmName: string;
+  pmContact: PmContact;
+  openTopics: number;
   currentPhaseName: string;
   currentPhaseOrder: number;
   currentPhaseStatus: PhaseStatus;
@@ -212,6 +220,7 @@ export interface FactoryDetail {
   technologyLabel: string;
   pmId: string;
   pmName: string;
+  pmContact: PmContact;
   plannedStart: string;
   plannedEnd: string;
   actualStart: string | null;
@@ -269,6 +278,15 @@ export interface FactoryDetail {
   }>;
   handoffs: HandoffListItem[];
   issues: IssueListItem[];
+  topics: Array<{
+    id: string;
+    title: string;
+    description: string;
+    ownerId: string;
+    ownerName: string;
+    status: TopicStatus;
+    raisedOn: string;
+  }>;
   activity: ActivityItem[];
   machineRollup: MachineLineView[];
 }

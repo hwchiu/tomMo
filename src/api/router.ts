@@ -4,6 +4,7 @@ import {
   approvePlan,
   createEnumeration,
   createFactory,
+  createTopic,
   createMachineType,
   createHandoff,
   createIssue,
@@ -19,6 +20,7 @@ import {
   updateDeployment,
   updateEnumeration,
   updateFactory,
+  updateTopic,
   updateMachineType,
   updateHandoff,
   updateIssue,
@@ -72,6 +74,12 @@ export function mockRoute<T>({ method, path, body }: Call): T {
   if (method === "GET" && parts[0] === "api" && parts[2] === "factories" && parts.length === 4) return buildFactory(db, parts[3]) as T;
   if (method === "PATCH" && parts[0] === "api" && parts[2] === "factories" && parts.length === 4) {
     return updateFactory(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "POST" && parts[2] === "factories" && parts[4] === "topics" && parts.length === 5) {
+    return createTopic(db, actorId, parts[3], body as never) as T;
+  }
+  if (method === "PATCH" && parts[2] === "topics" && parts.length === 4) {
+    return updateTopic(db, actorId, parts[3], body as never) as T;
   }
   if (method === "POST" && parts[2] === "factories" && parts[4] === "phases" && parts.length === 5) {
     return createPhase(db, actorId, parts[3], body as never) as T;

@@ -162,6 +162,47 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/factories/{factoryId}/topics:
+    post:
+      tags: [factories]
+      summary: Add a discussion topic for one factory
+      operationId: createTopic
+      parameters:
+        - $ref: "#/components/parameters/factoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TopicWrite" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/topics/{topicId}:
+    patch:
+      tags: [factories]
+      summary: Edit a factory discussion topic
+      operationId: updateTopic
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TopicWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+        "404":
+          $ref: "#/components/responses/Error"
   /api/v1/factories/{factoryId}:
     get:
       tags: [factories]
@@ -810,9 +851,40 @@ components:
         technology: { type: string }
         missingPlans: { type: integer }
         outsideWindows: { type: integer }
+        openTopics: { type: integer, description: Topics still OPEN or IN_DISCUSSION }
+        pmContact: { $ref: "#/components/schemas/PmContact" }
+    PmContact:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name: { type: string, description: 廠區 PM 聯繫人姓名 }
+        email: { type: string, format: email }
+        phone: { type: string, description: Phone or extension }
+    TopicStatus:
+      type: string
+      enum: [OPEN, IN_DISCUSSION, RESOLVED, CLOSED]
+    Topic:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        ownerId: { type: string }
+        ownerName: { type: string }
+        status: { $ref: "#/components/schemas/TopicStatus" }
+        raisedOn: { type: string, format: date }
+    TopicWrite:
+      type: object
+      required: [title, description, ownerId, status, raisedOn]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        ownerId: { type: string }
+        status: { $ref: "#/components/schemas/TopicStatus" }
+        raisedOn: { type: string, format: date }
     FactoryWrite:
       type: object
-      required: [code, name, location, description, category, region, technology, pmId, plannedStart, status]
+      required: [code, name, location, description, category, region, technology, pmId, pmContact, plannedStart, status]
       properties:
         code: { type: string }
         name: { type: string }
@@ -822,6 +894,7 @@ components:
         region: { type: string, description: Enumeration code in factoryRegion }
         technology: { type: string, description: Enumeration code in technologyNode }
         pmId: { type: string }
+        pmContact: { $ref: "#/components/schemas/PmContact" }
         plannedStart: { type: string, format: date }
         status: { $ref: "#/components/schemas/FactoryStatus" }
     PhaseWrite:

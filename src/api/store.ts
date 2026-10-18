@@ -13,11 +13,14 @@ import type {
   IssueStatus,
   PhaseLinkRelation,
   PhaseStatus,
+  PmContact,
+  TopicStatus,
 } from "@/domain/types";
+import { TOPIC_STATUSES } from "@/domain/types";
 import { buildSeed } from "@/mocks/fixtures";
 import { ApiError } from "./errors";
 
-const DB_KEY = "fpm-db-v2";
+const DB_KEY = "fpm-db-v3";
 let memory: Database | null = null;
 
 export function getDb(): Database {
@@ -27,7 +30,9 @@ export function getDb(): Database {
       if (raw) {
         try {
           const parsed = JSON.parse(raw) as Database;
-          if (Array.isArray(parsed.machineTypes) && Array.isArray(parsed.machineQuantities)) memory = parsed;
+          if (Array.isArray(parsed.machineTypes) && Array.isArray(parsed.machineQuantities) && Array.isArray(parsed.topics) && parsed.factories.every((factory) => Boolean(factory.pmContact?.name))) {
+            memory = parsed;
+          }
         } catch {
           memory = null;
         }
@@ -93,6 +98,7 @@ export interface FactoryInput {
   region: string;
   technology: string;
   pmId: string;
+  pmContact: PmContact;
   plannedStart: string;
   status: FactoryStatus;
 }
@@ -106,6 +112,7 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
   assertEnum(db, "factoryRegion", input.region);
   assertEnum(db, "technologyNode", input.technology);
   if (!db.users.some((user) => user.id === input.pmId)) throw new ApiError("找不到 PM", 400);
+  const pmContact = requireContact(input.pmContact);
   const start = requireDate(input.plannedStart, "計畫開始");
   const id = nextId(db, "fac");
   let cursor = start;
@@ -143,6 +150,7 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
     region: input.region,
     technology: input.technology,
     pmId: input.pmId,
+    pmContact,
     plannedStart: start,
     plannedEnd: end,
     actualStart: null,
@@ -172,6 +180,7 @@ export function updateFactory(db: Database, actorId: string, id: string, input: 
   factory.region = input.region;
   factory.technology = input.technology;
   factory.pmId = input.pmId;
+  factory.pmContact = requireContact(input.pmContact);
   factory.plannedStart = requireDate(input.plannedStart, "計畫開始");
   factory.plannedEnd = requireDate(input.plannedEnd, "計畫結束");
   factory.status = input.status;
@@ -182,6 +191,62 @@ export function updateFactory(db: Database, actorId: string, id: string, input: 
   }
   persist();
   return { id };
+}
+
+export interface TopicInput {
+  title: string;
+  description: string;
+  ownerId: string;
+  status: TopicStatus;
+  raisedOn: string;
+}
+
+export function createTopic(db: Database, actorId: string, factoryId: string, input: TopicInput) {
+  const user = actor(db, actorId);
+  const factory = must(db.factories, factoryId, "找不到這座工廠");
+  const topic = normalizeTopic(db, input);
+  const id = nextId(db, "tp");
+  db.topics.push({ id, factoryId, ...topic });
+  log(db, actorId, "TOPIC", id, "CREATE", `${user.name}在${factory.name}新增例外事項「${topic.title}」。`);
+  persist();
+  return { id, factoryId };
+}
+
+export function updateTopic(db: Database, actorId: string, id: string, input: TopicInput) {
+  const user = actor(db, actorId);
+  const topic = must(db.topics, id, "找不到這筆例外事項");
+  const next = normalizeTopic(db, input);
+  topic.title = next.title;
+  topic.description = next.description;
+  topic.ownerId = next.ownerId;
+  topic.status = next.status;
+  topic.raisedOn = next.raisedOn;
+  log(db, actorId, "TOPIC", id, "UPDATE", `${user.name}更新例外事項「${topic.title}」。`);
+  persist();
+  return { id, factoryId: topic.factoryId };
+}
+
+function requireContact(input: PmContact | undefined): PmContact {
+  const name = input?.name?.trim() ?? "";
+  const email = input?.email?.trim() ?? "";
+  const phone = input?.phone?.trim() ?? "";
+  if (!name || !email || !phone) throw new ApiError("請填廠區 PM 姓名、信箱與電話", 400);
+  if (!email.includes("@")) throw new ApiError("PM 信箱格式不正確", 400);
+  return { name, email, phone };
+}
+
+function normalizeTopic(db: Database, input: TopicInput) {
+  const title = input.title.trim();
+  if (!title) throw new ApiError("請填例外事項標題", 400);
+  if (!db.users.some((user) => user.id === input.ownerId)) throw new ApiError("找不到負責人", 400);
+  if (!TOPIC_STATUSES.includes(input.status)) throw new ApiError("例外事項狀態不正確", 400);
+  return {
+    title,
+    description: input.description.trim(),
+    ownerId: input.ownerId,
+    status: input.status,
+    raisedOn: requireDate(input.raisedOn, "提出日期"),
+  };
 }
 
 export interface PhaseInput {

@@ -96,6 +96,7 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
     technologyLabel: enumLabel(db, "technologyNode", factory.technology),
     pmId: factory.pmId,
     pmName: nameOf(db, factory.pmId),
+    pmContact: factory.pmContact,
     plannedStart: factory.plannedStart,
     plannedEnd: factory.plannedEnd,
     actualStart: factory.actualStart,
@@ -184,6 +185,18 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
       }),
     handoffs: db.handoffs.filter((handoff) => handoff.factoryId === id).map((handoff) => handoffItem(db, handoff)),
     issues: db.issues.filter((issue) => issue.factoryId === id).map((issue) => issueItem(db, issue)),
+    topics: db.topics
+      .filter((topic) => topic.factoryId === id)
+      .sort((a, b) => b.raisedOn.localeCompare(a.raisedOn))
+      .map((topic) => ({
+        id: topic.id,
+        title: topic.title,
+        description: topic.description,
+        ownerId: topic.ownerId,
+        ownerName: nameOf(db, topic.ownerId),
+        status: topic.status,
+        raisedOn: topic.raisedOn,
+      })),
     activity: activityItems(db).filter((item) => relatedToFactory(db, item, id)).slice(0, 12),
     machineRollup: factoryRollup(db, id),
   };
@@ -503,11 +516,22 @@ function boardRow(db: Database, factoryId: string): FactoryBoardRow {
     technology: factory.technology,
     technologyLabel: enumLabel(db, "technologyNode", factory.technology),
     pmName: nameOf(db, factory.pmId),
+    pmContact: factory.pmContact,
+    openTopics: db.topics.filter((topic) => topic.factoryId === factoryId && (topic.status === "OPEN" || topic.status === "IN_DISCUSSION")).length,
     currentPhaseName: current?.name ?? "—",
     currentPhaseOrder: current?.order ?? 0,
     currentPhaseStatus: current?.status ?? "NOT_STARTED",
     currentOwnerName: current ? nameOf(db, current.ownerId) : "—",
-    phases: phases.map((phase) => ({ id: phase.id, name: phase.name, order: phase.order, status: phase.status })),
+    phases: phases.map((phase) => ({
+      id: phase.id,
+      name: phase.name,
+      order: phase.order,
+      status: phase.status,
+      plannedStart: phase.plannedStart,
+      plannedEnd: phase.plannedEnd,
+      actualStart: phase.actualStart,
+      actualEnd: phase.actualEnd,
+    })),
     openHandoffs: handoffs.filter((handoff) => handoff.status !== "ACCEPTED").length,
     blockers: handoffs.filter((handoff) => handoff.status === "BLOCKED").length + db.issues.filter((issue) => issue.factoryId === factoryId && (issue.status === "BLOCKED" || issue.severity === "CRITICAL") && issue.status !== "RESOLVED" && issue.status !== "CLOSED").length,
     missingPlans: missing,
@@ -866,6 +890,7 @@ function relatedToFactory(db: Database, item: ActivityItem, factoryId: string): 
   }
   if (item.entityType === "HANDOFF") return db.handoffs.some((handoff) => handoff.id === item.entityId && handoff.factoryId === factoryId);
   if (item.entityType === "ISSUE") return db.issues.some((issue) => issue.id === item.entityId && issue.factoryId === factoryId);
+  if (item.entityType === "TOPIC") return db.topics.some((topic) => topic.id === item.entityId && topic.factoryId === factoryId);
   if (item.entityType === "DEPLOYMENT" || item.entityType === "FEATURE") {
     return db.deployments.some((deployment) => deployment.id === item.entityId && deployment.factoryId === factoryId);
   }

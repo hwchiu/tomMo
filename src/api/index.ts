@@ -8,6 +8,8 @@ import type {
   IssueSeverity,
   IssueStatus,
   PhaseLinkRelation,
+  PmContact,
+  TopicStatus,
   PhaseStatus,
   RequirementKind,
 } from "@/domain/types";
@@ -48,6 +50,7 @@ export const api = {
     region: string;
     technology: string;
     pmId: string;
+    pmContact: PmContact;
     plannedStart: string;
     status: FactoryStatus;
   }) => apiRequest<{ id: string }>("/api/v1/factories", { method: "POST", body }),
@@ -60,10 +63,15 @@ export const api = {
     region: string;
     technology: string;
     pmId: string;
+    pmContact: PmContact;
     plannedStart: string;
     plannedEnd: string;
     status: FactoryStatus;
   }) => apiRequest<{ id: string }>(`/api/v1/factories/${id}`, { method: "PATCH", body }),
+  createTopic: (factoryId: string, body: TopicBody) =>
+    apiRequest<{ id: string; factoryId: string }>(`/api/v1/factories/${factoryId}/topics`, { method: "POST", body }),
+  updateTopic: (id: string, body: TopicBody) =>
+    apiRequest<{ id: string; factoryId: string }>(`/api/v1/topics/${id}`, { method: "PATCH", body }),
   createPhase: (factoryId: string, body: PhaseBody) =>
     apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/phases`, { method: "POST", body }),
   updatePhase: (id: string, body: PhaseBody) => apiRequest<{ id: string }>(`/api/v1/phases/${id}`, { method: "PATCH", body }),
@@ -119,6 +127,14 @@ export const api = {
     await apiRequest("/api/v1/session/reset", { method: "POST", body: {} });
   },
 };
+
+interface TopicBody {
+  title: string;
+  description: string;
+  ownerId: string;
+  status: TopicStatus;
+  raisedOn: string;
+}
 
 interface PhaseBody {
   name: string;

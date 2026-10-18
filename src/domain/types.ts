@@ -76,6 +76,15 @@ export interface PhaseTemplate {
   defaultDurationDays: number;
 }
 
+export interface PmContact {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export const TOPIC_STATUSES = ["OPEN", "IN_DISCUSSION", "RESOLVED", "CLOSED"] as const;
+export type TopicStatus = (typeof TOPIC_STATUSES)[number];
+
 export interface Factory {
   id: string;
   code: string;
@@ -86,11 +95,22 @@ export interface Factory {
   region: string;
   technology: string;
   pmId: string;
+  pmContact: PmContact;
   plannedStart: string;
   plannedEnd: string;
   actualStart: string | null;
   actualEnd: string | null;
   status: FactoryStatus;
+}
+
+export interface DiscussionTopic {
+  id: string;
+  factoryId: string;
+  title: string;
+  description: string;
+  ownerId: string;
+  status: TopicStatus;
+  raisedOn: string;
 }
 
 export interface Phase {
@@ -300,6 +320,7 @@ export type ActivityEntity =
   | "MILESTONE"
   | "HANDOFF"
   | "ISSUE"
+  | "TOPIC"
   | "DEPLOYMENT"
   | "FEATURE"
   | "PLAN"
@@ -340,5 +361,6 @@ export interface Database {
   handoffs: Handoff[];
   requirements: HandoffRequirement[];
   issues: Issue[];
+  topics: DiscussionTopic[];
   activity: Activity[];
 }

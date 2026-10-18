@@ -9,6 +9,7 @@ import type {
   PhaseStatus,
   PlanStatus,
   RevisionAction,
+  TopicStatus,
 } from "./types";
 import type { ReadinessFlag } from "./readiness";
 import type { WindowReason, WindowState } from "./windows";
@@ -61,6 +62,13 @@ export const severityLabel: Record<IssueSeverity, string> = {
   MEDIUM: "中",
   HIGH: "高",
   CRITICAL: "嚴重",
+};
+
+export const topicStatusLabel: Record<TopicStatus, string> = {
+  OPEN: "待討論",
+  IN_DISCUSSION: "討論中",
+  RESOLVED: "已決議",
+  CLOSED: "已結案",
 };
 
 export const issueStatusLabel: Record<IssueStatus, string> = {

@@ -8,7 +8,9 @@ import type { FactoryBoardRow } from "@/api/types";
 import { inFactoryScope, type GroupKey } from "@/domain/select";
 import { useApp } from "@/components/shell";
 import { MetaChip, StatusChip } from "@/components/status-chip";
+import { PortfolioTimeline } from "@/components/timeline";
 import { AsyncView, EmptyState, PageHeader, Panel, Skeleton, TextLink } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { withQuery } from "@/lib/search";
 import { useLiveQuery } from "@/lib/use-live-query";
 
@@ -114,6 +116,13 @@ function PortfolioBody({
         description="例外先看。工廠依類別、區域、製程節點篩選；平台建立的未提報計畫與超出時程會排進同一條佇列。施工窗彼此重疊不算衝突。"
         actions={<TextLink href="/platform-build">打開平台建立矩陣</TextLink>}
       />
+      <Panel className="mb-4 p-4">
+        <h2 className="mb-1 text-lg font-semibold">全廠時程</h2>
+        <p className="mb-3 text-sm text-muted">
+          全部 {data.factories.length} 座工廠，一列一座。橫軸是月份。色塊是各階段的計畫區間，紅色代表延遲。紅線是今天（{data.asOf}）。列上的數字是還在討論的例外事項。
+        </p>
+        <PortfolioTimeline asOf={data.asOf} factories={data.factories} />
+      </Panel>
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="工廠總數" value={scoped.length} hint="套用類別／區域／節點" pressed={!status} onClick={() => push({ status: "" })} />
         <Stat label="進度正常" value={scoped.filter((factory) => factory.status === "ON_TRACK").length} pressed={status === "ON_TRACK"} onClick={() => push({ status: status === "ON_TRACK" ? "" : "ON_TRACK" })} />
@@ -196,9 +205,11 @@ function PortfolioBody({
                           <MetaChip>{factory.location}</MetaChip>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-muted">
-                        <div>PM {factory.pmName}</div>
-                        <div>階段負責人 {factory.currentOwnerName}</div>
+                      <div className="text-right text-sm">
+                        <div className="text-xs text-muted">廠區 PM</div>
+                        <div className="font-medium">{factory.pmContact.name}</div>
+                        <div className="text-xs text-muted">{factory.pmContact.phone}</div>
+                        <div className={cn("text-xs", factory.openTopics ? "font-semibold text-rose-700" : "text-muted")}>例外 {factory.openTopics}</div>
                       </div>
                     </div>
                     <div className="mt-3 text-sm">

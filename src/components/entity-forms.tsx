@@ -40,6 +40,11 @@ export function FactoryForm({ id }: { id?: string }) {
                   region: String(form.get("region") ?? ""),
                   technology: String(form.get("technology") ?? ""),
                   pmId: String(form.get("pmId") ?? ""),
+                  pmContact: {
+                    name: String(form.get("pmContactName") ?? ""),
+                    email: String(form.get("pmContactEmail") ?? ""),
+                    phone: String(form.get("pmContactPhone") ?? ""),
+                  },
                   plannedStart: String(form.get("plannedStart") ?? ""),
                   plannedEnd: String(form.get("plannedEnd") ?? data?.plannedEnd ?? ""),
                   status: String(form.get("status") ?? "ON_TRACK") as FactoryStatus,
@@ -57,11 +62,14 @@ export function FactoryForm({ id }: { id?: string }) {
               <EnumSelect name="category" label="類別 Category" set="factoryCategory" value={data?.category} />
               <EnumSelect name="region" label="區域 Region" set="factoryRegion" value={data?.region} />
               <EnumSelect name="technology" label="製程節點" set="technologyNode" value={data?.technology} />
-              <Field label="PM">
+              <Field label="系統帳號">
                 <select name="pmId" className={controlClass} defaultValue={data?.pmId ?? app.currentUser.id}>
                   {app.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                 </select>
               </Field>
+              <Field label="廠區 PM 姓名"><input name="pmContactName" defaultValue={data?.pmContact.name ?? ""} className={controlClass} required /></Field>
+              <Field label="廠區 PM 信箱"><input name="pmContactEmail" type="email" defaultValue={data?.pmContact.email ?? ""} className={controlClass} required /></Field>
+              <Field label="廠區 PM 電話／分機"><input name="pmContactPhone" defaultValue={data?.pmContact.phone ?? ""} className={controlClass} required /></Field>
               <Field label="狀態">
                 <select name="status" className={controlClass} defaultValue={data?.status ?? "ON_TRACK"}>
                   {Object.entries(factoryStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

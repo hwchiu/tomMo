@@ -142,6 +142,7 @@ export function buildSeed(): Database {
     handoffs: [],
     requirements: [],
     issues: [],
+    topics: [],
     activity: [],
   };
 
@@ -201,6 +202,7 @@ export function buildSeed(): Database {
     region: "HQ",
     technology: "N3",
     pmId: "u_lin",
+    pmContact: { name: "林品均", email: "lin.pinjun@example.com", phone: "分機 2101" },
     status: "ON_TRACK",
     phases: [
       { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2026-03-02", plannedEnd: "2026-06-15", actualStart: "2026-03-04", actualEnd: "2026-06-12", status: "COMPLETED" },
@@ -219,6 +221,7 @@ export function buildSeed(): Database {
     region: "HQ",
     technology: "N3",
     pmId: "u_chen",
+    pmContact: { name: "陳浩宇", email: "chen.haoyu@example.com", phone: "分機 3208" },
     status: "AT_RISK",
     phases: [
       { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2026-04-01", plannedEnd: "2026-06-30", actualStart: "2026-04-06", actualEnd: "2026-07-08", status: "COMPLETED" },
@@ -237,6 +240,7 @@ export function buildSeed(): Database {
     region: "HQ",
     technology: "N2",
     pmId: "u_huang",
+    pmContact: { name: "黃詩涵", email: "huang.shihan@example.com", phone: "分機 4502" },
     status: "DELAYED",
     phases: [
       { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2026-01-06", plannedEnd: "2026-03-31", actualStart: "2026-01-10", actualEnd: "2026-04-28", status: "COMPLETED" },
@@ -255,6 +259,7 @@ export function buildSeed(): Database {
     region: "HQ",
     technology: "N2",
     pmId: "u_huang",
+    pmContact: { name: "黃詩涵", email: "huang.shihan@example.com", phone: "分機 4608" },
     status: "ON_TRACK",
     phases: [
       { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2026-01-15", plannedEnd: "2026-03-31", actualStart: "2026-01-15", actualEnd: "2026-03-28", status: "COMPLETED" },
@@ -273,6 +278,7 @@ export function buildSeed(): Database {
     region: "OVERSEA",
     technology: "N3",
     pmId: "u_lin",
+    pmContact: { name: "林品均", email: "lin.pinjun@example.com", phone: "分機 5103" },
     status: "AT_RISK",
     phases: [
       { name: "硬體導入 Hardware Onboarding", owner: "u_chou", plannedStart: "2026-08-01", plannedEnd: "2026-11-14", actualStart: "2026-08-20", actualEnd: null, status: "AT_RISK", riskNote: "海運機櫃到港不穩。" },
@@ -358,6 +364,7 @@ export function buildSeed(): Database {
   addMilestones(db);
   addHandoffs(db);
   addIssues(db);
+  addTopics(db);
   addActivity(db);
   return db;
 }
@@ -374,6 +381,7 @@ function addFactory(
     region: string;
     technology: string;
     pmId: string;
+    pmContact: { name: string; email: string; phone: string };
     status: Database["factories"][number]["status"];
     phases: PhaseSpec[];
   },
@@ -390,6 +398,7 @@ function addFactory(
     region: input.region,
     technology: input.technology,
     pmId: input.pmId,
+    pmContact: input.pmContact,
     plannedStart: first.plannedStart,
     plannedEnd: last.plannedEnd,
     actualStart: first.actualStart,
@@ -637,6 +646,56 @@ function req(
   description: string,
 ): Database["requirements"][number] {
   return { id, handoffId, kind, platformId, minVersion, featureId, description };
+}
+
+function addTopics(db: Database) {
+  db.topics.push(
+    {
+      id: "tp_hsc_power",
+      factoryId: "f_hsc",
+      title: "高壓電契約容量不足",
+      description: "平台建立期間運算與儲存同時上架，契約容量可能不夠。需要廠務確認是否加約。",
+      ownerId: "u_lin",
+      status: "OPEN",
+      raisedOn: "2026-09-28",
+    },
+    {
+      id: "tp_khh_water",
+      factoryId: "f_khh",
+      title: "純水系統延後",
+      description: "純水預計晚於平台建立結束，影響冷卻與機台進場，要決定是否調整施工窗。",
+      ownerId: "u_huang",
+      status: "IN_DISCUSSION",
+      raisedOn: "2026-08-12",
+    },
+    {
+      id: "tp_khh_dock",
+      factoryId: "f_khh",
+      title: "機櫃進場動線衝突",
+      description: "廠務施工與機櫃進場共用同一卸貨區，需要排開時段。",
+      ownerId: "u_chen",
+      status: "OPEN",
+      raisedOn: "2026-10-02",
+    },
+    {
+      id: "tp_txg_badge",
+      factoryId: "f_txg",
+      title: "開發者進駐門禁未核可",
+      description: "開發者名單已交，廠區門禁系統還沒開通帳號。",
+      ownerId: "u_chen",
+      status: "OPEN",
+      raisedOn: "2026-10-05",
+    },
+    {
+      id: "tp_kum_land",
+      factoryId: "f_kum",
+      title: "土地使用分區確認",
+      description: "海外廠區分區證明還在法務，可能影響硬體導入開工。",
+      ownerId: "u_lin",
+      status: "IN_DISCUSSION",
+      raisedOn: "2026-07-20",
+    },
+  );
 }
 
 function addIssues(db: Database) {

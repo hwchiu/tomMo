@@ -150,7 +150,8 @@ func TestAuthAndMachineTotals(t *testing.T) {
 		t.Fatalf("product-build machine total missing: %+v", matrix.Rows)
 	}
 
-	planRec := do(srv, http.MethodGet, "/api/v1/factories/f_hsc/products/plt_compute/plan", viewerCookie, nil)
+	ref := demoRefOf(t, srv, adminCookie)
+	planRec := do(srv, http.MethodGet, "/api/v1/factories/"+ref.hsc+"/products/"+ref.compute+"/plan", viewerCookie, nil)
 	if planRec.Code != 200 {
 		t.Fatalf("viewer plan %d %s", planRec.Code, planRec.Body.String())
 	}
@@ -161,7 +162,7 @@ func TestAuthAndMachineTotals(t *testing.T) {
 	if plan.CanEdit || plan.CanApprove || plan.AccessNote != "使用者只能閱讀。" {
 		t.Fatalf("viewer plan access %+v", plan.AccessNote)
 	}
-	editorPlan := do(srv, http.MethodGet, "/api/v1/factories/f_hsc/products/plt_storage/plan", adminCookie, nil)
+	editorPlan := do(srv, http.MethodGet, "/api/v1/factories/"+ref.hsc+"/products/"+ref.storage+"/plan", adminCookie, nil)
 	if err := json.Unmarshal(editorPlan.Body.Bytes(), &plan); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +183,62 @@ func TestAuthAndMachineTotals(t *testing.T) {
 	if staticPage.Code != 200 {
 		t.Fatalf("static %d", staticPage.Code)
 	}
+}
+
+type demoRef struct {
+	hsc, compute, storage, phase, actor string
+}
+
+func demoRefOf(t *testing.T, srv *Server, cookie string) demoRef {
+	t.Helper()
+	boot := do(srv, http.MethodGet, "/api/v1/bootstrap", cookie, nil)
+	var session views.Bootstrap
+	if err := json.Unmarshal(boot.Body.Bytes(), &session); err != nil || session.Actor.ID == "" {
+		t.Fatalf("bootstrap %d %s", boot.Code, boot.Body.String())
+	}
+	list := do(srv, http.MethodGet, "/api/v1/factories", cookie, nil)
+	var factories views.FactoryList
+	if err := json.Unmarshal(list.Body.Bytes(), &factories); err != nil {
+		t.Fatal(err)
+	}
+	var hsc string
+	for _, item := range factories.Items {
+		if item.Name == "新竹一廠" {
+			hsc = item.ID
+		}
+	}
+	if hsc == "" {
+		t.Fatal("新竹一廠 missing")
+	}
+	detailRec := do(srv, http.MethodGet, "/api/v1/factories/"+hsc, cookie, nil)
+	var detail views.FactoryDetail
+	if err := json.Unmarshal(detailRec.Body.Bytes(), &detail); err != nil {
+		t.Fatal(err)
+	}
+	var phase string
+	for _, item := range detail.Phases {
+		if item.Order == 2 {
+			phase = item.ID
+		}
+	}
+	productsRec := do(srv, http.MethodGet, "/api/v1/products", cookie, nil)
+	var products views.ProductList
+	if err := json.Unmarshal(productsRec.Body.Bytes(), &products); err != nil {
+		t.Fatal(err)
+	}
+	var compute, storage string
+	for _, item := range products.Items {
+		if item.Name == "運算產品 Compute" {
+			compute = item.ID
+		}
+		if item.Name == "儲存產品 Storage" {
+			storage = item.ID
+		}
+	}
+	if phase == "" || compute == "" || storage == "" {
+		t.Fatalf("lookup phase=%s compute=%s storage=%s", phase, compute, storage)
+	}
+	return demoRef{hsc: hsc, compute: compute, storage: storage, phase: phase, actor: session.Actor.ID}
 }
 
 func TestPersonPersistsAcrossRestart(t *testing.T) {

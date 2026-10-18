@@ -69,6 +69,11 @@ export function capabilityCell(input: {
 
 let adhocSeq = 0;
 
+/** Resets override ids created while editing the in-browser mock. */
+export function resetAdhocIds(): void {
+  adhocSeq = 0;
+}
+
 export function featureOverrides(
   features: Array<{ id: string; name: string; defaultEnabled: boolean }>,
   planned: PlannedFeature[],

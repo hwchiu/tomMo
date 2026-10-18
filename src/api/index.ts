@@ -88,6 +88,7 @@ export const api = {
   updatePerson: (id: string, body: { name: string; department: string; active?: boolean }) =>
     apiRequest<{ id: string }>(`/api/v1/people/${id}`, { method: "PATCH", body }),
   login: (body: { username: string; password: string }) => apiRequest<{ ok: boolean }>("/api/v1/login", { method: "POST", body }),
+  loginConfig: () => apiRequest<{ showDemoHint: boolean }>("/api/v1/login-config"),
   logout: () => apiRequest<{ ok: boolean }>("/api/v1/logout", { method: "POST", body: {} }),
   capabilities: () => apiRequest<CapabilityMatrix>("/api/v1/capabilities"),
   deployment: (id: string) => apiRequest<DeploymentPage>(`/api/v1/deployments/${id}`),

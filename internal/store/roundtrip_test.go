@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"fpm/internal/domain"
-	"fpm/internal/seed"
+	"fpm/internal/impex"
 )
 
 func TestSeedRoundTrip(t *testing.T) {
-	orig, err := seed.Load()
+	orig, err := impex.LoadDemo()
 	if err != nil {
 		t.Fatal(err)
 	}

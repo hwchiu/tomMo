@@ -162,6 +162,9 @@ func CreateFactory(db *domain.Database, actorID string, input FactoryInput) (idB
 	if code == "" || name == "" {
 		return idBody{}, apierr.New(400, "工廠代碼與名稱必填")
 	}
+	if err := validateFactoryStatus(input.Status); err != nil {
+		return idBody{}, err
+	}
 	for _, factory := range db.Factories {
 		if factory.Code == code {
 			return idBody{}, apierr.New(400, "工廠代碼已存在")
@@ -229,6 +232,9 @@ func CreateFactory(db *domain.Database, actorID string, input FactoryInput) (idB
 }
 
 func UpdateFactory(db *domain.Database, actorID, id string, input FactoryInput) (idBody, error) {
+	if err := validateFactoryStatus(input.Status); err != nil {
+		return idBody{}, err
+	}
 	user, err := actor(db, actorID)
 	if err != nil {
 		return idBody{}, err
@@ -330,6 +336,9 @@ func CreatePhase(db *domain.Database, actorID, factoryID string, input PhaseInpu
 	if indexFactory(db, factoryID) < 0 {
 		return idBody{}, apierr.New(404, "找不到這座工廠")
 	}
+	if err := validatePhase(input); err != nil {
+		return idBody{}, err
+	}
 	if err := requirePerson(db, input.OwnerID); err != nil {
 		return idBody{}, err
 	}
@@ -373,6 +382,9 @@ func UpdatePhase(db *domain.Database, actorID, id string, input PhaseInput) (idB
 	idx := indexPhase(db, id)
 	if idx < 0 {
 		return idBody{}, apierr.New(404, "找不到這個階段")
+	}
+	if err := validatePhase(input); err != nil {
+		return idBody{}, err
 	}
 	if err := requirePerson(db, input.OwnerID); err != nil {
 		return idBody{}, err
@@ -424,6 +436,9 @@ func CreateMilestone(db *domain.Database, actorID, phaseID string, input Milesto
 	if pidx < 0 {
 		return idFactoryBody{}, apierr.New(404, "找不到這個階段")
 	}
+	if err := validateMilestoneName(input.Name); err != nil {
+		return idFactoryBody{}, err
+	}
 	if err := requirePerson(db, input.OwnerID); err != nil {
 		return idFactoryBody{}, err
 	}
@@ -452,6 +467,9 @@ func UpdateMilestone(db *domain.Database, actorID, id string, input MilestoneInp
 	idx := indexMilestone(db, id)
 	if idx < 0 {
 		return factoryIDBody{}, apierr.New(404, "找不到這個里程碑")
+	}
+	if err := validateMilestoneName(input.Name); err != nil {
+		return factoryIDBody{}, err
 	}
 	if err := requirePerson(db, input.OwnerID); err != nil {
 		return factoryIDBody{}, err
@@ -484,6 +502,8 @@ func UpdateMilestone(db *domain.Database, actorID, id string, input MilestoneInp
 			label = "完成"
 		}
 		logAct(db, actorID, "MILESTONE", id, "STATUS", fmt.Sprintf("%s把里程碑「%s」標為%s。", user.Name, milestone.Name, label))
+	} else {
+		logAct(db, actorID, "MILESTONE", id, "UPDATE", fmt.Sprintf("%s更新里程碑「%s」。", user.Name, milestone.Name))
 	}
 	return factoryIDBody{FactoryID: db.Phases[pidx].FactoryID}, nil
 }
@@ -491,6 +511,9 @@ func UpdateMilestone(db *domain.Database, actorID, id string, input MilestoneInp
 func CreateIssue(db *domain.Database, actorID string, input IssueInput) (idBody, error) {
 	user, err := actor(db, actorID)
 	if err != nil {
+		return idBody{}, err
+	}
+	if err := validateIssue(input); err != nil {
 		return idBody{}, err
 	}
 	if indexFactory(db, input.FactoryID) < 0 {
@@ -524,6 +547,12 @@ func UpdateIssue(db *domain.Database, actorID, id string, input IssueInput) (idB
 	idx := indexIssue(db, id)
 	if idx < 0 {
 		return idBody{}, apierr.New(404, "找不到這筆問題")
+	}
+	if err := validateIssue(input); err != nil {
+		return idBody{}, err
+	}
+	if indexFactory(db, input.FactoryID) < 0 {
+		return idBody{}, apierr.New(404, "找不到這座工廠")
 	}
 	if err := requirePerson(db, input.OwnerID); err != nil {
 		return idBody{}, err
@@ -565,6 +594,9 @@ func UpdateDeployment(db *domain.Database, actorID, id string, input DeploymentI
 	if idx < 0 {
 		return idBody{}, apierr.New(404, "找不到這筆部署")
 	}
+	if err := validateDeploymentStatus(input.Status); err != nil {
+		return idBody{}, err
+	}
 	if err := requirePerson(db, input.SecondaryOwnerID); err != nil {
 		return idBody{}, err
 	}
@@ -578,6 +610,32 @@ func UpdateDeployment(db *domain.Database, actorID, id string, input DeploymentI
 		input.ActualVersionID = nil
 	}
 	deployment := &db.Deployments[idx]
+	prevNotes := deployment.Notes
+	prevOwner := deployment.SecondaryOwnerID
+	prevPlannedDate := deployment.PlannedDate
+	prevDeployedAt := deployment.DeployedAt
+	linksSame := deploymentLinksMatch(db, id, input.Links)
+	plannedDate, err := optionalDate(input.PlannedDate)
+	if err != nil {
+		return idBody{}, err
+	}
+	deployedAt, err := optionalDate(input.DeployedAt)
+	if err != nil {
+		return idBody{}, err
+	}
+	for _, link := range input.Links {
+		if err := validatePhaseLink(link.Relation); err != nil {
+			return idBody{}, err
+		}
+		if indexPhase(db, link.PhaseID) < 0 {
+			return idBody{}, apierr.New(400, "找不到這個階段")
+		}
+	}
+	for _, feature := range input.Features {
+		if !featureOnProduct(db, product.ID, feature.FeatureID) {
+			return idBody{}, apierr.New(400, "找不到這個功能")
+		}
+	}
 	if input.Status != deployment.Status {
 		logAct(db, actorID, "DEPLOYMENT", id, "STATUS", fmt.Sprintf("%s把%s部署狀態改為 %s。", user.Name, product.Name, input.Status))
 	}
@@ -586,14 +644,6 @@ func UpdateDeployment(db *domain.Database, actorID, id string, input DeploymentI
 	}
 	if !ptrEqual(input.PlannedVersionID, deployment.PlannedVersionID) {
 		logAct(db, actorID, "DEPLOYMENT", id, "PLANNED_VERSION", fmt.Sprintf("%s更新%s計畫版本為 %s。", user.Name, product.Name, versionLabel(db, input.PlannedVersionID)))
-	}
-	plannedDate, err := optionalDate(input.PlannedDate)
-	if err != nil {
-		return idBody{}, err
-	}
-	deployedAt, err := optionalDate(input.DeployedAt)
-	if err != nil {
-		return idBody{}, err
 	}
 	deployment.PlannedVersionID = input.PlannedVersionID
 	deployment.ActualVersionID = input.ActualVersionID
@@ -664,12 +714,23 @@ func UpdateDeployment(db *domain.Database, actorID, id string, input DeploymentI
 			logAct(db, actorID, "FEATURE", id, "ACTUAL", fmt.Sprintf("%s填報%s／%s實際為%s。", user.Name, product.Name, featureName, label))
 		}
 	}
+	metaChanged := strings.TrimSpace(input.Notes) != prevNotes ||
+		input.SecondaryOwnerID != prevOwner ||
+		!ptrEqual(plannedDate, prevPlannedDate) ||
+		!ptrEqual(deployedAt, prevDeployedAt) ||
+		!linksSame
+	if metaChanged {
+		logAct(db, actorID, "DEPLOYMENT", id, "UPDATE", fmt.Sprintf("%s更新%s的部署資料。", user.Name, product.Name))
+	}
 	return idBody{ID: id}, nil
 }
 
 func SavePlan(db *domain.Database, actorID, factoryID, productID string, input PlanInput) (idBody, error) {
 	user, err := actor(db, actorID)
 	if err != nil {
+		return idBody{}, err
+	}
+	if err := validatePlanIntent(input.Intent); err != nil {
 		return idBody{}, err
 	}
 	pidx := indexProduct(db, productID)
@@ -915,9 +976,10 @@ func UpdateProduct(db *domain.Database, actorID, id string, input ProductInput) 
 	product.DevDepartment = strings.TrimSpace(input.DevDepartment)
 	product.ProjectDepartment = strings.TrimSpace(input.ProjectDepartment)
 	product.PrimaryOwnerID = input.PrimaryOwnerID
-	if input.Mode == "VERSIONED" || input.Mode == "FEATURE_ONLY" {
-		product.Mode = input.Mode
+	if err := validateProductMode(input.Mode); err != nil {
+		return idBody{}, err
 	}
+	product.Mode = input.Mode
 	logAct(db, actorID, "PRODUCT", id, "UPDATE", fmt.Sprintf("%s更新產品「%s」。", user.Name, product.Name))
 	return idBody{ID: id}, nil
 }
@@ -931,6 +993,9 @@ func CreateEnumeration(db *domain.Database, actorID string, input EnumerationInp
 	label := strings.TrimSpace(input.Label)
 	if code == "" || label == "" {
 		return idBody{}, apierr.New(400, "代碼與名稱必填")
+	}
+	if err := validateEnumSet(input.Set); err != nil {
+		return idBody{}, err
 	}
 	order := 1
 	for _, item := range db.Enumerations {
@@ -965,7 +1030,11 @@ func UpdateEnumeration(db *domain.Database, actorID, id string, input Enumeratio
 		return idBody{}, apierr.New(404, "找不到這個列舉")
 	}
 	item := &db.Enumerations[idx]
-	item.Label = strings.TrimSpace(input.Label)
+	label := strings.TrimSpace(input.Label)
+	if label == "" {
+		return idBody{}, apierr.New(400, "代碼與名稱必填")
+	}
+	item.Label = label
 	item.Description = strings.TrimSpace(input.Description)
 	item.Active = input.Active
 	logAct(db, actorID, "ENUM", id, "UPDATE", fmt.Sprintf("%s更新列舉「%s」。", user.Name, item.Label))
@@ -1394,6 +1463,36 @@ func filterDeps(ids []string, self string) []string {
 func nextID(db *domain.Database, prefix string) string {
 	db.Seq++
 	return fmt.Sprintf("%s_%d", prefix, db.Seq)
+}
+
+func featureOnProduct(db *domain.Database, productID, featureID string) bool {
+	for _, feature := range db.Features {
+		if feature.ID == featureID && feature.ProductID == productID {
+			return true
+		}
+	}
+	return false
+}
+
+func deploymentLinksMatch(db *domain.Database, deploymentID string, links []struct {
+	PhaseID  string `json:"phaseId"`
+	Relation string `json:"relation"`
+}) bool {
+	current := make([]domain.DeploymentPhaseLink, 0)
+	for _, link := range db.PhaseLinks {
+		if link.DeploymentID == deploymentID {
+			current = append(current, link)
+		}
+	}
+	if len(current) != len(links) {
+		return false
+	}
+	for i := range current {
+		if current[i].PhaseID != links[i].PhaseID || current[i].Relation != links[i].Relation {
+			return false
+		}
+	}
+	return true
 }
 
 func logAct(db *domain.Database, actorID, entityType, entityID, action, summary string) {

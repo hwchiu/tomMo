@@ -21,6 +21,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.2"
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -28,6 +32,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Generate demo fixture
+        run: go run ./cmd/fpmctl fixture -out src/mocks/demo.json
       - name: Build static export
         env:
           NEXT_PUBLIC_USE_MOCK: "1"
@@ -39,7 +45,8 @@ jobs:
           test -f out/login/index.html
           test -f out/admin/index.html
           test -f out/factories/index.html
-          test -f out/factories/f_hsc/index.html
+          node -e 'const d=require("./src/mocks/demo.json"); const f=d.factories.find((x)=>x.name==="新竹一廠"); if(!f) process.exit(1); require("fs").writeFileSync("/tmp/fid", f.id)'
+          test -f "out/factories/$(cat /tmp/fid)/index.html"
           test -f out/product-build/index.html
           test -f out/capabilities/index.html
           test -f out/issues/index.html

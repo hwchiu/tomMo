@@ -23,7 +23,7 @@ import { TOPIC_STATUSES } from "@/domain/types";
 import { buildSeed } from "@/mocks/fixtures";
 import { ApiError } from "./errors";
 
-const DB_KEY = "fpm-db-v5";
+const DB_KEY = "fpm-db-v6";
 let memory: Database | null = null;
 
 export function getDb(): Database {

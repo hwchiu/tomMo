@@ -37,6 +37,8 @@ spec:
               value: admin
             - name: VIEWER_USERNAME
               value: viewer
+            - name: SEED_MODE
+              value: none
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:

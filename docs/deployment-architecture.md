@@ -33,7 +33,7 @@ mock 開啟時，編輯存在這個瀏覽器。mock 關閉時，同一個 `src/a
 - 驅動是 `modernc.org/sqlite`（純 Go，`CGO_ENABLED=0`）。
 - 開啟時設定 **WAL**（`journal_mode=WAL`）與 `busy_timeout`。同一個目錄會出現 `app.db-wal` 與 `app.db-shm`，三個檔都留在這顆 PV 上。
 - 連線數維持 1。SQLite 這份檔同時只給一個寫入行程。
-- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫會灌入展示 seed，再建立本機帳號。
+- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫依 `SEED_MODE` 決定內容：`demo` 用與 `fpmctl import` 相同的程式讀取嵌入的 `data/demo/*.csv`；`none` 只留下列舉、四個階段模板，以及人員「系統管理員」。已有資料的 `app.db` 不會被覆蓋。
 - 機台總數不另存一欄。各部署只存機種的計畫數量，工廠總數是那些列的加總。
 
 ## 備份
@@ -65,8 +65,9 @@ distroless 執行映像裡沒有 shell，也沒有 `sqlite3`。備份用上面�
 | `SESSION_SECRET` | session cookie 的 HMAC 金鑰 | `dev-session-secret`（正式環境要改） |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 編輯者帳號 | `admin` / `admin` |
 | `VIEWER_USERNAME` / `VIEWER_PASSWORD` | 使用者帳號 | `viewer` / `viewer` |
+| `SEED_MODE` | 空資料庫要灌 `demo` 或留 `none`。正式 manifest 是 `none`。行程未設定時是 `demo`，方便本機 `go run`。 | 行程 `demo`，Kubernetes `none` |
 
-帳號對到人員目錄：編輯者是林品均（`u_lin`），使用者是陳浩宇（`u_chen`）。密碼以 bcrypt 存在 `accounts`。啟動時若環境變數的密碼與現有 hash 不同，會更新 hash。
+帳號用姓名對到人員目錄，不記固定 id。`SEED_MODE=demo` 時編輯者是林品均、使用者是陳浩宇。`SEED_MODE=none` 只建立編輯者，對到「系統管理員」，不建立 viewer 帳號。密碼以 bcrypt 存在 `accounts`。啟動時若環境變數的密碼與現有 hash 不同，會更新 hash。人員名稱還在時，每次啟動會依目前的 `SEED_MODE` 重新對上；名稱不在目錄裡時，既有帳號維持原來的人員。
 
 Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-Forwarded-Proto: https` 時加 Secure。編輯者可寫入；使用者的非 GET API 回 `403 {"message":"使用者只能閱讀"}`。未登入回 `401 {"message":"請先登入"}`。
 
@@ -77,12 +78,21 @@ Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-For
 多階段映像在儲存庫根目錄的 `Dockerfile`：node 產出靜態檔，Go 以 `CGO_ENABLED=0` 編成單一 binary，最後放進 distroless。
 
 ```dockerfile
+# Demo JSON is generated from data/demo/*.csv by the same importer the server uses.
+FROM golang:1.22-bookworm AS fixture
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go run ./cmd/fpmctl fixture -out /tmp/demo.json
+
 # Frontend static export. NEXT_PUBLIC_* is inlined at build time.
 FROM node:22-bookworm AS web
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+COPY --from=fixture /tmp/demo.json ./src/mocks/demo.json
 ENV NEXT_PUBLIC_USE_MOCK=0
 ENV NEXT_PUBLIC_BASE_PATH=
 RUN npm run build

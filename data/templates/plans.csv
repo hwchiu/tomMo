@@ -1,0 +1,2 @@
+factory,product,status,version,actual_version,deployment_status,secondary,construction_start,construction_end,note,feature_changes,adhoc,planned_date,deployed_at
+新竹一廠,運算產品 Compute,SUBMITTED,2.3.0,,IN_PROGRESS,張承恩,2026-07-01,2026-10-31,模板：2.3 提前打開液冷。,液冷支援=on@提前試點,夜班進場@與廠務卸貨窗錯開,2026-10-15,

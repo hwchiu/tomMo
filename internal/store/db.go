@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"fpm/internal/apierr"
 	"fpm/internal/domain"
-	"fpm/internal/seed"
+	"fpm/internal/impex"
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
@@ -22,21 +23,41 @@ var schemaSQL string
 
 // Store keeps the relational SQLite database and an in-memory copy of the domain model.
 type Store struct {
-	sql *sql.DB
-	mu  chan struct{}
-	db  domain.Database
+	sql      *sql.DB
+	mu       chan struct{}
+	db       domain.Database
+	seedMode string
 }
 
+const (
+	// SeedDemo loads data/demo through the shared importer when the database is empty.
+	SeedDemo = "demo"
+	// SeedNone leaves an empty database with the admin person only.
+	SeedNone = "none"
+)
+
 // AccountConfig is applied on startup. A changed password rewrites the bcrypt hash.
+// AdminPerson and ViewerPerson are directory names. An empty ViewerPerson skips the viewer account.
 type AccountConfig struct {
 	AdminUsername  string
 	AdminPassword  string
+	AdminPerson    string
 	ViewerUsername string
 	ViewerPassword string
+	ViewerPerson   string
 	BcryptCost     int
 }
 
+// Open loads a demo database. Tests and local startup use this.
 func Open(dataDir string) (*Store, error) {
+	return OpenWith(dataDir, SeedDemo)
+}
+
+// OpenWith loads demo CSV or an empty catalog when meta is empty. An existing database is left as-is.
+func OpenWith(dataDir, mode string) (*Store, error) {
+	if mode != SeedDemo && mode != SeedNone {
+		return nil, fmt.Errorf("SEED_MODE 必須是 none 或 demo")
+	}
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, err
 	}
@@ -46,7 +67,7 @@ func Open(dataDir string) (*Store, error) {
 		return nil, err
 	}
 	sqlDB.SetMaxOpenConns(1)
-	s := &Store{sql: sqlDB, mu: make(chan struct{}, 1)}
+	s := &Store{sql: sqlDB, mu: make(chan struct{}, 1), seedMode: mode}
 	s.mu <- struct{}{}
 	if err := s.migrate(); err != nil {
 		_ = sqlDB.Close()
@@ -58,13 +79,18 @@ func Open(dataDir string) (*Store, error) {
 		return nil, err
 	}
 	if n == 0 {
-		db, err := seed.Load()
-		if err != nil {
-			_ = sqlDB.Close()
-			return nil, err
+		var db domain.Database
+		if mode == SeedNone {
+			db = impex.LoadEmpty()
+		} else {
+			db, err = impex.LoadDemo()
+			if err != nil {
+				_ = sqlDB.Close()
+				return nil, err
+			}
 		}
 		s.db = db
-		if err := s.persist(); err != nil {
+		if err := s.persist(context.Background()); err != nil {
 			_ = sqlDB.Close()
 			return nil, err
 		}
@@ -84,25 +110,47 @@ func (s *Store) lock()   { <-s.mu }
 func (s *Store) unlock() { s.mu <- struct{}{} }
 
 func (s *Store) Read(fn func(*domain.Database) error) error {
+	return s.ReadContext(context.Background(), fn)
+}
+
+// ReadContext runs fn while the caller holds the store lock. It returns ctx.Err when the request is already done.
+func (s *Store) ReadContext(ctx context.Context, fn func(*domain.Database) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.lock()
 	defer s.unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return fn(&s.db)
 }
 
-// Write runs fn against the in-memory model and, on success, rewrites the relational tables.
+// Write runs fn against the in-memory model and, on success, rewrites the relational tables in one transaction.
 // A failed fn or a failed commit restores the previous memory snapshot.
 func (s *Store) Write(fn func(*domain.Database) error) error {
+	return s.WriteContext(context.Background(), fn)
+}
+
+// WriteContext is Write bound to a request context. The multi-row rewrite commits or rolls back together.
+func (s *Store) WriteContext(ctx context.Context, fn func(*domain.Database) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.lock()
 	defer s.unlock()
 	snap, err := json.Marshal(s.db)
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := fn(&s.db); err != nil {
 		s.restore(snap)
 		return err
 	}
-	if err := s.persist(); err != nil {
+	if err := s.persist(ctx); err != nil {
 		s.restore(snap)
 		return err
 	}
@@ -120,14 +168,33 @@ func (s *Store) restore(snap []byte) {
 
 // Reset replaces domain rows with the embedded seed and leaves accounts in place.
 func (s *Store) Reset() error {
+	return s.ResetContext(context.Background())
+}
+
+// ResetContext is Reset bound to a request context. The rewrite commits or rolls back together.
+func (s *Store) ResetContext(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.seedMode == SeedNone {
+		return apierr.New(400, "這個環境沒有示範資料可重設")
+	}
 	s.lock()
 	defer s.unlock()
-	db, err := seed.Load()
+	db, err := impex.LoadDemo()
+	if err != nil {
+		return err
+	}
+	snap, err := json.Marshal(s.db)
 	if err != nil {
 		return err
 	}
 	s.db = db
-	return s.persist()
+	if err := s.persist(ctx); err != nil {
+		s.restore(snap)
+		return err
+	}
+	return nil
 }
 
 // FactoryMachineSum is the SQL sum of machine_quantities for one factory.
@@ -158,17 +225,24 @@ func (s *Store) EnsureAccounts(cfg AccountConfig) error {
 	if cost == 0 {
 		cost = bcrypt.DefaultCost
 	}
-	if err := s.ensureAccount(cfg.AdminUsername, cfg.AdminPassword, "editor", "u_lin", cost); err != nil {
+	if err := s.ensureAccount(cfg.AdminUsername, cfg.AdminPassword, "editor", cfg.AdminPerson, cost); err != nil {
 		return err
 	}
-	return s.ensureAccount(cfg.ViewerUsername, cfg.ViewerPassword, "viewer", "u_chen", cost)
+	if cfg.ViewerPerson == "" || cfg.ViewerUsername == "" {
+		return nil
+	}
+	return s.ensureAccount(cfg.ViewerUsername, cfg.ViewerPassword, "viewer", cfg.ViewerPerson, cost)
 }
 
-func (s *Store) ensureAccount(username, password, role, personID string, cost int) error {
+func (s *Store) ensureAccount(username, password, role, personName string, cost int) error {
+	personID, found := s.lookupPerson(personName)
 	var id, hash, curRole, curPerson string
 	err := s.sql.QueryRow(`SELECT id, password_hash, role, person_id FROM accounts WHERE username = ?`, username).
 		Scan(&id, &hash, &curRole, &curPerson)
 	if err == sql.ErrNoRows {
+		if !found {
+			return fmt.Errorf("找不到人員「%s」，無法建立帳號 %s", personName, username)
+		}
 		raw, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 		if err != nil {
 			return err
@@ -179,6 +253,9 @@ func (s *Store) ensureAccount(username, password, role, personID string, cost in
 	}
 	if err != nil {
 		return err
+	}
+	if !found {
+		personID = curPerson
 	}
 	pwOK := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 	if !pwOK {
@@ -192,6 +269,15 @@ func (s *Store) ensureAccount(username, password, role, personID string, cost in
 		_, err = s.sql.Exec(`UPDATE accounts SET password_hash = ?, role = ?, person_id = ? WHERE id = ?`, hash, role, personID, id)
 	}
 	return err
+}
+
+func (s *Store) lookupPerson(name string) (string, bool) {
+	for _, person := range s.db.People {
+		if person.Name == name {
+			return person.ID, true
+		}
+	}
+	return "", false
 }
 
 func (s *Store) migrate() error {
@@ -219,8 +305,11 @@ func (s *Store) migrate() error {
 	return tx.Commit()
 }
 
-func (s *Store) persist() error {
-	tx, err := s.sql.Begin()
+func (s *Store) persist(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	tx, err := s.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

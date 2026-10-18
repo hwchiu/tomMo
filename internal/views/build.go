@@ -2,6 +2,7 @@ package views
 
 import (
 	"sort"
+	"strings"
 
 	"fpm/internal/apierr"
 	"fpm/internal/domain"
@@ -231,16 +232,32 @@ func BuildFactory(db *domain.Database, id string) (FactoryDetail, error) {
 	return detail, nil
 }
 
-func BuildIssues(db *domain.Database) (IssueList, error) {
-	out := IssueList{AsOf: db.AsOf, Items: []IssueListItem{}}
+func BuildIssues(db *domain.Database, query ListQuery) (IssueList, error) {
+	matched := []IssueListItem{}
 	for _, issue := range db.Issues {
 		item, err := issueItem(db, issue)
 		if err != nil {
 			return IssueList{}, err
 		}
-		out.Items = append(out.Items, item)
+		if query.FactoryID != "" && item.FactoryID != query.FactoryID {
+			continue
+		}
+		if query.Severity != "" && item.Severity != query.Severity {
+			continue
+		}
+		if query.Status != "" && item.Status != query.Status {
+			continue
+		}
+		if query.Overdue != nil && item.Overdue != *query.Overdue {
+			continue
+		}
+		if query.Query != "" && !containsFold(item.Title+" "+item.Code, query.Query) {
+			continue
+		}
+		matched = append(matched, item)
 	}
-	return out, nil
+	items, total, limit, offset := pageSlice(matched, query.Limit, query.Offset)
+	return IssueList{AsOf: db.AsOf, Items: items, Total: total, Limit: limit, Offset: offset}, nil
 }
 
 func BuildIssue(db *domain.Database, id string) (IssuePage, error) {
@@ -663,8 +680,22 @@ func BuildDeployment(db *domain.Database, id string) (DeploymentPage, error) {
 	return page, nil
 }
 
-func BuildActivity(db *domain.Database) ActivityList {
-	return ActivityList{AsOf: db.AsOf, Items: activityItems(db)}
+func BuildActivity(db *domain.Database, query ListQuery) ActivityList {
+	matched := []ActivityItem{}
+	for _, item := range activityItems(db) {
+		if query.EntityType != "" && item.EntityType != query.EntityType {
+			continue
+		}
+		if query.FactoryID != "" && !relatedToFactory(db, item, query.FactoryID) {
+			continue
+		}
+		if query.Query != "" && !containsFold(item.Summary, query.Query) {
+			continue
+		}
+		matched = append(matched, item)
+	}
+	items, total, limit, offset := pageSlice(matched, query.Limit, query.Offset)
+	return ActivityList{AsOf: db.AsOf, Items: items, Total: total, Limit: limit, Offset: offset}
 }
 
 func BuildFactories(db *domain.Database) (FactoryList, error) {
@@ -679,8 +710,23 @@ func BuildFactories(db *domain.Database) (FactoryList, error) {
 	return out, nil
 }
 
-func BuildPeople(db *domain.Database) PeopleList {
-	return PeopleList{Items: clonePeople(db.People)}
+func BuildPeople(db *domain.Database, query ListQuery) PeopleList {
+	matched := []domain.Person{}
+	for _, person := range db.People {
+		if query.Active != nil && person.Active != *query.Active {
+			continue
+		}
+		if query.Query != "" && !containsFold(person.Name+" "+person.Department, query.Query) {
+			continue
+		}
+		matched = append(matched, person)
+	}
+	items, total, limit, offset := pageSlice(matched, query.Limit, query.Offset)
+	return PeopleList{Items: items, Total: total, Limit: limit, Offset: offset}
+}
+
+func containsFold(haystack, needle string) bool {
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }
 
 func boardRow(db *domain.Database, factoryID string) (FactoryBoardRow, error) {

@@ -69,6 +69,11 @@ export function capabilityCell(input: {
 
 let adhocSeq = 0;
 
+/** buildSeed calls this so generated override ids stay the same on every fresh database. */
+export function resetAdhocIds(): void {
+  adhocSeq = 0;
+}
+
 export function featureOverrides(
   features: Array<{ id: string; name: string; defaultEnabled: boolean }>,
   planned: PlannedFeature[],

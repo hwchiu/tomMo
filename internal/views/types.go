@@ -322,8 +322,11 @@ type IssuePage struct {
 }
 
 type IssueList struct {
-	AsOf  string          `json:"asOf"`
-	Items []IssueListItem `json:"items"`
+	AsOf   string          `json:"asOf"`
+	Items  []IssueListItem `json:"items"`
+	Total  int             `json:"total"`
+	Limit  int             `json:"limit"`
+	Offset int             `json:"offset"`
 }
 
 type ProductSummary struct {
@@ -554,12 +557,32 @@ type FactoryList struct {
 }
 
 type ActivityList struct {
-	AsOf  string         `json:"asOf"`
-	Items []ActivityItem `json:"items"`
+	AsOf   string         `json:"asOf"`
+	Items  []ActivityItem `json:"items"`
+	Total  int            `json:"total"`
+	Limit  int            `json:"limit"`
+	Offset int            `json:"offset"`
 }
 
 type PeopleList struct {
-	Items []domain.Person `json:"items"`
+	Items  []domain.Person `json:"items"`
+	Total  int             `json:"total"`
+	Limit  int             `json:"limit"`
+	Offset int             `json:"offset"`
+}
+
+// ListQuery pages and filters the lists that grow: issues, activity, and people.
+// Limit defaults to 200 and caps at 500 so a demo screen still receives the full seed.
+type ListQuery struct {
+	Limit      int
+	Offset     int
+	FactoryID  string
+	Severity   string
+	Status     string
+	Query      string
+	EntityType string
+	Active     *bool
+	Overdue    *bool
 }
 
 type FeatureDiff struct {

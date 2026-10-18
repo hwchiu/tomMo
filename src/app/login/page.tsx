@@ -1,13 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, useMock } from "@/api";
 import { signIn } from "@/components/shell";
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [showHint, setShowHint] = useState(useMock);
+
+  useEffect(() => {
+    if (useMock) return;
+    let alive = true;
+    void api.loginConfig().then((body) => {
+      if (alive) setShowHint(Boolean(body.showDemoHint));
+    }).catch(() => {
+      if (alive) setShowHint(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
@@ -45,9 +60,11 @@ export default function LoginPage() {
             {pending ? "登入中…" : "登入"}
           </button>
         </form>
-        <p className="mt-4 text-xs leading-5 text-muted">
-          示範帳號：admin / admin（編輯者）、viewer / viewer（使用者）。
-        </p>
+        {showHint ? (
+          <p className="mt-4 text-xs leading-5 text-muted">
+            示範帳號：admin / admin（編輯者）、viewer / viewer（使用者）。
+          </p>
+        ) : null}
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ func Open(dataDir string) (*Store, error) {
 			return nil, err
 		}
 		s.db = db
-		if err := s.persist(); err != nil {
+		if err := s.persist(context.Background()); err != nil {
 			_ = sqlDB.Close()
 			return nil, err
 		}
@@ -84,25 +84,47 @@ func (s *Store) lock()   { <-s.mu }
 func (s *Store) unlock() { s.mu <- struct{}{} }
 
 func (s *Store) Read(fn func(*domain.Database) error) error {
+	return s.ReadContext(context.Background(), fn)
+}
+
+// ReadContext runs fn while the caller holds the store lock. It returns ctx.Err when the request is already done.
+func (s *Store) ReadContext(ctx context.Context, fn func(*domain.Database) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.lock()
 	defer s.unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return fn(&s.db)
 }
 
-// Write runs fn against the in-memory model and, on success, rewrites the relational tables.
+// Write runs fn against the in-memory model and, on success, rewrites the relational tables in one transaction.
 // A failed fn or a failed commit restores the previous memory snapshot.
 func (s *Store) Write(fn func(*domain.Database) error) error {
+	return s.WriteContext(context.Background(), fn)
+}
+
+// WriteContext is Write bound to a request context. The multi-row rewrite commits or rolls back together.
+func (s *Store) WriteContext(ctx context.Context, fn func(*domain.Database) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.lock()
 	defer s.unlock()
 	snap, err := json.Marshal(s.db)
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := fn(&s.db); err != nil {
 		s.restore(snap)
 		return err
 	}
-	if err := s.persist(); err != nil {
+	if err := s.persist(ctx); err != nil {
 		s.restore(snap)
 		return err
 	}
@@ -120,14 +142,30 @@ func (s *Store) restore(snap []byte) {
 
 // Reset replaces domain rows with the embedded seed and leaves accounts in place.
 func (s *Store) Reset() error {
+	return s.ResetContext(context.Background())
+}
+
+// ResetContext is Reset bound to a request context. The rewrite commits or rolls back together.
+func (s *Store) ResetContext(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.lock()
 	defer s.unlock()
 	db, err := seed.Load()
 	if err != nil {
 		return err
 	}
+	snap, err := json.Marshal(s.db)
+	if err != nil {
+		return err
+	}
 	s.db = db
-	return s.persist()
+	if err := s.persist(ctx); err != nil {
+		s.restore(snap)
+		return err
+	}
+	return nil
 }
 
 // FactoryMachineSum is the SQL sum of machine_quantities for one factory.
@@ -219,8 +257,11 @@ func (s *Store) migrate() error {
 	return tx.Commit()
 }
 
-func (s *Store) persist() error {
-	tx, err := s.sql.Begin()
+func (s *Store) persist(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	tx, err := s.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-import { featureOverrides } from "@/domain/features";
+import { featureOverrides, resetAdhocIds } from "@/domain/features";
 import type {
   Activity,
   AdHocChange,
@@ -75,12 +75,15 @@ interface PhaseSpec {
 
 /** Fresh in-memory database. Every call returns new objects. */
 export function buildSeed(): Database {
+  resetAdhocIds();
   const db: Database = {
     seq: 1000,
     asOf: AS_OF,
     machineTypes: [
       { id: "mt_a", code: "A", name: "機種A", order: 1, active: true },
       { id: "mt_b", code: "B", name: "機種B", order: 2, active: true },
+      { id: "mt_c", code: "C", name: "機種C", order: 3, active: true },
+      { id: "mt_d", code: "D", name: "機種D", order: 4, active: true },
     ],
     machineQuantities: [],
     enumerations: [
@@ -103,6 +106,20 @@ export function buildSeed(): Database {
       { id: "u_chou", name: "周宜安", department: "海外廠務", active: true, source: "manual", externalId: null },
       { id: "u_tsai", name: "蔡明哲", department: "廠務工程", active: true, source: "manual", externalId: null },
       { id: "u_old", name: "舊同事", department: "廠務處", active: false, source: "manual", externalId: null },
+      { id: "u_hsu", name: "許家豪", department: "廠務處", active: true, source: "manual", externalId: null },
+      { id: "u_linjy", name: "林佳穎", department: "廠務工程", active: true, source: "manual", externalId: null },
+      { id: "u_kao", name: "高子軒", department: "海外廠務", active: true, source: "manual", externalId: null },
+      { id: "u_yeh", name: "葉思齊", department: "運算開發處", active: true, source: "manual", externalId: null },
+      { id: "u_pan", name: "潘柏宇", department: "儲存開發處", active: true, source: "manual", externalId: null },
+      { id: "u_hsieh", name: "謝宜真", department: "資料產品處", active: true, source: "manual", externalId: null },
+      { id: "u_lo", name: "羅安琦", department: "開發者產品處", active: true, source: "manual", externalId: null },
+      { id: "u_chien", name: "簡志遠", department: "監控產品處", active: true, source: "manual", externalId: null },
+      { id: "u_fan", name: "范詩涵", department: "產品專案一處", active: true, source: "manual", externalId: null },
+      { id: "u_ting", name: "丁承翰", department: "產品專案二處", active: true, source: "manual", externalId: null },
+      { id: "u_kuo", name: "郭品睿", department: "廠務可靠度處", active: true, source: "manual", externalId: null },
+      { id: "u_ma", name: "馬怡君", department: "網路開發處", active: true, source: "external", externalId: "emp-2048" },
+      { id: "u_sung", name: "宋柏廷", department: "安全產品處", active: true, source: "manual", externalId: null },
+      { id: "u_ho", name: "何嘉玲", department: "廠務處", active: true, source: "manual", externalId: null },
     ],
     phaseTemplates: [
       { id: "tpl_1", code: "HW", name: "硬體導入 Hardware Onboarding", description: "廠房、電力、機櫃與網路硬體到位", order: 1, defaultDurationDays: 100 },
@@ -119,6 +136,8 @@ export function buildSeed(): Database {
       { id: "plt_data", name: "資料產品 Data", description: "訓練資料血緣、特徵庫與批次追溯。只有功能開關，沒有版本。", devDepartment: "資料產品處", projectDepartment: "產品專案二處", primaryOwnerId: "u_liu", mode: "FEATURE_ONLY" },
       { id: "plt_dev", name: "開發產品 Developer", description: "映像倉庫、沙箱與 IDE 閘道。只有功能開關，沒有版本。", devDepartment: "開發者產品處", projectDepartment: "產品專案二處", primaryOwnerId: "u_wu", mode: "FEATURE_ONLY" },
       { id: "plt_mon", name: "監控產品 Monitoring", description: "告警路由、遠端診斷與 OEE。只有功能開關，沒有版本。", devDepartment: "監控產品處", projectDepartment: "廠務可靠度處", primaryOwnerId: "u_cheng", mode: "FEATURE_ONLY" },
+      { id: "plt_net", name: "網路產品 Network", description: "廠區骨幹、路由與流量調度。", devDepartment: "網路開發處", projectDepartment: "產品專案一處", primaryOwnerId: "u_ma", mode: "VERSIONED" },
+      { id: "plt_sec", name: "安全產品 Security", description: "弱點掃描、應用防火牆與帳號同步。只有功能開關，沒有版本。", devDepartment: "安全產品處", projectDepartment: "廠務可靠度處", primaryOwnerId: "u_sung", mode: "FEATURE_ONLY" },
     ],
     versions: [],
     features: [
@@ -137,6 +156,12 @@ export function buildSeed(): Database {
       { id: "ft_alert", productId: "plt_mon", code: "alert_route", name: "告警路由", description: "分級告警", defaultEnabled: true },
       { id: "ft_diag", productId: "plt_mon", code: "remote_diag", name: "遠端診斷", description: "遠端診斷通道", defaultEnabled: false },
       { id: "ft_oee", productId: "plt_mon", code: "oee_dashboard", name: "OEE 看板", description: "設備綜合效率", defaultEnabled: false },
+      { id: "ft_bgp", productId: "plt_net", code: "bgp", name: "BGP 路由", description: "廠區骨幹 BGP", defaultEnabled: true },
+      { id: "ft_qos", productId: "plt_net", code: "qos", name: "流量調度", description: "佇列與頻寬", defaultEnabled: false },
+      { id: "ft_acl", productId: "plt_net", code: "acl", name: "存取控制", description: "邊界存取清單", defaultEnabled: false },
+      { id: "ft_scan", productId: "plt_sec", code: "vuln_scan", name: "弱點掃描", description: "主機弱點掃描", defaultEnabled: true },
+      { id: "ft_waf", productId: "plt_sec", code: "waf", name: "應用防火牆", description: "入口 WAF", defaultEnabled: false },
+      { id: "ft_iam", productId: "plt_sec", code: "iam_sync", name: "帳號同步", description: "門禁與帳號同步", defaultEnabled: false },
     ],
     versionFeatures: [],
     deployments: [],
@@ -156,6 +181,8 @@ export function buildSeed(): Database {
     ver_stg_140: ["ft_nvme"],
     ver_stg_160: ["ft_nvme", "ft_snap"],
     ver_stg_170: ["ft_nvme", "ft_snap", "ft_xsite"],
+    ver_net_100: ["ft_bgp"],
+    ver_net_110: ["ft_bgp", "ft_qos"],
   };
 
   const versionRows: Array<[string, string, string, string | null, string]> = [
@@ -165,6 +192,8 @@ export function buildSeed(): Database {
     ["ver_stg_140", "plt_storage", "1.4.0", "2026-02-01", "NVMe 熱層"],
     ["ver_stg_160", "plt_storage", "1.6.0", "2026-06-20", "快照"],
     ["ver_stg_170", "plt_storage", "1.7.0", "2026-09-08", "跨廠複製"],
+    ["ver_net_100", "plt_net", "1.0.0", "2026-04-01", "廠區 BGP"],
+    ["ver_net_110", "plt_net", "1.1.0", "2026-08-18", "加入流量調度"],
   ];
   for (const [id, productId, version, releasedAt, notes] of versionRows) {
     db.versions.push({ id, productId, version, releasedAt, notes });
@@ -267,6 +296,7 @@ export function buildSeed(): Database {
       { name: "開始營運 Operations Start", owner: "u_lin", plannedStart: "2027-07-16", plannedEnd: "2027-09-01", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
     ],
   });
+  addExtraFactories(db);
 
   const dataOn = ["ft_lineage", "ft_fstore", "ft_trace"];
   const devSandbox = ["ft_reg", "ft_sand"];
@@ -349,6 +379,7 @@ export function buildSeed(): Database {
   addIssues(db);
   addTopics(db);
   addActivity(db);
+  fillGaps(db);
   return db;
 }
 
@@ -431,14 +462,18 @@ function addDeployment(db: Database, spec: DepSpec) {
     plt_data: 96,
     plt_dev: 64,
     plt_mon: 48,
+    plt_net: 72,
+    plt_sec: 36,
   };
   const total = spec.machines ?? defaults[spec.product] ?? 0;
-  const ratio = spec.factory === "f_khh" ? 0.8 : spec.factory === "f_kum" ? 0.55 : 0.65;
-  const plannedA = Math.round(total * ratio);
-  db.machineQuantities.push(
-    { id: `mq_${id}_a`, deploymentId: id, machineTypeId: "mt_a", planned: plannedA },
-    { id: `mq_${id}_b`, deploymentId: id, machineTypeId: "mt_b", planned: total - plannedA },
-  );
+  const split = splitMachines(total);
+  const typeIds = ["mt_a", "mt_b", "mt_c", "mt_d"] as const;
+  const suffixes = ["a", "b", "c", "d"] as const;
+  typeIds.forEach((typeId, index) => {
+    const planned = split[index];
+    if (planned <= 0 || !db.machineTypes.some((item) => item.id === typeId)) return;
+    db.machineQuantities.push({ id: `mq_${id}_${suffixes[index]}`, deploymentId: id, machineTypeId: typeId, planned });
+  });
   if (phase2) {
     db.phaseLinks.push({ id: `lnk_${id}_in`, deploymentId: id, phaseId: phase2.id, relation: "INTRODUCED" });
     if (spec.upgraded) {
@@ -638,4 +673,361 @@ function act(
   createdAt: string,
 ): Activity {
   return { id, entityType, entityId, action, summary, actorId, createdAt };
+}
+
+function splitMachines(total: number): [number, number, number, number] {
+  const safe = Math.max(0, Math.trunc(total));
+  const a = Math.floor((safe * 50) / 100);
+  const b = Math.floor((safe * 25) / 100);
+  const c = Math.floor((safe * 15) / 100);
+  return [a, b, c, safe - a - b - c];
+}
+
+function hash(value: string): number {
+  let h = 0;
+  for (const ch of value) h = (h * 33 + ch.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+function shiftDate(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function addExtraFactories(db: Database) {
+  const rows: Array<Parameters<typeof addFactory>[1]> = [
+    {
+      id: "f_hs2", code: "FAB-HS2", name: "新竹二廠", location: "新竹科學園區",
+      description: "Giga 廠已完成四階段，七個產品的施工計畫都已核准。",
+      category: "GIGA", region: "HQ", technology: "N3", pmId: "u_hsu", status: "COMPLETED",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2025-06-02", plannedEnd: "2025-09-15", actualStart: "2025-06-03", actualEnd: "2025-09-10", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_hsu", plannedStart: "2025-09-16", plannedEnd: "2026-03-31", actualStart: "2025-09-18", actualEnd: "2026-03-20", status: "COMPLETED" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_wu", plannedStart: "2026-04-01", plannedEnd: "2026-06-30", actualStart: "2026-04-02", actualEnd: "2026-06-18", status: "COMPLETED" },
+        { name: "開始營運 Operations Start", owner: "u_hsu", plannedStart: "2026-07-01", plannedEnd: "2026-08-15", actualStart: "2026-07-01", actualEnd: "2026-08-10", status: "COMPLETED" },
+      ],
+    },
+    {
+      id: "f_ml1", code: "FAB-ML1", name: "苗栗一廠", location: "苗栗科學園區",
+      description: "分期廠、N2。產品建立已超過計畫結束日，純水與受電仍未完成。",
+      category: "PHASE", region: "HQ", technology: "N2", pmId: "u_linjy", status: "DELAYED",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_linjy", plannedStart: "2026-01-06", plannedEnd: "2026-04-15", actualStart: "2026-01-12", actualEnd: "2026-05-02", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_linjy", plannedStart: "2026-04-16", plannedEnd: "2026-09-01", actualStart: "2026-05-20", actualEnd: null, status: "DELAYED", riskNote: "純水系統未達標，機台無法進場。" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_lo", plannedStart: "2026-09-02", plannedEnd: "2026-12-15", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+        { name: "開始營運 Operations Start", owner: "u_linjy", plannedStart: "2026-12-16", plannedEnd: "2027-02-01", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+      ],
+    },
+    {
+      id: "f_ty1", code: "FAB-TY1", name: "桃園一廠", location: "桃園航空城",
+      description: "分期廠、N3。產品建立進行中，時程仍落在計畫內。",
+      category: "PHASE", region: "HQ", technology: "N3", pmId: "u_chen", status: "ON_TRACK",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2026-05-04", plannedEnd: "2026-08-14", actualStart: "2026-05-06", actualEnd: "2026-08-10", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_chen", plannedStart: "2026-08-17", plannedEnd: "2026-12-20", actualStart: "2026-08-18", actualEnd: null, status: "IN_PROGRESS" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_lo", plannedStart: "2026-12-21", plannedEnd: "2027-03-15", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+        { name: "開始營運 Operations Start", owner: "u_chen", plannedStart: "2027-03-16", plannedEnd: "2027-04-30", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+      ],
+    },
+    {
+      id: "f_tn2", code: "FAB-TN2", name: "台南二廠", location: "台南科學園區",
+      description: "Giga、N2。四階段都已結案，營運交接完成。",
+      category: "GIGA", region: "HQ", technology: "N2", pmId: "u_huang", status: "COMPLETED",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_tsai", plannedStart: "2025-03-03", plannedEnd: "2025-06-30", actualStart: "2025-03-04", actualEnd: "2025-06-20", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_huang", plannedStart: "2025-07-01", plannedEnd: "2026-01-31", actualStart: "2025-07-02", actualEnd: "2026-01-20", status: "COMPLETED" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_wu", plannedStart: "2026-02-02", plannedEnd: "2026-04-30", actualStart: "2026-02-03", actualEnd: "2026-04-22", status: "COMPLETED" },
+        { name: "開始營運 Operations Start", owner: "u_huang", plannedStart: "2026-05-04", plannedEnd: "2026-06-30", actualStart: "2026-05-04", actualEnd: "2026-06-18", status: "COMPLETED" },
+      ],
+    },
+    {
+      id: "f_sg1", code: "FAB-SG1", name: "新加坡一廠", location: "新加坡",
+      description: "海外 Giga、N3。海運與電力窗口重疊，產品建立有風險。",
+      category: "GIGA", region: "OVERSEA", technology: "N3", pmId: "u_chou", status: "AT_RISK",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_chou", plannedStart: "2026-06-01", plannedEnd: "2026-09-15", actualStart: "2026-06-10", actualEnd: "2026-09-28", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_kao", plannedStart: "2026-09-16", plannedEnd: "2026-12-31", actualStart: "2026-10-02", actualEnd: null, status: "AT_RISK", riskNote: "海關文件未齊，部分機櫃還在保稅倉。" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_lo", plannedStart: "2027-01-04", plannedEnd: "2027-03-31", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+        { name: "開始營運 Operations Start", owner: "u_chou", plannedStart: "2027-04-01", plannedEnd: "2027-05-15", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+      ],
+    },
+    {
+      id: "f_az1", code: "FAB-AZ1", name: "亞利桑那一廠", location: "亞利桑那",
+      description: "海外分期廠、N2。廠房驗收落後，產品建立已延遲。",
+      category: "PHASE", region: "OVERSEA", technology: "N2", pmId: "u_kao", status: "DELAYED",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_kao", plannedStart: "2026-02-02", plannedEnd: "2026-05-29", actualStart: "2026-02-16", actualEnd: "2026-06-30", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_kao", plannedStart: "2026-06-01", plannedEnd: "2026-08-31", actualStart: "2026-07-06", actualEnd: null, status: "DELAYED", riskNote: "廠房驗收未過，機櫃不能上架。" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_wu", plannedStart: "2026-09-01", plannedEnd: "2026-11-30", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+        { name: "開始營運 Operations Start", owner: "u_kao", plannedStart: "2026-12-01", plannedEnd: "2027-01-15", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+      ],
+    },
+    {
+      id: "f_os1", code: "FAB-OS1", name: "大阪一廠", location: "大阪",
+      description: "海外分期廠、N3。硬體已完成，產品建立按計畫進行。",
+      category: "PHASE", region: "OVERSEA", technology: "N3", pmId: "u_ho", status: "ON_TRACK",
+      phases: [
+        { name: "硬體導入 Hardware Onboarding", owner: "u_chou", plannedStart: "2026-04-01", plannedEnd: "2026-07-15", actualStart: "2026-04-02", actualEnd: "2026-07-10", status: "COMPLETED" },
+        { name: "產品建立 Product Build", owner: "u_ho", plannedStart: "2026-07-16", plannedEnd: "2027-01-15", actualStart: "2026-07-20", actualEnd: null, status: "IN_PROGRESS" },
+        { name: "開發者進駐 Developer Onboarding", owner: "u_lo", plannedStart: "2027-01-18", plannedEnd: "2027-03-31", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+        { name: "開始營運 Operations Start", owner: "u_ho", plannedStart: "2027-04-01", plannedEnd: "2027-05-15", actualStart: null, actualEnd: null, status: "NOT_STARTED" },
+      ],
+    },
+  ];
+  for (const row of rows) addFactory(db, row);
+}
+
+function fillGaps(db: Database) {
+  for (const factory of db.factories) {
+    for (const product of db.products) {
+      const key = `${factory.id}:${product.id}`;
+      const h = hash(key);
+      if (!db.deployments.some((item) => item.factoryId === factory.id && item.productId === product.id)) {
+        const version = latestVersionId(db, product.id);
+        const status = generatedDeploymentStatus(factory.status, h);
+        addDeployment(db, {
+          factory: factory.id,
+          product: product.id,
+          planned: version,
+          actual: status === "PLANNED" ? null : version,
+          status,
+          secondary: ["u_chang", "u_wang", "u_liu", "u_wu", "u_cheng", "u_ma", "u_sung", "u_yeh", "u_pan"][h % 9],
+          machines: 48 + (h % 20) * 16,
+          plannedDate: shiftDate(factory.plannedStart, 40 + (h % 50)),
+          deployedAt: status === "DEPLOYED" || status === "ACCEPTED" ? shiftDate(factory.plannedStart, 70 + (h % 20)) : null,
+          upgraded: h % 5 === 0 && status !== "PLANNED",
+        });
+      }
+      if (!db.plans.some((item) => item.factoryId === factory.id && item.productId === product.id)) {
+        addGeneratedPlan(db, factory.id, product.id, h);
+      }
+    }
+    ensureAdHoc(db, factory.id);
+    ensureTopics(db, factory.id);
+    ensureMilestone(db, factory.id);
+  }
+  addExtraIssues(db);
+  addExtraActivity(db);
+}
+
+function generatedDeploymentStatus(factoryStatus: string, h: number): DeploymentStatus {
+  if (factoryStatus === "COMPLETED") return "ACCEPTED";
+  if (factoryStatus === "DELAYED") return h % 2 === 0 ? "IN_PROGRESS" : "PLANNED";
+  if (factoryStatus === "AT_RISK") return h % 3 === 0 ? "DEPLOYED" : "IN_PROGRESS";
+  const cycle: DeploymentStatus[] = ["IN_PROGRESS", "DEPLOYED", "PLANNED", "ACCEPTED"];
+  return cycle[h % cycle.length];
+}
+
+function latestVersionId(db: Database, productId: string): string | null {
+  const rows = db.versions.filter((version) => version.productId === productId);
+  return rows.length === 0 ? null : rows[rows.length - 1].id;
+}
+
+function addGeneratedPlan(db: Database, factoryId: string, productId: string, h: number) {
+  const factory = db.factories.find((item) => item.id === factoryId);
+  const product = db.products.find((item) => item.id === productId);
+  if (!factory || !product) return;
+  const phase2 = db.phases.find((phase) => phase.factoryId === factoryId && phase.order === 2);
+  const featureOnly = product.mode === "FEATURE_ONLY";
+  const features = db.features.filter((feature) => feature.productId === productId);
+  let status: PlanStatus = "SUBMITTED";
+  if (factory.status === "COMPLETED") status = "APPROVED";
+  else if (h % 5 === 0) status = "NOT_SUBMITTED";
+  else if (h % 3 === 0) status = "APPROVED";
+  const submitted = status !== "NOT_SUBMITTED";
+  const version = !featureOnly && submitted ? latestVersionId(db, productId) : null;
+  const start = submitted ? phase2?.plannedStart ?? factory.plannedStart : null;
+  const end = submitted ? shiftDate(phase2?.plannedEnd ?? factory.plannedEnd, h % 4 === 0 ? 21 : 0) : null;
+  const enabled = featureOnly && submitted
+    ? features.filter((feature, index) => ((h + index) % 3 === 0 ? !feature.defaultEnabled : feature.defaultEnabled)).map((feature) => feature.id)
+    : undefined;
+  const reasons: Record<string, string> = {};
+  const adhoc: AdHocChange[] = [];
+  if (submitted) {
+    const titles = ["機櫃改夜班進場", "施工窗避開廠務停電", "卸貨改由側門", "門禁提前開通開發者", "液冷水路先局部試點"];
+    adhoc.push({
+      id: `ah_${factoryId}_${productId}_night`,
+      kind: "CUSTOM",
+      featureId: null,
+      enabled: null,
+      title: titles[h % titles.length],
+      description: `${factory.name}的${product.name}要配合廠務窗口。`,
+    });
+    if (h % 2 === 0) {
+      adhoc.push({
+        id: `ah_${factoryId}_${productId}_dock`,
+        kind: "CUSTOM",
+        featureId: null,
+        enabled: null,
+        title: "卸貨區改預約制",
+        description: `${factory.name}卸貨區與廠務施工重疊，改前一日預約。`,
+      });
+    }
+    const feature = features[h % Math.max(features.length, 1)];
+    if (feature && !featureOnly) {
+      adhoc.push({
+        id: `ah_${factoryId}_${productId}_${feature.id}`,
+        kind: "FEATURE_OVERRIDE",
+        featureId: feature.id,
+        enabled: h % 2 === 1,
+        title: "",
+        description: `${factory.name}把「${feature.name}」改成這座廠的開關。`,
+      });
+    }
+    if (featureOnly && enabled) {
+      for (const item of features) {
+        const on = enabled.includes(item.id);
+        if (on === item.defaultEnabled) continue;
+        reasons[item.id] = `${factory.name}${on ? "提前啟用" : "先關閉"}${item.name}。`;
+        adhoc.push({
+          id: `ah_${factoryId}_${productId}_${item.id}`,
+          kind: "FEATURE_OVERRIDE",
+          featureId: item.id,
+          enabled: on,
+          title: "",
+          description: reasons[item.id],
+        });
+      }
+    }
+  }
+  const actor = product.primaryOwnerId;
+  addPlan(db, {
+    factory: factoryId,
+    product: productId,
+    status,
+    version,
+    enabled,
+    reasons,
+    adhoc,
+    start,
+    end,
+    note: status === "NOT_SUBMITTED" ? "" : `${factory.name}的${product.name}示範計畫。`,
+    submittedBy: status === "NOT_SUBMITTED" ? undefined : actor,
+    submittedAt: status === "NOT_SUBMITTED" ? undefined : "2026-09-01T02:00:00.000Z",
+    approvedBy: status === "APPROVED" ? factory.pmId : undefined,
+    approvedAt: status === "APPROVED" ? "2026-09-03T02:00:00.000Z" : undefined,
+    revisions: status === "NOT_SUBMITTED" ? [] : [
+      { action: "SUBMIT", version, start, end, actor, at: "2026-09-01T02:00:00.000Z", note: "示範提報" },
+      ...(status === "APPROVED" ? [{ action: "APPROVE" as const, version, start, end, actor: factory.pmId, at: "2026-09-03T02:00:00.000Z", note: "示範核准" }] : []),
+    ],
+  });
+}
+
+function ensureAdHoc(db: Database, factoryId: string) {
+  const plans = db.plans.filter((plan) => plan.factoryId === factoryId);
+  const factory = db.factories.find((item) => item.id === factoryId);
+  let count = plans.reduce((sum, plan) => sum + plan.adHocChanges.length, 0);
+  const target = plans.find((plan) => plan.status !== "NOT_SUBMITTED") ?? plans[0];
+  if (target && count < 2) {
+    const product = db.products.find((item) => item.id === target.productId);
+    const titles = ["夜班進場", "卸貨改預約"];
+    let n = 0;
+    while (count < 2) {
+      target.adHocChanges.push({
+        id: `ah_${factoryId}_extra_${n + 1}`,
+        kind: "CUSTOM",
+        featureId: null,
+        enabled: null,
+        title: titles[n % titles.length],
+        description: `${factory?.name ?? factoryId}的${product?.name ?? "產品"}配合廠務窗口。`,
+      });
+      count += 1;
+      n += 1;
+    }
+  }
+  const hasOverride = plans.some((plan) => plan.adHocChanges.some((change) => change.kind === "FEATURE_OVERRIDE"));
+  if (hasOverride) return;
+  const versioned = plans.find((plan) => plan.status !== "NOT_SUBMITTED" && db.products.some((product) => product.id === plan.productId && product.mode === "VERSIONED"));
+  const feature = versioned ? db.features.find((item) => item.productId === versioned.productId) : undefined;
+  if (!versioned || !feature) return;
+  versioned.adHocChanges.push({
+    id: `ah_${factoryId}_${versioned.productId}_extra_feat`,
+    kind: "FEATURE_OVERRIDE",
+    featureId: feature.id,
+    enabled: !feature.defaultEnabled,
+    title: "",
+    description: `${factory?.name ?? factoryId}把「${feature.name}」改成與預設不同。`,
+  });
+}
+
+function ensureTopics(db: Database, factoryId: string) {
+  const factory = db.factories.find((item) => item.id === factoryId);
+  if (!factory) return;
+  const bank = [
+    ["高壓電契約容量", "產品建立期間多個產品同時上架，契約容量可能不夠。"],
+    ["卸貨區時段衝突", "機櫃進場與廠務施工共用卸貨區，需要排開時段。"],
+    ["開發者門禁名冊", "開發者名單已交，廠區門禁還沒開通。"],
+    ["純水與冷卻時程", "純水系統可能晚於產品建立，影響機台進場。"],
+    ["海關文件未齊", "海外機櫃還在保稅倉，提單與分區證明未齊。"],
+  ];
+  const statuses = ["OPEN", "IN_DISCUSSION", "RESOLVED", "CLOSED"] as const;
+  const existing = db.topics.filter((topic) => topic.factoryId === factoryId).length;
+  for (let n = existing; n < 2; n += 1) {
+    const h = hash(`${factoryId}:topic:${n}`);
+    const [title, description] = bank[(h + n) % bank.length];
+    db.topics.push({
+      id: `tp_${factoryId}_${n + 1}`,
+      factoryId,
+      title: `${factory.name}：${title}`,
+      description,
+      ownerId: factory.pmId,
+      status: statuses[h % statuses.length],
+      raisedOn: shiftDate("2026-07-01", h % 80),
+    });
+  }
+}
+
+function ensureMilestone(db: Database, factoryId: string) {
+  if (db.milestones.some((item) => item.phaseId.startsWith(`${factoryId}_`))) return;
+  const factory = db.factories.find((item) => item.id === factoryId);
+  const phase = db.phases.find((item) => item.factoryId === factoryId && item.order === 2);
+  if (!factory || !phase) return;
+  const done = factory.status === "COMPLETED";
+  db.milestones.push({
+    id: `ms_${factoryId}_gate`,
+    phaseId: phase.id,
+    name: done ? "產品建立結案" : "產品建立審查",
+    dueDate: phase.plannedEnd,
+    deliverables: "施工計畫與部署紀錄",
+    done,
+    completedAt: done ? "2026-08-01T02:00:00.000Z" : null,
+    ownerId: factory.pmId,
+  });
+}
+
+function addExtraIssues(db: Database) {
+  const rows: Issue[] = [
+    { id: "iss_hs2_spare", code: "ISS-041", title: "新竹二廠結案備品清點", description: "營運交接後備品帳與現場數量差兩台。", factoryId: "f_hs2", phaseId: "f_hs2_p4", milestoneId: "ms_f_hs2_gate", productId: null, ownerId: "u_hsu", severity: "LOW", priority: "P3", status: "CLOSED", dueDate: "2026-08-20", resolution: "2026-08-12 盤點完成並更新帳冊。", updatedAt: "2026-08-12T02:00:00.000Z" },
+    { id: "iss_ml1_water", code: "ISS-042", title: "苗栗純水未達標", description: "純水導電度超出規格，機台不能進場。", factoryId: "f_ml1", phaseId: "f_ml1_p2", milestoneId: "ms_f_ml1_gate", productId: "plt_compute", ownerId: "u_linjy", severity: "CRITICAL", priority: "P0", status: "BLOCKED", dueDate: "2026-09-15", resolution: "", updatedAt: "2026-10-12T02:00:00.000Z" },
+    { id: "iss_ml1_plan", code: "ISS-043", title: "苗栗網路產品計畫未鎖版", description: "網路產品仍停在較早版本，流量調度尚未納入。", factoryId: "f_ml1", phaseId: "f_ml1_p2", milestoneId: null, productId: "plt_net", ownerId: "u_ma", severity: "HIGH", priority: "P1", status: "OPEN", dueDate: "2026-10-30", resolution: "", updatedAt: "2026-10-16T02:00:00.000Z" },
+    { id: "iss_ty1_dock", code: "ISS-044", title: "桃園卸貨區時段不足", description: "產品建立與廠務夜間施工搶同一個卸貨區。", factoryId: "f_ty1", phaseId: "f_ty1_p2", milestoneId: null, productId: "plt_storage", ownerId: "u_chen", severity: "MEDIUM", priority: "P2", status: "IN_PROGRESS", dueDate: "2026-11-05", resolution: "", updatedAt: "2026-10-11T02:00:00.000Z" },
+    { id: "iss_tn2_doc", code: "ISS-045", title: "台南二廠營運交接簽名", description: "交接紀錄已補齊。", factoryId: "f_tn2", phaseId: "f_tn2_p4", milestoneId: "ms_f_tn2_gate", productId: null, ownerId: "u_huang", severity: "LOW", priority: "P3", status: "RESOLVED", dueDate: "2026-06-25", resolution: "2026-06-18 完成雙簽。", updatedAt: "2026-06-18T02:00:00.000Z" },
+    { id: "iss_sg1_customs", code: "ISS-046", title: "新加坡機櫃卡在保稅倉", description: "海關文件缺分區證明，運算機櫃無法提領。", factoryId: "f_sg1", phaseId: "f_sg1_p2", milestoneId: "ms_f_sg1_gate", productId: "plt_compute", ownerId: "u_chou", severity: "HIGH", priority: "P0", status: "OPEN", dueDate: "2026-10-28", resolution: "", updatedAt: "2026-10-15T02:00:00.000Z" },
+    { id: "iss_sg1_power", code: "ISS-047", title: "新加坡電力窗口重疊", description: "廠務停電窗口與網路產品上線同一週。", factoryId: "f_sg1", phaseId: "f_sg1_p2", milestoneId: null, productId: "plt_net", ownerId: "u_kao", severity: "MEDIUM", priority: "P1", status: "IN_PROGRESS", dueDate: "2026-11-12", resolution: "", updatedAt: "2026-10-09T02:00:00.000Z" },
+    { id: "iss_az1_fab", code: "ISS-048", title: "亞利桑那廠房驗收未過", description: "地板承重複驗未過，產品建立無法上架。", factoryId: "f_az1", phaseId: "f_az1_p2", milestoneId: "ms_f_az1_gate", productId: null, ownerId: "u_kao", severity: "CRITICAL", priority: "P0", status: "OPEN", dueDate: "2026-09-10", resolution: "", updatedAt: "2026-10-14T02:00:00.000Z" },
+    { id: "iss_az1_sec", code: "ISS-049", title: "亞利桑那弱點掃描未排程", description: "安全產品只開了預設掃描，防火牆尚未討論。", factoryId: "f_az1", phaseId: "f_az1_p2", milestoneId: null, productId: "plt_sec", ownerId: "u_sung", severity: "MEDIUM", priority: "P2", status: "OPEN", dueDate: "2026-11-01", resolution: "", updatedAt: "2026-10-08T02:00:00.000Z" },
+    { id: "iss_os1_badge", code: "ISS-050", title: "大阪開發者門禁延後", description: "名冊已送，當地門禁系統下週才開帳號。", factoryId: "f_os1", phaseId: "f_os1_p2", milestoneId: null, productId: "plt_dev", ownerId: "u_ho", severity: "LOW", priority: "P2", status: "IN_PROGRESS", dueDate: "2026-11-18", resolution: "", updatedAt: "2026-10-13T02:00:00.000Z" },
+    { id: "iss_hsc_net", code: "ISS-051", title: "新竹一廠存取控制未納版", description: "網路產品 1.1 尚未包含存取控制，這座廠想提前打開。", factoryId: "f_hsc", phaseId: "f_hsc_p2", milestoneId: null, productId: "plt_net", ownerId: "u_ma", severity: "MEDIUM", priority: "P1", status: "OPEN", dueDate: "2026-11-02", resolution: "", updatedAt: "2026-10-17T02:00:00.000Z" },
+    { id: "iss_txg_sec", code: "ISS-052", title: "台中應用防火牆規則未定", description: "安全產品想在台中多開防火牆，規則還在討論。", factoryId: "f_txg", phaseId: "f_txg_p2", milestoneId: null, productId: "plt_sec", ownerId: "u_sung", severity: "HIGH", priority: "P1", status: "IN_PROGRESS", dueDate: "2026-10-31", resolution: "", updatedAt: "2026-10-16T04:00:00.000Z" },
+    { id: "iss_khh_net", code: "ISS-053", title: "高雄骨幹路由延後", description: "受電不足，網路產品無法與運算同時上架。", factoryId: "f_khh", phaseId: "f_khh_p2", milestoneId: null, productId: "plt_net", ownerId: "u_ma", severity: "HIGH", priority: "P0", status: "BLOCKED", dueDate: "2026-10-05", resolution: "", updatedAt: "2026-10-10T02:00:00.000Z" },
+    { id: "iss_kum_sec", code: "ISS-054", title: "熊本帳號同步範圍未定", description: "海外門禁與總部帳號要不要同步，還沒有結論。", factoryId: "f_kum", phaseId: "f_kum_p1", milestoneId: null, productId: "plt_sec", ownerId: "u_chou", severity: "LOW", priority: "P3", status: "OPEN", dueDate: "2026-12-01", resolution: "", updatedAt: "2026-10-06T02:00:00.000Z" },
+    { id: "iss_tnn_net", code: "ISS-055", title: "台南四廠流量調度觀察", description: "網路 1.1 已上線，流量調度觀察一週後關閉問題。", factoryId: "f_tnn", phaseId: "f_tnn_p3", milestoneId: null, productId: "plt_net", ownerId: "u_ma", severity: "LOW", priority: "P2", status: "RESOLVED", dueDate: "2026-09-15", resolution: "2026-09-12 觀察完成，沒有丟包。", updatedAt: "2026-09-12T02:00:00.000Z" },
+    { id: "iss_ty1_cool", code: "ISS-056", title: "桃園冷卻水溫偏高", description: "白班水溫接近上限，先降載觀察。", factoryId: "f_ty1", phaseId: "f_ty1_p2", milestoneId: "ms_f_ty1_gate", productId: "plt_compute", ownerId: "u_yeh", severity: "MEDIUM", priority: "P1", status: "OPEN", dueDate: "2026-11-08", resolution: "", updatedAt: "2026-10-17T06:00:00.000Z" },
+  ];
+  db.issues.push(...rows);
+}
+
+function addExtraActivity(db: Database) {
+  db.activity.push(
+    act("act_13", "FACTORY", "f_hs2", "STATUS", "許家豪把新竹二廠標為已完成。", "u_hsu", "2026-08-10T02:00:00.000Z"),
+    act("act_14", "PLAN", "plan_f_hs2_plt_compute", "APPROVE", "許家豪核准新竹二廠運算產品計畫。", "u_hsu", "2026-09-03T02:00:00.000Z"),
+    act("act_15", "ISSUE", "iss_ml1_water", "CREATE", "林佳穎登錄苗栗純水未達標，嚴重程度嚴重。", "u_linjy", "2026-09-20T02:00:00.000Z"),
+    act("act_16", "PHASE", "f_az1_p2", "STATUS", "高子軒把亞利桑那產品建立標為延遲。", "u_kao", "2026-09-08T02:00:00.000Z"),
+    act("act_17", "PERSON", "u_ma", "CREATE", "目錄同步帶入馬怡君（網路開發處）。", "u_lin", "2026-08-01T02:00:00.000Z"),
+    act("act_18", "TOPIC", "tp_f_os1_1", "CREATE", "何嘉玲在大阪一廠新增例外事項。", "u_ho", "2026-08-22T02:00:00.000Z"),
+    act("act_19", "ISSUE", "iss_tn2_doc", "STATUS", "黃詩涵把台南二廠交接問題標為已解決。", "u_huang", "2026-06-18T02:00:00.000Z"),
+    act("act_20", "DEPLOYMENT", "dep_f_ty1_plt_storage", "UPDATE", "陳浩宇更新桃園儲存產品的部署資料。", "u_chen", "2026-10-04T02:00:00.000Z"),
+  );
 }

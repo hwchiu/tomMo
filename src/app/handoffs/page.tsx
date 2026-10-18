@@ -1,11 +1,18 @@
-import { HandoffList } from "@/components/handoff-views";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
-  return <HandoffList status={one(query.status)} factoryId={one(query.factory)} />;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { HandoffList } from "@/components/handoff-views";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <HandoffQuery />
+    </Suspense>
+  );
+}
+
+function HandoffQuery() {
+  const query = useSearchParams();
+  return <HandoffList status={query.get("status") ?? ""} factoryId={query.get("factory") ?? ""} />;
 }

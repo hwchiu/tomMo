@@ -1,20 +1,27 @@
-import { CapabilityView } from "@/components/capability-view";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { CapabilityView } from "@/components/capability-view";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <CapabilityQuery />
+    </Suspense>
+  );
+}
+
+function CapabilityQuery() {
+  const query = useSearchParams();
   return (
     <CapabilityView
-      factoryId={one(query.factory)}
-      phaseId={one(query.phase)}
-      platformId={one(query.platform)}
-      versionId={one(query.version)}
-      featureId={one(query.feature)}
-      mismatches={one(query.mismatch) === "1"}
+      factoryId={query.get("factory") ?? ""}
+      phaseId={query.get("phase") ?? ""}
+      platformId={query.get("platform") ?? ""}
+      versionId={query.get("version") ?? ""}
+      featureId={query.get("feature") ?? ""}
+      mismatches={query.get("mismatch") === "1"}
     />
   );
 }

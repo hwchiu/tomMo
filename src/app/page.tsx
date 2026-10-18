@@ -1,19 +1,26 @@
-import { PortfolioView } from "@/components/portfolio-view";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { PortfolioView } from "@/components/portfolio-view";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PortfolioQuery />
+    </Suspense>
+  );
+}
+
+function PortfolioQuery() {
+  const query = useSearchParams();
   return (
     <PortfolioView
-      category={one(query.category)}
-      region={one(query.region)}
-      technology={one(query.technology)}
-      status={one(query.status)}
-      group={one(query.group)}
+      category={query.get("category") ?? ""}
+      region={query.get("region") ?? ""}
+      technology={query.get("technology") ?? ""}
+      status={query.get("status") ?? ""}
+      group={query.get("group") ?? ""}
     />
   );
 }

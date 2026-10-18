@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavLink key={item.href} item={item} pathname={pathname} />
             ))}
           </nav>
-          <p className="px-4 pb-4 text-[11px] leading-5 text-slate-400">基準日 {boot.data?.asOf ?? "—"} · 示範資料存在這個分頁</p>
+          <p className="px-4 pb-4 text-[11px] leading-5 text-slate-400">基準日 {boot.data?.asOf ?? "—"} · 修改存在這個瀏覽器</p>
         </aside>
         <div className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
           <div className="flex h-14 items-center gap-3 px-4 md:px-6">
@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   void api.resetDemo();
                 }}
               >
-                重設示範
+                重設示範資料
               </button>
             </div>
           </div>

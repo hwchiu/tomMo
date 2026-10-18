@@ -1,18 +1,25 @@
-import { PlatformBuildView } from "@/components/platform-build-view";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { PlatformBuildView } from "@/components/platform-build-view";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <BuildQuery />
+    </Suspense>
+  );
+}
+
+function BuildQuery() {
+  const query = useSearchParams();
   return (
     <PlatformBuildView
-      category={one(query.category)}
-      region={one(query.region)}
-      technology={one(query.technology)}
-      onlyExceptions={one(query.exceptions) === "1"}
+      category={query.get("category") ?? ""}
+      region={query.get("region") ?? ""}
+      technology={query.get("technology") ?? ""}
+      onlyExceptions={query.get("exceptions") === "1"}
     />
   );
 }

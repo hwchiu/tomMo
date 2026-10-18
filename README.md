@@ -11,15 +11,23 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000/tomMo-/](http://localhost:3000/tomMo-/). The app is served under `/tomMo-` so the same build works on GitHub Pages.
 
 ```bash
 npm test    # handoff evaluator and construction windows
 npm run lint
-npm run build
+npm run build   # writes the static site to out/
 ```
 
-This build is a single admin view. There is no user switcher and no per-role screen. The header can preview a slow or failed network and reset the demo. Edits stay in this browser tab. `X-Actor-Id` is still sent for the future Go service; the client always uses the seeded PM.
+This build is a single admin view. There is no user switcher and no per-role screen. The header can preview a slow or failed network. Edits stay in this browser’s `localStorage`. **重設示範資料** restores the seed data. `X-Actor-Id` is still sent for the future Go service; the client always uses the seeded PM.
+
+## Public site
+
+`npm run build` writes a static export (`output: 'export'`) to `out/`. GitHub Actions (`.github/workflows/pages.yml`) publishes that folder on every push to `main`, and also when the workflow is run by hand. Pull requests only check that the export builds.
+
+After the pull request is merged, the site is [https://hwchiu.github.io/tomMo-/](https://hwchiu.github.io/tomMo-/).
+
+GitHub still needs the Pages source set to **GitHub Actions** (Settings → Pages → Build and deployment). The workflow asks for that with `actions/configure-pages` and `enablement: true`. If the first run cannot change the setting, choose GitHub Actions once and re-run the workflow. The site does not go live until that source is Actions and the workflow on `main` succeeds.
 
 Point the client at Go by setting:
 

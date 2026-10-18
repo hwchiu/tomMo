@@ -1,11 +1,18 @@
-import { IssueCreate } from "@/components/issue-views";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
-  return <IssueCreate factoryId={one(query.factory)} />;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { IssueCreate } from "@/components/issue-views";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <NewIssue />
+    </Suspense>
+  );
+}
+
+function NewIssue() {
+  const query = useSearchParams();
+  return <IssueCreate factoryId={query.get("factory") ?? ""} />;
 }

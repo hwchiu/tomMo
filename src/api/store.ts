@@ -26,7 +26,7 @@ let memory: Database | null = null;
 export function getDb(): Database {
   if (!memory) {
     if (typeof window !== "undefined") {
-      const raw = window.sessionStorage.getItem(DB_KEY);
+      const raw = window.localStorage.getItem(DB_KEY);
       if (raw) {
         try {
           const parsed = JSON.parse(raw) as Database;
@@ -45,13 +45,13 @@ export function getDb(): Database {
 
 export function resetDb(): Database {
   memory = buildSeed();
-  if (typeof window !== "undefined") window.sessionStorage.removeItem(DB_KEY);
+  if (typeof window !== "undefined") window.localStorage.removeItem(DB_KEY);
   return memory;
 }
 
 function persist(): void {
   if (typeof window !== "undefined" && memory) {
-    window.sessionStorage.setItem(DB_KEY, JSON.stringify(memory));
+    window.localStorage.setItem(DB_KEY, JSON.stringify(memory));
   }
 }
 

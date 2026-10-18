@@ -1,11 +1,18 @@
-import { HandoffCreate } from "@/components/handoff-views";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
-  return <HandoffCreate factoryId={one(query.factory)} />;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { HandoffCreate } from "@/components/handoff-views";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <NewHandoff />
+    </Suspense>
+  );
+}
+
+function NewHandoff() {
+  const query = useSearchParams();
+  return <HandoffCreate factoryId={query.get("factory") ?? ""} />;
 }

@@ -1,18 +1,25 @@
-import { IssueList } from "@/components/issue-views";
-import { one } from "@/lib/search";
+"use client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { IssueList } from "@/components/issue-views";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <IssueQuery />
+    </Suspense>
+  );
+}
+
+function IssueQuery() {
+  const query = useSearchParams();
   return (
     <IssueList
-      factoryId={one(query.factory)}
-      severity={one(query.severity)}
-      status={one(query.status)}
-      overdue={one(query.overdue) === "1"}
+      factoryId={query.get("factory") ?? ""}
+      severity={query.get("severity") ?? ""}
+      status={query.get("status") ?? ""}
+      overdue={query.get("overdue") === "1"}
     />
   );
 }

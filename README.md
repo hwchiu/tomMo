@@ -27,7 +27,7 @@ This build is a single admin view. There is no user switcher and no per-role scr
 
 After the pull request is merged, the site is [https://hwchiu.github.io/tomMo-/](https://hwchiu.github.io/tomMo-/).
 
-GitHub still needs the Pages source set to **GitHub Actions** (Settings → Pages → Build and deployment). The workflow asks for that with `actions/configure-pages` and `enablement: true`. If the first run cannot change the setting, choose GitHub Actions once and re-run the workflow. The site does not go live until that source is Actions and the workflow on `main` succeeds.
+GitHub Pages source is **GitHub Actions**. The public site is [https://www.hwchiu.com/tomMo-/](https://www.hwchiu.com/tomMo-/). The site goes live when the workflow on `main` succeeds.
 
 Point the client at Go by setting:
 

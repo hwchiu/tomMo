@@ -4,13 +4,14 @@ info:
   version: 0.1.0
   description: |
     JSON contract for the factory coordination service. The Next.js client calls
-    these paths through `src/api`. With `NEXT_PUBLIC_API_BASE_URL` unset, the
-    same paths are served by the in-memory mock. A Go service should implement
-    this document and accept `X-Actor-Id` until real authentication exists.
+    these paths through `src/api`. The GitHub Pages build keeps an in-browser
+    mock (`NEXT_PUBLIC_USE_MOCK` is not `0`). The Go monolith serves the same
+    paths from SQLite and a signed `fpm_session` cookie. Writes require the
+    editor role. See docs/deployment-architecture.md.
 
     Dates are `YYYY-MM-DD`. Timestamps are ISO-8601. Construction windows are
-    judged one platform at a time against Phase 2 (平台建立). Overlapping windows
-    between platforms are parallel work and are not conflicts. Only a missing
+    judged one product at a time against Phase 2 (產品建立). Overlapping windows
+    between products are parallel work and are not conflicts. Only a missing
     window, or a window that starts before or ends after Phase 2, is flagged.
 servers:
   - url: http://localhost:8080
@@ -20,11 +21,127 @@ tags:
   - name: portfolio
   - name: factories
   - name: issues
-  - name: platforms
+  - name: products
   - name: plans
 security:
-  - actor: []
+  - session: []
 paths:
+  /healthz:
+    get:
+      tags: [session]
+      security: []
+      summary: Liveness and readiness
+      operationId: healthz
+      responses:
+        "200":
+          description: Process is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/login:
+    post:
+      tags: [session]
+      security: []
+      summary: Local account login. Sets HttpOnly fpm_session.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Cookie set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+        "401":
+          description: Bad credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/v1/logout:
+    post:
+      tags: [session]
+      summary: Clear the session cookie. Either role may log out.
+      operationId: logout
+      responses:
+        "200":
+          description: Cookie cleared
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+  /api/v1/people:
+    get:
+      tags: [session]
+      summary: People directory. Fields shown in the admin UI are name and department.
+      operationId: listPeople
+      responses:
+        "200":
+          description: Directory
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Person" }
+    post:
+      tags: [session]
+      summary: Add a manual person. Editor only.
+      operationId: createPerson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, department]
+              properties:
+                name: { type: string }
+                department: { type: string }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
+  /api/v1/people/{id}:
+    patch:
+      tags: [session]
+      summary: Update a manual person. External records return 400.
+      operationId: updatePerson
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, department]
+              properties:
+                name: { type: string }
+                department: { type: string }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Id" }
   /api/v1/bootstrap:
     get:
       tags: [session]
@@ -101,29 +218,29 @@ paths:
                     type: array
                     description: Submitted plans waiting for PM approval
                     items: { type: object }
-  /api/v1/platform-build:
+  /api/v1/product-build:
     get:
       tags: [plans]
-      summary: Factory by platform matrix for Phase 2
+      summary: Factory by product matrix for Phase 2
       description: |
         Each cell includes deployment status, plan status, a version when the
-        platform is VERSIONED, owners,
+        product is VERSIONED, owners,
         machine counts, and a construction-window check against that factory's
         Phase 2 dates. `windowState` is `MISSING`, `INSIDE`, or `OUTSIDE`.
         There is no overlap or conflict field. Parallel windows stay `INSIDE`
         when each one fits Phase 2.
-      operationId: getPlatformBuild
+      operationId: getProductBuild
       responses:
         "200":
-          description: Platforms and one row per factory
+          description: Products and one row per factory
           content:
             application/json:
               schema:
                 type: object
-                required: [asOf, platforms, rows]
+                required: [asOf, products, rows]
                 properties:
                   asOf: { type: string, format: date }
-                  platforms: { type: array, items: { type: object } }
+                  products: { type: array, items: { type: object } }
                   rows:
                     type: array
                     items:
@@ -379,16 +496,16 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/platforms:
+  /api/v1/products:
     get:
-      tags: [platforms]
-      operationId: listPlatforms
+      tags: [products]
+      operationId: listProducts
       responses:
         "200":
-          description: Global platform catalog
+          description: Global product catalog
     post:
-      tags: [platforms]
-      operationId: createPlatform
+      tags: [products]
+      operationId: createProduct
       requestBody:
         required: true
         content:
@@ -400,20 +517,20 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/platforms/{platformId}:
+  /api/v1/products/{productId}:
     get:
-      tags: [platforms]
+      tags: [products]
       operationId: getPlatform
       parameters:
-        - $ref: "#/components/parameters/platformId"
+        - $ref: "#/components/parameters/productId"
       responses:
         "200":
-          description: Platform, versions, features, and per-factory deployments
+          description: Product, versions, features, and per-factory deployments
     patch:
-      tags: [platforms]
-      operationId: updatePlatform
+      tags: [products]
+      operationId: updateProduct
       parameters:
-        - $ref: "#/components/parameters/platformId"
+        - $ref: "#/components/parameters/productId"
       requestBody:
         required: true
         content:
@@ -427,12 +544,12 @@ paths:
               schema: { $ref: "#/components/schemas/Id" }
   /api/v1/capabilities:
     get:
-      tags: [platforms]
+      tags: [products]
       summary: Planned on/off feature matrix without requiring versions
       description: |
-        Rows are factory × platform. Columns are features. Each cell is the
-        planned state: on, off, or unset. VERSIONED platforms derive the cell
-        from the provided version plus feature changes. FEATURE_ONLY platforms
+        Rows are factory × product. Columns are features. Each cell is the
+        planned state: on, off, or unset. VERSIONED products derive the cell
+        from the provided version plus feature changes. FEATURE_ONLY products
         use the plan's feature set. There is no version axis.
       operationId: getCapabilities
       responses:
@@ -440,7 +557,7 @@ paths:
           description: Cells distinguish supported, desired, and actual
   /api/v1/deployments/{deploymentId}:
     get:
-      tags: [platforms]
+      tags: [products]
       operationId: getDeployment
       parameters:
         - name: deploymentId
@@ -451,7 +568,7 @@ paths:
         "200":
           description: Deployment editor payload
     patch:
-      tags: [platforms]
+      tags: [products]
       operationId: updateDeployment
       parameters:
         - name: deploymentId
@@ -469,14 +586,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/factories/{factoryId}/platforms/{platformId}/plan:
+  /api/v1/factories/{factoryId}/products/{productId}/plan:
     get:
       tags: [plans]
       summary: Current plan, window check, and revision history
       operationId: getPlan
       parameters:
         - $ref: "#/components/parameters/factoryId"
-        - $ref: "#/components/parameters/platformId"
+        - $ref: "#/components/parameters/productId"
       responses:
         "200":
           description: |
@@ -492,7 +609,7 @@ paths:
       operationId: savePlan
       parameters:
         - $ref: "#/components/parameters/factoryId"
-        - $ref: "#/components/parameters/platformId"
+        - $ref: "#/components/parameters/productId"
       requestBody:
         required: true
         content:
@@ -504,14 +621,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/factories/{factoryId}/platforms/{platformId}/plan/approve:
+  /api/v1/factories/{factoryId}/products/{productId}/plan/approve:
     post:
       tags: [plans]
       summary: Approve the current submitted plan
       operationId: approvePlan
       parameters:
         - $ref: "#/components/parameters/factoryId"
-        - $ref: "#/components/parameters/platformId"
+        - $ref: "#/components/parameters/productId"
       responses:
         "200":
           description: Approved
@@ -521,7 +638,7 @@ paths:
   /api/v1/feature-diff:
     get:
       tags: [plans]
-      summary: Feature changes between two versions of the same platform
+      summary: Feature changes between two versions of the same product
       operationId: featureDiff
       parameters:
         - name: from
@@ -646,10 +763,11 @@ paths:
               schema: { $ref: "#/components/schemas/Id" }
 components:
   securitySchemes:
-    actor:
+    session:
       type: apiKey
-      in: header
-      name: X-Actor-Id
+      in: cookie
+      name: fpm_session
+      description: HMAC-signed session. Editor may write; viewer is read-only.
   parameters:
     factoryId:
       name: factoryId
@@ -661,8 +779,8 @@ components:
       in: path
       required: true
       schema: { type: string }
-    platformId:
-      name: platformId
+    productId:
+      name: productId
       in: path
       required: true
       schema: { type: string }
@@ -707,19 +825,31 @@ components:
     WindowReason:
       type: string
       enum: [MISSING_DATES, MISSING_PHASE, STARTS_BEFORE_PHASE, ENDS_AFTER_PHASE]
-    PlatformMode:
+    ProductMode:
       type: string
       enum: [VERSIONED, FEATURE_ONLY]
       description: VERSIONED plans choose a release. FEATURE_ONLY plans set each feature on or off.
     ChangeType:
       type: string
       enum: [ADDED, REMOVED, CHANGED]
+    Person:
+      type: object
+      required: [id, name, department, active, source]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        department: { type: string }
+        active: { type: boolean }
+        source: { type: string, enum: [manual, external] }
+        externalId: { type: string, nullable: true, description: Future OIDC sub or employee id }
     Bootstrap:
       type: object
       properties:
         asOf: { type: string, format: date }
-        currentUser: { type: object }
-        users: { type: array, items: { type: object } }
+        role: { type: string, enum: [editor, viewer] }
+        username: { type: string }
+        actor: { $ref: "#/components/schemas/Person" }
+        people: { type: array, items: { $ref: "#/components/schemas/Person" } }
         enumerations: { type: array, items: { type: object } }
     Exception:
       type: object
@@ -743,16 +873,13 @@ components:
         technology: { type: string }
         missingPlans: { type: integer }
         outsideWindows: { type: integer }
-        notReady: { type: integer, description: Platforms whose plan is not ready for developer onboarding }
+        notReady: { type: integer, description: Products whose plan is not ready for developer onboarding }
         openTopics: { type: integer, description: Topics still OPEN or IN_DISCUSSION }
-        pmContact: { $ref: "#/components/schemas/PmContact" }
-    PmContact:
-      type: object
-      required: [name, email, phone]
-      properties:
-        name: { type: string, description: 廠區 PM 聯繫人姓名 }
-        email: { type: string, format: email }
-        phone: { type: string, description: Phone or extension }
+        pmId: { type: string }
+        pmName: { type: string }
+        pmDepartment: { type: string }
+        machineTotal: { type: integer, description: Sum of planned quantities across every product. Computed, never entered. }
+        machineRollup: { type: array, items: { type: object } }
     TopicStatus:
       type: string
       enum: [OPEN, IN_DISCUSSION, RESOLVED, CLOSED]
@@ -777,7 +904,7 @@ components:
         raisedOn: { type: string, format: date }
     FactoryWrite:
       type: object
-      required: [code, name, location, description, category, region, technology, pmId, pmContact, plannedStart, status]
+      required: [code, name, location, description, category, region, technology, pmId, plannedStart, status]
       properties:
         code: { type: string }
         name: { type: string }
@@ -787,7 +914,6 @@ components:
         region: { type: string, description: Enumeration code in factoryRegion }
         technology: { type: string, description: Enumeration code in technologyNode }
         pmId: { type: string }
-        pmContact: { $ref: "#/components/schemas/PmContact" }
         plannedStart: { type: string, format: date }
         status: { $ref: "#/components/schemas/FactoryStatus" }
     PhaseWrite:
@@ -823,7 +949,7 @@ components:
         description: { type: string }
         factoryId: { type: string }
         phaseId: { type: string, nullable: true }
-        platformId: { type: string, nullable: true }
+        productId: { type: string, nullable: true }
         ownerId: { type: string }
         severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
         priority: { type: string, enum: [P0, P1, P2, P3] }
@@ -840,7 +966,7 @@ components:
         devDepartment: { type: string }
         projectDepartment: { type: string }
         primaryOwnerId: { type: string }
-        mode: { $ref: "#/components/schemas/PlatformMode" }
+        mode: { $ref: "#/components/schemas/ProductMode" }
     DeploymentWrite:
       type: object
       properties:
@@ -883,7 +1009,7 @@ components:
       type: object
       required: [intent]
       properties:
-        providedVersionId: { type: string, nullable: true, description: Required on submit when the platform mode is VERSIONED. Null for FEATURE_ONLY. }
+        providedVersionId: { type: string, nullable: true, description: Required on submit when the product mode is VERSIONED. Null for FEATURE_ONLY. }
         plannedFeatures:
           type: array
           description: Full feature set for FEATURE_ONLY. Each item is enabled or disabled. 異動功能 is derived against the feature default.
@@ -923,7 +1049,7 @@ components:
       type: object
       properties:
         status: { $ref: "#/components/schemas/PlanStatus" }
-        mode: { $ref: "#/components/schemas/PlatformMode" }
+        mode: { $ref: "#/components/schemas/ProductMode" }
         windowState: { $ref: "#/components/schemas/WindowState" }
         windowReasons:
           type: array

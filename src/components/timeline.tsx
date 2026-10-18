@@ -41,7 +41,8 @@ export interface PortfolioTimelineFactory {
   code: string;
   name: string;
   status: string;
-  pmContact: { name: string; email: string; phone: string };
+  pmName: string;
+  pmDepartment: string;
   openTopics: number;
   phases: Array<{
     id: string;
@@ -142,7 +143,7 @@ export function PhaseTimeline({
                 label: (
                   <Label
                     title={chineseName(window.label)}
-                    subtitle="平台施工窗"
+                    subtitle="產品施工窗"
                     meta={window.start && window.end ? `${shortDate(window.start)} – ${shortDate(window.end)}` : "尚未填寫"}
                     alert={outside ? "超出階段" : missing ? "未填" : undefined}
                     alertTone={missing && !outside ? "warn" : "danger"}
@@ -170,7 +171,7 @@ export function PhaseTimeline({
       />
       {focus ? (
         <p className="mt-3 text-sm text-muted">
-          平台施工窗是第 {focus.order} 階段「{chineseName(focus.name)}」的子列（{focus.plannedStart} – {focus.plannedEnd}）。各平台可平行施工，時程重疊不標示；只把超出階段或未填的窗標出來。
+          產品施工窗是第 {focus.order} 階段「{chineseName(focus.name)}」的子列（{focus.plannedStart} – {focus.plannedEnd}）。各產品可平行施工，時程重疊不標示；只把超出階段或未填的窗標出來。
         </p>
       ) : null}
       <Legend />
@@ -220,9 +221,8 @@ export function PortfolioTimeline({
                   例外 {factory.openTopics}
                 </Link>
               </div>
-              <div className="truncate text-sm">{factory.pmContact.name}</div>
-              <div className="truncate text-xs text-muted">{factory.pmContact.email}</div>
-              <div className="truncate text-xs text-muted">{factory.pmContact.phone}</div>
+              <div className="truncate text-sm">{factory.pmName}</div>
+              <div className="truncate text-xs text-muted">{factory.pmDepartment}</div>
             </div>
           ),
           content: (
@@ -266,7 +266,7 @@ function Legend({ compact = false }: { compact?: boolean }) {
       <LegendItem className="h-4 w-8 bg-sky-600" text="實際進度" />
       <LegendItem className="h-4 w-8 bg-emerald-600" text="已完成" />
       <LegendItem className="h-4 w-8 bg-rose-600" text="延遲" />
-      <LegendItem className="h-4 w-8 bg-teal-700" text="平台施工窗" />
+      <LegendItem className="h-4 w-8 bg-teal-700" text="產品施工窗" />
       <span className="inline-flex items-center gap-2">
         <i className="inline-block h-3.5 w-3.5 rotate-45 bg-slate-700" />
         里程碑

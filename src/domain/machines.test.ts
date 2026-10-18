@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { plannedTotal, rollupPlanned } from "./machines";
 
 describe("planned machine quantities", () => {
-  it("sums a platform deployment and ignores blank or negative input", () => {
+  it("sums a product deployment and ignores blank or negative input", () => {
     expect(plannedTotal([{ planned: 120 }, { planned: 40 }, { planned: 0 }, { planned: -3 }])).toBe(160);
   });
 
-  it("rolls a factory up by machine type across platforms", () => {
+  it("rolls a factory up by machine type across products", () => {
     const compute = [
       { machineTypeId: "mt_a", planned: 420 },
       { machineTypeId: "mt_b", planned: 220 },

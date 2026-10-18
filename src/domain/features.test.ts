@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baselineChanges, isFeaturePlanComplete, resolvePlanned } from "./features";
+import { baselineChanges, capabilityCell, isFeaturePlanComplete, resolvePlanned } from "./features";
 
 const features = [
   { id: "lineage", name: "資料血緣", defaultEnabled: true },
@@ -47,8 +47,25 @@ describe("baselineChanges", () => {
   });
 });
 
+describe("capabilityCell", () => {
+  it("marks feature-flag diffs against the default and version overrides as ad hoc", () => {
+    expect(capabilityCell({ mode: "FEATURE_ONLY", defaultEnabled: false, plannedEnabled: true, versionSupported: null, overrideEnabled: null })).toMatchObject({
+      tone: "ADDED",
+      adhoc: true,
+    });
+    expect(capabilityCell({ mode: "FEATURE_ONLY", defaultEnabled: true, plannedEnabled: true, versionSupported: null, overrideEnabled: null }).tone).toBe("UNCHANGED_ON");
+    expect(capabilityCell({ mode: "FEATURE_ONLY", defaultEnabled: true, plannedEnabled: null, versionSupported: null, overrideEnabled: null }).tone).toBe("UNPLANNED");
+    expect(
+      capabilityCell({ mode: "VERSIONED", defaultEnabled: false, plannedEnabled: null, versionSupported: true, overrideEnabled: false }),
+    ).toMatchObject({ tone: "REMOVED", planned: false, adhoc: true });
+    expect(
+      capabilityCell({ mode: "VERSIONED", defaultEnabled: true, plannedEnabled: null, versionSupported: true, overrideEnabled: null }),
+    ).toMatchObject({ tone: "UNCHANGED_ON", adhoc: false });
+  });
+});
+
 describe("resolvePlanned", () => {
-  it("uses the feature set for feature-flag platforms and the version for versioned ones", () => {
+  it("uses the feature set for feature-flag products and the version for versioned ones", () => {
     expect(resolvePlanned({ mode: "FEATURE_ONLY", versionSupported: null, changeType: null, plannedEnabled: true })).toBe(true);
     expect(resolvePlanned({ mode: "FEATURE_ONLY", versionSupported: null, changeType: null, plannedEnabled: null })).toBe(null);
     expect(resolvePlanned({ mode: "VERSIONED", versionSupported: true, changeType: "REMOVED", plannedEnabled: null })).toBe(false);

@@ -1,5 +1,5 @@
 import { ApiError } from "./errors";
-import { getActorId } from "./session";
+import { getAuth } from "./session";
 import {
   approvePlan,
   createEnumeration,
@@ -9,7 +9,8 @@ import {
   createIssue,
   createMilestone,
   createPhase,
-  createPlatform,
+  createPerson,
+  createProduct,
   diffVersionFeatures,
   getDb,
   resetDb,
@@ -22,7 +23,8 @@ import {
   updateIssue,
   updateMilestone,
   updatePhase,
-  updatePlatform,
+  updatePerson,
+  updateProduct,
 } from "./store";
 import {
   buildActivity,
@@ -34,9 +36,9 @@ import {
   buildIssue,
   buildIssues,
   buildPlan,
-  buildPlatform,
-  buildPlatformBuild,
-  buildPlatforms,
+  buildProduct,
+  buildProductBuild,
+  buildProducts,
   buildPortfolio,
 } from "./views";
 
@@ -49,20 +51,34 @@ interface Call {
 export function mockRoute<T>({ method, path, body }: Call): T {
   const url = new URL(path, "http://mock.local");
   const pathname = url.pathname.replace(/\/$/, "") || "/";
-  const actorId = getActorId();
+  const session = getAuth();
   const db = getDb();
   const parts = pathname.split("/").filter(Boolean);
+  const publicCall = pathname === "/api/v1/login" || pathname === "/api/v1/logout";
+  if (!publicCall && !session) throw new ApiError("請先登入", 401);
+  if (session && method !== "GET" && session.role !== "editor" && pathname !== "/api/v1/logout") {
+    throw new ApiError("使用者只能閱讀", 403);
+  }
+  const actorId = session?.personId ?? "";
 
+  if (method === "POST" && pathname === "/api/v1/login") {
+    return { ok: true } as T;
+  }
+  if (method === "POST" && pathname === "/api/v1/logout") {
+    return { ok: true } as T;
+  }
   if (method === "POST" && pathname === "/api/v1/session/reset") {
     resetDb();
     return { ok: true } as T;
   }
-  if (method === "POST" && pathname === "/api/v1/session") {
-    return { ok: true } as T;
+  if (method === "GET" && pathname === "/api/v1/bootstrap") {
+    return buildBootstrap(db, actorId, { role: session?.role ?? "viewer", username: session?.username ?? "" }) as T;
   }
-  if (method === "GET" && pathname === "/api/v1/bootstrap") return buildBootstrap(db, actorId) as T;
+  if (method === "GET" && pathname === "/api/v1/people") return { items: db.people } as T;
+  if (method === "POST" && pathname === "/api/v1/people") return createPerson(db, actorId, body as never) as T;
+  if (method === "PATCH" && parts[2] === "people" && parts.length === 4) return updatePerson(db, actorId, parts[3], body as never) as T;
   if (method === "GET" && pathname === "/api/v1/portfolio") return buildPortfolio(db) as T;
-  if (method === "GET" && pathname === "/api/v1/platform-build") return buildPlatformBuild(db) as T;
+  if (method === "GET" && pathname === "/api/v1/product-build") return buildProductBuild(db) as T;
   if (method === "GET" && pathname === "/api/v1/factories") return buildFactories(db) as T;
   if (method === "POST" && pathname === "/api/v1/factories") return createFactory(db, actorId, body as never) as T;
   if (method === "GET" && parts[0] === "api" && parts[2] === "factories" && parts.length === 4) return buildFactory(db, parts[3]) as T;
@@ -89,22 +105,22 @@ export function mockRoute<T>({ method, path, body }: Call): T {
   if (method === "POST" && pathname === "/api/v1/issues") return createIssue(db, actorId, body as never) as T;
   if (method === "GET" && parts[2] === "issues" && parts.length === 4) return buildIssue(db, parts[3]) as T;
   if (method === "PATCH" && parts[2] === "issues" && parts.length === 4) return updateIssue(db, actorId, parts[3], body as never) as T;
-  if (method === "GET" && pathname === "/api/v1/platforms") return buildPlatforms(db) as T;
-  if (method === "POST" && pathname === "/api/v1/platforms") return createPlatform(db, actorId, body as never) as T;
-  if (method === "GET" && parts[2] === "platforms" && parts.length === 4) return buildPlatform(db, parts[3]) as T;
-  if (method === "PATCH" && parts[2] === "platforms" && parts.length === 4) return updatePlatform(db, actorId, parts[3], body as never) as T;
+  if (method === "GET" && pathname === "/api/v1/products") return buildProducts(db) as T;
+  if (method === "POST" && pathname === "/api/v1/products") return createProduct(db, actorId, body as never) as T;
+  if (method === "GET" && parts[2] === "products" && parts.length === 4) return buildProduct(db, parts[3]) as T;
+  if (method === "PATCH" && parts[2] === "products" && parts.length === 4) return updateProduct(db, actorId, parts[3], body as never) as T;
   if (method === "GET" && pathname === "/api/v1/capabilities") return buildCapabilities(db) as T;
   if (method === "GET" && parts[2] === "deployments" && parts.length === 4) return buildDeployment(db, parts[3]) as T;
   if (method === "PATCH" && parts[2] === "deployments" && parts.length === 4) {
     return updateDeployment(db, actorId, parts[3], body as never) as T;
   }
-  if (method === "GET" && parts[2] === "factories" && parts[4] === "platforms" && parts[6] === "plan") {
-    return buildPlan(db, parts[3], parts[5], actorId) as T;
+  if (method === "GET" && parts[2] === "factories" && parts[4] === "products" && parts[6] === "plan") {
+    return buildPlan(db, parts[3], parts[5], actorId, session?.role ?? "viewer") as T;
   }
-  if (method === "PUT" && parts[2] === "factories" && parts[4] === "platforms" && parts[6] === "plan") {
+  if (method === "PUT" && parts[2] === "factories" && parts[4] === "products" && parts[6] === "plan") {
     return savePlan(db, actorId, parts[3], parts[5], body as never) as T;
   }
-  if (method === "POST" && parts[2] === "factories" && parts[4] === "platforms" && parts[6] === "plan" && parts[7] === "approve") {
+  if (method === "POST" && parts[2] === "factories" && parts[4] === "products" && parts[6] === "plan" && parts[7] === "approve") {
     return approvePlan(db, actorId, parts[3], parts[5]) as T;
   }
   if (method === "GET" && pathname === "/api/v1/activity") return buildActivity(db) as T;

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fpm
+  labels:
+    app: fpm
+spec:
+  # SQLite is a single-writer file. Keep one replica on one volume.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fpm
+  template:
+    metadata:
+      labels:
+        app: fpm
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+        - name: fpm
+          image: fpm:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: PORT
+              value: "8080"
+            - name: ADMIN_USERNAME
+              value: admin
+            - name: VIEWER_USERNAME
+              value: viewer
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fpm-auth
+                  key: ADMIN_PASSWORD
+            - name: VIEWER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fpm-auth
+                  key: VIEWER_PASSWORD
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fpm-auth
+                  key: SESSION_SECRET
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: fpm-data

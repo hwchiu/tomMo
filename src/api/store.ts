@@ -1,5 +1,5 @@
 import { addDays, isIsoDate } from "@/domain/dates";
-import { baselineChanges, isFeaturePlanComplete } from "@/domain/features";
+import { featureOverrides, isFeaturePlanComplete } from "@/domain/features";
 import { nonNegativeInt } from "@/domain/machines";
 import { compareSemver } from "@/domain/semver";
 import type {
@@ -7,22 +7,23 @@ import type {
   Database,
   DeploymentStatus,
   FactoryStatus,
+  AdHocChange,
   FeatureChange,
   IssueSeverity,
   IssueStatus,
+  Person,
   PhaseLinkRelation,
   PhaseStatus,
   PlannedFeature,
-  PlatformMode,
-  PmContact,
+  ProductMode,
   TopicStatus,
 } from "@/domain/types";
-import { PLATFORM_MODES } from "@/domain/types";
+import { PRODUCT_MODES } from "@/domain/types";
 import { TOPIC_STATUSES } from "@/domain/types";
 import { buildSeed } from "@/mocks/fixtures";
 import { ApiError } from "./errors";
 
-const DB_KEY = "fpm-db-v4";
+const DB_KEY = "fpm-db-v5";
 let memory: Database | null = null;
 
 export function getDb(): Database {
@@ -36,9 +37,9 @@ export function getDb(): Database {
             Array.isArray(parsed.machineTypes) &&
             Array.isArray(parsed.machineQuantities) &&
             Array.isArray(parsed.topics) &&
-            parsed.factories.every((factory) => Boolean(factory.pmContact?.name)) &&
-            parsed.platforms.every((platform) => platform.mode === "VERSIONED" || platform.mode === "FEATURE_ONLY") &&
-            parsed.plans.every((plan) => Array.isArray(plan.plannedFeatures))
+            Array.isArray(parsed.people) &&
+            parsed.products.every((product) => (product.mode === "VERSIONED" || product.mode === "FEATURE_ONLY") && !("code" in product)) &&
+            parsed.plans.every((plan) => Array.isArray(plan.plannedFeatures) && Array.isArray(plan.adHocChanges))
           ) {
             memory = parsed;
           }
@@ -82,9 +83,15 @@ function log(db: Database, actorId: string, entityType: ActivityEntity, entityId
 }
 
 function actor(db: Database, actorId: string) {
-  const user = db.users.find((item) => item.id === actorId);
+  const user = db.people.find((item) => item.id === actorId);
   if (!user) throw new ApiError("找不到目前的操作者", 401);
   return user;
+}
+
+function requirePerson(db: Database, id: string): Person {
+  const person = db.people.find((item) => item.id === id);
+  if (!person || !person.active) throw new ApiError("請從在職人員名單選擇", 400);
+  return person;
 }
 
 function requireDate(value: string, label: string): string {
@@ -107,7 +114,6 @@ export interface FactoryInput {
   region: string;
   technology: string;
   pmId: string;
-  pmContact: PmContact;
   plannedStart: string;
   status: FactoryStatus;
 }
@@ -120,8 +126,7 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
   assertEnum(db, "factoryCategory", input.category);
   assertEnum(db, "factoryRegion", input.region);
   assertEnum(db, "technologyNode", input.technology);
-  if (!db.users.some((user) => user.id === input.pmId)) throw new ApiError("找不到 PM", 400);
-  const pmContact = requireContact(input.pmContact);
+  requirePerson(db, input.pmId);
   const start = requireDate(input.plannedStart, "計畫開始");
   const id = nextId(db, "fac");
   let cursor = start;
@@ -159,15 +164,14 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
     region: input.region,
     technology: input.technology,
     pmId: input.pmId,
-    pmContact,
     plannedStart: start,
     plannedEnd: end,
     actualStart: null,
     actualEnd: null,
     status: input.status,
   });
-  for (const platform of db.platforms) {
-    ensureDeployment(db, id, platform.id, input.pmId);
+  for (const product of db.products) {
+    ensureDeployment(db, id, product.id, input.pmId);
   }
   log(db, actorId, "FACTORY", id, "CREATE", `建立工廠 ${input.name.trim()}（${code}），並從四階段範本複製時程。`);
   persist();
@@ -188,8 +192,8 @@ export function updateFactory(db: Database, actorId: string, id: string, input: 
   factory.category = input.category;
   factory.region = input.region;
   factory.technology = input.technology;
+  requirePerson(db, input.pmId);
   factory.pmId = input.pmId;
-  factory.pmContact = requireContact(input.pmContact);
   factory.plannedStart = requireDate(input.plannedStart, "計畫開始");
   factory.plannedEnd = requireDate(input.plannedEnd, "計畫結束");
   factory.status = input.status;
@@ -235,19 +239,10 @@ export function updateTopic(db: Database, actorId: string, id: string, input: To
   return { id, factoryId: topic.factoryId };
 }
 
-function requireContact(input: PmContact | undefined): PmContact {
-  const name = input?.name?.trim() ?? "";
-  const email = input?.email?.trim() ?? "";
-  const phone = input?.phone?.trim() ?? "";
-  if (!name || !email || !phone) throw new ApiError("請填廠區 PM 姓名、信箱與電話", 400);
-  if (!email.includes("@")) throw new ApiError("PM 信箱格式不正確", 400);
-  return { name, email, phone };
-}
-
 function normalizeTopic(db: Database, input: TopicInput) {
   const title = input.title.trim();
   if (!title) throw new ApiError("請填例外事項標題", 400);
-  if (!db.users.some((user) => user.id === input.ownerId)) throw new ApiError("找不到負責人", 400);
+  requirePerson(db, input.ownerId);
   if (!TOPIC_STATUSES.includes(input.status)) throw new ApiError("例外事項狀態不正確", 400);
   return {
     title,
@@ -274,6 +269,7 @@ export interface PhaseInput {
 export function createPhase(db: Database, actorId: string, factoryId: string, input: PhaseInput) {
   const user = actor(db, actorId);
   must(db.factories, factoryId, "找不到這座工廠");
+  requirePerson(db, input.ownerId);
   const id = nextId(db, "ph");
   db.phases.push({
     id,
@@ -298,6 +294,7 @@ export function createPhase(db: Database, actorId: string, factoryId: string, in
 export function updatePhase(db: Database, actorId: string, id: string, input: PhaseInput) {
   const user = actor(db, actorId);
   const phase = must(db.phases, id, "找不到這個階段");
+  requirePerson(db, input.ownerId);
   const previous = phase.status;
   phase.name = input.name.trim();
   phase.order = Number(input.order) || phase.order;
@@ -332,6 +329,7 @@ export interface MilestoneInput {
 export function createMilestone(db: Database, actorId: string, phaseId: string, input: MilestoneInput) {
   const user = actor(db, actorId);
   const phase = must(db.phases, phaseId, "找不到這個階段");
+  requirePerson(db, input.ownerId);
   const id = nextId(db, "ms");
   db.milestones.push({
     id,
@@ -351,6 +349,7 @@ export function createMilestone(db: Database, actorId: string, phaseId: string, 
 export function updateMilestone(db: Database, actorId: string, id: string, input: MilestoneInput) {
   const user = actor(db, actorId);
   const milestone = must(db.milestones, id, "找不到這個里程碑");
+  requirePerson(db, input.ownerId);
   const was = milestone.done;
   milestone.name = input.name.trim();
   milestone.dueDate = requireDate(input.dueDate, "到期日");
@@ -371,7 +370,7 @@ export interface IssueInput {
   description: string;
   factoryId: string;
   phaseId: string | null;
-  platformId: string | null;
+  productId: string | null;
   ownerId: string;
   severity: IssueSeverity;
   priority: "P0" | "P1" | "P2" | "P3";
@@ -383,6 +382,7 @@ export interface IssueInput {
 export function createIssue(db: Database, actorId: string, input: IssueInput) {
   const user = actor(db, actorId);
   must(db.factories, input.factoryId, "找不到這座工廠");
+  requirePerson(db, input.ownerId);
   const id = nextId(db, "iss");
   const code = `ISS-${String(db.issues.length + 40).padStart(3, "0")}`;
   db.issues.unshift({
@@ -393,7 +393,7 @@ export function createIssue(db: Database, actorId: string, input: IssueInput) {
     factoryId: input.factoryId,
     phaseId: input.phaseId,
     milestoneId: null,
-    platformId: input.platformId,
+    productId: input.productId,
     ownerId: input.ownerId,
     severity: input.severity,
     priority: input.priority,
@@ -410,12 +410,13 @@ export function createIssue(db: Database, actorId: string, input: IssueInput) {
 export function updateIssue(db: Database, actorId: string, id: string, input: IssueInput) {
   const user = actor(db, actorId);
   const issue = must(db.issues, id, "找不到這筆問題");
+  requirePerson(db, input.ownerId);
   const previous = issue.status;
   issue.title = input.title.trim();
   issue.description = input.description.trim();
   issue.factoryId = input.factoryId;
   issue.phaseId = input.phaseId;
-  issue.platformId = input.platformId;
+  issue.productId = input.productId;
   issue.ownerId = input.ownerId;
   issue.severity = input.severity;
   issue.priority = input.priority;
@@ -450,20 +451,21 @@ export interface DeploymentInput {
 export function updateDeployment(db: Database, actorId: string, id: string, input: DeploymentInput) {
   const user = actor(db, actorId);
   const deployment = must(db.deployments, id, "找不到這筆部署");
-  const platform = must(db.platforms, deployment.platformId, "找不到這個平台");
-  if (platform.mode === "FEATURE_ONLY") {
+  requirePerson(db, input.secondaryOwnerId);
+  const product = must(db.products, deployment.productId, "找不到這個產品");
+  if (product.mode === "FEATURE_ONLY") {
     input = { ...input, plannedVersionId: null, actualVersionId: null };
   }
   if (input.status !== deployment.status) {
-    log(db, actorId, "DEPLOYMENT", id, "STATUS", `${user.name}把${platform.name}部署狀態改為 ${input.status}。`);
+    log(db, actorId, "DEPLOYMENT", id, "STATUS", `${user.name}把${product.name}部署狀態改為 ${input.status}。`);
   }
   if (input.actualVersionId !== deployment.actualVersionId) {
     const version = input.actualVersionId ? db.versions.find((item) => item.id === input.actualVersionId)?.version : "未填";
-    log(db, actorId, "DEPLOYMENT", id, "ACTUAL_VERSION", `${user.name}填報${platform.name}實際版本為 ${version}。`);
+    log(db, actorId, "DEPLOYMENT", id, "ACTUAL_VERSION", `${user.name}填報${product.name}實際版本為 ${version}。`);
   }
   if (input.plannedVersionId !== deployment.plannedVersionId) {
     const version = input.plannedVersionId ? db.versions.find((item) => item.id === input.plannedVersionId)?.version : "未填";
-    log(db, actorId, "DEPLOYMENT", id, "PLANNED_VERSION", `${user.name}更新${platform.name}計畫版本為 ${version}。`);
+    log(db, actorId, "DEPLOYMENT", id, "PLANNED_VERSION", `${user.name}更新${product.name}計畫版本為 ${version}。`);
   }
   deployment.plannedVersionId = input.plannedVersionId;
   deployment.actualVersionId = input.actualVersionId;
@@ -488,11 +490,11 @@ export function updateDeployment(db: Database, actorId: string, id: string, inpu
     }
     const featureName = db.features.find((item) => item.id === feature.featureId)?.name ?? feature.featureId;
     if (previousDesired !== undefined && previousDesired !== feature.desired) {
-      log(db, actorId, "FEATURE", id, "DESIRED", `${user.name}把${platform.name}／${featureName}的期望改為${feature.desired ? "啟用" : "關閉"}。`);
+      log(db, actorId, "FEATURE", id, "DESIRED", `${user.name}把${product.name}／${featureName}的期望改為${feature.desired ? "啟用" : "關閉"}。`);
     }
     if (previousActual !== feature.actual) {
       const label = feature.actual === null ? "未填報" : feature.actual ? "啟用" : "關閉";
-      log(db, actorId, "FEATURE", id, "ACTUAL", `${user.name}填報${platform.name}／${featureName}實際為${label}。`);
+      log(db, actorId, "FEATURE", id, "ACTUAL", `${user.name}填報${product.name}／${featureName}實際為${label}。`);
     }
   }
   persist();
@@ -502,7 +504,9 @@ export function updateDeployment(db: Database, actorId: string, id: string, inpu
 export interface PlanInput {
   providedVersionId: string | null;
   plannedFeatures: PlannedFeature[];
-  featureChanges: FeatureChange[];
+  /** Descriptions for feature-flag diffs, keyed by feature id. */
+  reasons?: Record<string, string>;
+  adHocChanges: AdHocChange[];
   constructionStart: string | null;
   constructionEnd: string | null;
   machines: Array<{ machineTypeId: string; planned: number }>;
@@ -510,20 +514,20 @@ export interface PlanInput {
   intent: "draft" | "submit";
 }
 
-export function savePlan(db: Database, actorId: string, factoryId: string, platformId: string, input: PlanInput) {
+export function savePlan(db: Database, actorId: string, factoryId: string, productId: string, input: PlanInput) {
   const user = actor(db, actorId);
-  const platform = must(db.platforms, platformId, "找不到這個平台");
-  const deployment = db.deployments.find((item) => item.factoryId === factoryId && item.platformId === platformId);
-  const plan = db.plans.find((item) => item.factoryId === factoryId && item.platformId === platformId);
-  if (!deployment || !plan) throw new ApiError("找不到這份平台計畫", 404);
+  const product = must(db.products, productId, "找不到這個產品");
+  const deployment = db.deployments.find((item) => item.factoryId === factoryId && item.productId === productId);
+  const plan = db.plans.find((item) => item.factoryId === factoryId && item.productId === productId);
+  if (!deployment || !plan) throw new ApiError("找不到這份產品計畫", 404);
   const start = optionalDate(input.constructionStart);
   const end = optionalDate(input.constructionEnd);
   if (start && end && end < start) throw new ApiError("施工結束日不能早於開始日", 400);
-  const features = db.features.filter((feature) => feature.platformId === platformId);
+  const features = db.features.filter((feature) => feature.productId === productId);
   let providedVersionId: string | null = null;
   const plannedFeatures: PlannedFeature[] = [];
-  let changes: FeatureChange[] = [];
-  if (platform.mode === "FEATURE_ONLY") {
+  let adhoc: AdHocChange[] = [];
+  if (product.mode === "FEATURE_ONLY") {
     const seen = new Set<string>();
     for (const row of input.plannedFeatures ?? []) {
       if (!features.some((feature) => feature.id === row.featureId)) throw new ApiError("找不到這個功能", 400);
@@ -534,25 +538,23 @@ export function savePlan(db: Database, actorId: string, factoryId: string, platf
     if ((input.intent === "submit" || plan.status === "SUBMITTED" || plan.status === "APPROVED") && !isFeaturePlanComplete(features.map((feature) => feature.id), plannedFeatures)) {
       throw new ApiError("送出前要為每個功能選擇啟用或關閉", 400);
     }
-    changes = baselineChanges(features, plannedFeatures);
+    adhoc = featureOverrides(features, plannedFeatures, input.reasons ?? {}, normalizeAdHoc(db, productId, input.adHocChanges ?? [], "FEATURE_ONLY"));
     for (const row of plannedFeatures) {
       const existing = db.featureConfigs.find((item) => item.deploymentId === deployment.id && item.featureId === row.featureId);
       if (existing) existing.desired = row.enabled;
     }
   } else {
-    if (input.providedVersionId && !db.versions.some((version) => version.id === input.providedVersionId && version.platformId === platformId)) {
-      throw new ApiError("這個版本不屬於此平台", 400);
+    if (input.providedVersionId && !db.versions.some((version) => version.id === input.providedVersionId && version.productId === productId)) {
+      throw new ApiError("這個版本不屬於此產品", 400);
     }
     if (input.intent === "submit" && !input.providedVersionId) throw new ApiError("送出前要選擇提供的版本", 400);
     providedVersionId = input.providedVersionId;
-    changes = input.featureChanges
-      .filter((change) => change.featureId && change.summary.trim())
-      .map((change) => ({ featureId: change.featureId, changeType: change.changeType, summary: change.summary.trim() }));
+    adhoc = normalizeAdHoc(db, productId, input.adHocChanges ?? [], "VERSIONED");
   }
   if (input.intent === "submit" && (!start || !end)) throw new ApiError("送出前要填施工時間範圍", 400);
   plan.providedVersionId = providedVersionId;
   plan.plannedFeatures = plannedFeatures;
-  plan.featureChanges = changes;
+  plan.adHocChanges = adhoc;
   plan.constructionStart = start;
   plan.constructionEnd = end;
   plan.note = input.note.trim();
@@ -574,7 +576,7 @@ export function savePlan(db: Database, actorId: string, factoryId: string, platf
     action,
     providedVersionId: plan.providedVersionId,
     plannedFeatures,
-    featureChanges: changes,
+    adHocChanges: adhoc,
     constructionStart: start,
     constructionEnd: end,
     machines,
@@ -583,15 +585,15 @@ export function savePlan(db: Database, actorId: string, factoryId: string, platf
     note: input.note.trim(),
   });
   const verb = action === "DRAFT" ? "儲存草稿" : "送出";
-  log(db, actorId, "PLAN", plan.id, action, `${user.name}${verb}${must(db.factories, factoryId, "找不到這座工廠").name}的${platform.name}計畫。`);
+  log(db, actorId, "PLAN", plan.id, action, `${user.name}${verb}${must(db.factories, factoryId, "找不到這座工廠").name}的${product.name}計畫。`);
   persist();
   return { id: plan.id };
 }
 
-export function approvePlan(db: Database, actorId: string, factoryId: string, platformId: string) {
+export function approvePlan(db: Database, actorId: string, factoryId: string, productId: string) {
   const user = actor(db, actorId);
-  const plan = db.plans.find((item) => item.factoryId === factoryId && item.platformId === platformId);
-  if (!plan) throw new ApiError("找不到這份平台計畫", 404);
+  const plan = db.plans.find((item) => item.factoryId === factoryId && item.productId === productId);
+  if (!plan) throw new ApiError("找不到這份產品計畫", 404);
   if (plan.status !== "SUBMITTED") throw new ApiError("只有已提報的計畫可以核准", 400);
   plan.status = "APPROVED";
   plan.approvedById = user.id;
@@ -604,7 +606,7 @@ export function approvePlan(db: Database, actorId: string, factoryId: string, pl
     action: "APPROVE",
     providedVersionId: plan.providedVersionId,
     plannedFeatures: plan.plannedFeatures,
-    featureChanges: plan.featureChanges,
+    adHocChanges: plan.adHocChanges,
     constructionStart: plan.constructionStart,
     constructionEnd: plan.constructionEnd,
     machines: snapshotMachines(db, plan.deploymentId),
@@ -612,32 +614,29 @@ export function approvePlan(db: Database, actorId: string, factoryId: string, pl
     createdAt: new Date().toISOString(),
     note: "PM 核准",
   });
-  const platform = must(db.platforms, platformId, "找不到這個平台");
-  log(db, actorId, "PLAN", plan.id, "APPROVE", `${user.name}核准${platform.name}計畫。`);
+  const product = must(db.products, productId, "找不到這個產品");
+  log(db, actorId, "PLAN", plan.id, "APPROVE", `${user.name}核准${product.name}計畫。`);
   persist();
   return { id: plan.id };
 }
 
-export interface PlatformInput {
-  code: string;
+export interface ProductInput {
   name: string;
   description: string;
   devDepartment: string;
   projectDepartment: string;
   primaryOwnerId: string;
-  mode: PlatformMode;
+  mode: ProductMode;
 }
 
-export function createPlatform(db: Database, actorId: string, input: PlatformInput) {
+export function createProduct(db: Database, actorId: string, input: ProductInput) {
   const user = actor(db, actorId);
-  const code = input.code.trim().toUpperCase();
-  if (!code || !input.name.trim()) throw new ApiError("平台代碼與名稱必填", 400);
-  if (!PLATFORM_MODES.includes(input.mode)) throw new ApiError("請選擇版本模式或僅功能開關", 400);
-  if (db.platforms.some((platform) => platform.code === code)) throw new ApiError("平台代碼已存在", 400);
-  const id = nextId(db, "plt");
-  db.platforms.push({
+  if (!input.name.trim()) throw new ApiError("產品名稱必填", 400);
+  if (!PRODUCT_MODES.includes(input.mode)) throw new ApiError("請選擇版本模式或僅功能開關", 400);
+  requirePerson(db, input.primaryOwnerId);
+  const id = nextId(db, "prd");
+  db.products.push({
     id,
-    code,
     name: input.name.trim(),
     description: input.description.trim(),
     devDepartment: input.devDepartment.trim(),
@@ -648,22 +647,23 @@ export function createPlatform(db: Database, actorId: string, input: PlatformInp
   for (const factory of db.factories) {
     ensureDeployment(db, factory.id, id, factory.pmId);
   }
-  log(db, actorId, "PLATFORM", id, "CREATE", `${user.name}新增平台「${input.name.trim()}」，並在每座工廠建立未提報的計畫。`);
+  log(db, actorId, "PRODUCT", id, "CREATE", `${user.name}新增產品「${input.name.trim()}」，並在每座工廠建立未提報的計畫。`);
   persist();
   return { id };
 }
 
-export function updatePlatform(db: Database, actorId: string, id: string, input: PlatformInput) {
+export function updateProduct(db: Database, actorId: string, id: string, input: ProductInput) {
   const user = actor(db, actorId);
-  const platform = must(db.platforms, id, "找不到這個平台");
-  platform.code = input.code.trim().toUpperCase();
-  platform.name = input.name.trim();
-  platform.description = input.description.trim();
-  platform.devDepartment = input.devDepartment.trim();
-  platform.projectDepartment = input.projectDepartment.trim();
-  platform.primaryOwnerId = input.primaryOwnerId;
-  if (PLATFORM_MODES.includes(input.mode)) platform.mode = input.mode;
-  log(db, actorId, "PLATFORM", id, "UPDATE", `${user.name}更新平台「${platform.name}」。`);
+  const product = must(db.products, id, "找不到這個產品");
+  if (!input.name.trim()) throw new ApiError("產品名稱必填", 400);
+  requirePerson(db, input.primaryOwnerId);
+  product.name = input.name.trim();
+  product.description = input.description.trim();
+  product.devDepartment = input.devDepartment.trim();
+  product.projectDepartment = input.projectDepartment.trim();
+  product.primaryOwnerId = input.primaryOwnerId;
+  if (PRODUCT_MODES.includes(input.mode)) product.mode = input.mode;
+  log(db, actorId, "PRODUCT", id, "UPDATE", `${user.name}更新產品「${product.name}」。`);
   persist();
   return { id };
 }
@@ -747,11 +747,11 @@ function snapshotMachines(db: Database, deploymentId: string) {
 export function diffVersionFeatures(db: Database, fromId: string | null, toId: string): FeatureChange[] {
   const to = db.versions.find((version) => version.id === toId);
   if (!to) return [];
-  const features = db.features.filter((feature) => feature.platformId === to.platformId);
+  const features = db.features.filter((feature) => feature.productId === to.productId);
   const previous = fromId
     ? fromId
     : db.versions
-        .filter((version) => version.platformId === to.platformId && version.id !== toId)
+        .filter((version) => version.productId === to.productId && version.id !== toId)
         .sort((a, b) => compareSemver(a.version, b.version) ?? 0)
         .filter((version) => (compareSemver(version.version, to.version) ?? 0) < 0)
         .at(-1)?.id ?? null;
@@ -767,11 +767,11 @@ export function diffVersionFeatures(db: Database, fromId: string | null, toId: s
   return changes;
 }
 
-function ensureDeployment(db: Database, factoryId: string, platformId: string, ownerId: string) {
-  const platform = must(db.platforms, platformId, "找不到這個平台");
-  const versions = platform.mode === "VERSIONED"
+function ensureDeployment(db: Database, factoryId: string, productId: string, ownerId: string) {
+  const product = must(db.products, productId, "找不到這個產品");
+  const versions = product.mode === "VERSIONED"
     ? db.versions
-        .filter((version) => version.platformId === platformId)
+        .filter((version) => version.productId === productId)
         .sort((a, b) => compareSemver(a.version, b.version) ?? 0)
     : [];
   const planned = versions.at(-1)?.id ?? null;
@@ -779,7 +779,7 @@ function ensureDeployment(db: Database, factoryId: string, platformId: string, o
   db.deployments.push({
     id: deploymentId,
     factoryId,
-    platformId,
+    productId,
     plannedVersionId: planned,
     actualVersionId: null,
     status: "PLANNED",
@@ -792,8 +792,8 @@ function ensureDeployment(db: Database, factoryId: string, platformId: string, o
   if (phase2) {
     db.phaseLinks.push({ id: nextId(db, "lnk"), deploymentId, phaseId: phase2.id, relation: "INTRODUCED" });
   }
-  for (const feature of db.features.filter((item) => item.platformId === platformId)) {
-    const desired = platform.mode === "FEATURE_ONLY"
+  for (const feature of db.features.filter((item) => item.productId === productId)) {
+    const desired = product.mode === "FEATURE_ONLY"
       ? feature.defaultEnabled
       : Boolean(planned && db.versionFeatures.some((row) => row.versionId === planned && row.featureId === feature.id && row.supported));
     db.featureConfigs.push({ id: nextId(db, "fc"), deploymentId, featureId: feature.id, desired, actual: null });
@@ -801,12 +801,12 @@ function ensureDeployment(db: Database, factoryId: string, platformId: string, o
   db.plans.push({
     id: nextId(db, "plan"),
     factoryId,
-    platformId,
+    productId,
     deploymentId,
     status: "NOT_SUBMITTED",
     providedVersionId: null,
     plannedFeatures: [],
-    featureChanges: [],
+    adHocChanges: [],
     constructionStart: null,
     constructionEnd: null,
     note: "",
@@ -815,6 +815,63 @@ function ensureDeployment(db: Database, factoryId: string, platformId: string, o
     approvedById: null,
     approvedAt: null,
   });
+}
+
+function normalizeAdHoc(db: Database, productId: string, rows: AdHocChange[], mode: ProductMode): AdHocChange[] {
+  const features = db.features.filter((feature) => feature.productId === productId);
+  const cleaned: AdHocChange[] = [];
+  for (const row of rows) {
+    if (row.kind === "CUSTOM") {
+      const title = row.title.trim();
+      if (!title) continue;
+      cleaned.push({ id: row.id || nextId(db, "ah"), kind: "CUSTOM", featureId: null, enabled: null, title, description: row.description.trim() });
+      continue;
+    }
+    if (mode === "FEATURE_ONLY") continue;
+    if (!row.featureId || !features.some((feature) => feature.id === row.featureId)) throw new ApiError("特殊異動指向不存在的功能", 400);
+    cleaned.push({
+      id: row.id || nextId(db, "ah"),
+      kind: "FEATURE_OVERRIDE",
+      featureId: row.featureId,
+      enabled: Boolean(row.enabled),
+      title: "",
+      description: row.description.trim(),
+    });
+  }
+  return cleaned;
+}
+
+export interface PersonInput {
+  name: string;
+  department: string;
+  active?: boolean;
+}
+
+export function createPerson(db: Database, actorId: string, input: PersonInput) {
+  const user = actor(db, actorId);
+  const name = input.name.trim();
+  const department = input.department.trim();
+  if (!name || !department) throw new ApiError("姓名與部門必填", 400);
+  const id = nextId(db, "per");
+  db.people.push({ id, name, department, active: true, source: "manual", externalId: null });
+  log(db, actorId, "PERSON", id, "CREATE", `${user.name}新增人員「${name}」。`);
+  persist();
+  return { id };
+}
+
+export function updatePerson(db: Database, actorId: string, id: string, input: PersonInput) {
+  const user = actor(db, actorId);
+  const person = must(db.people, id, "找不到這個人");
+  if (person.source !== "manual") throw new ApiError("外部人員由目錄同步，不能在這裡修改", 400);
+  const name = input.name.trim();
+  const department = input.department.trim();
+  if (!name || !department) throw new ApiError("姓名與部門必填", 400);
+  person.name = name;
+  person.department = department;
+  if (typeof input.active === "boolean") person.active = input.active;
+  log(db, actorId, "PERSON", id, "UPDATE", `${user.name}${person.active ? "更新" : "停用"}人員「${name}」。`);
+  persist();
+  return { id };
 }
 
 function assertEnum(db: Database, set: Database["enumerations"][number]["set"], code: string) {

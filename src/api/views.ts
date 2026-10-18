@@ -1,8 +1,8 @@
-import { isFeaturePlanComplete, resolvePlanned } from "@/domain/features";
+import { capabilityCell, isFeaturePlanComplete } from "@/domain/features";
 import { plannedTotal } from "@/domain/machines";
 import { compareSemver } from "@/domain/semver";
 import { cellReadiness } from "@/domain/readiness";
-import type { Database, User } from "@/domain/types";
+import type { AccountRole, AdHocChange, Database, Person } from "@/domain/types";
 import { evaluateConstructionWindow } from "@/domain/windows";
 import { ApiError } from "./errors";
 import type {
@@ -19,17 +19,20 @@ import type {
   MilestoneRow,
   PendingPlan,
   PlanPage,
-  PlatformBuild,
-  PlatformDetail,
-  PlatformSummary,
+  AdHocView,
+  ProductBuild,
+  ProductDetail,
+  ProductSummary,
   Portfolio,
 } from "./types";
 
-export function buildBootstrap(db: Database, actorId: string): Bootstrap {
+export function buildBootstrap(db: Database, actorId: string, auth: { role: AccountRole; username: string }): Bootstrap {
   return {
     asOf: db.asOf,
-    currentUser: mustUser(db, actorId),
-    users: db.users,
+    role: auth.role,
+    username: auth.username,
+    actor: mustPerson(db, actorId),
+    people: db.people,
     enumerations: [...db.enumerations].sort((a, b) => a.set.localeCompare(b.set) || a.order - b.order),
     machineTypes: [...db.machineTypes].sort((a, b) => a.order - b.order),
     phaseTemplates: [...db.phaseTemplates]
@@ -61,16 +64,15 @@ export function buildPortfolio(db: Database): Portfolio {
   };
 }
 
-export function buildPlatformBuild(db: Database): PlatformBuild {
-  const platforms = [...db.platforms].map((platform) => ({
-    id: platform.id,
-    code: platform.code,
-    name: platform.name,
-    primaryOwnerName: nameOf(db, platform.primaryOwnerId),
-    mode: platform.mode,
+export function buildProductBuild(db: Database): ProductBuild {
+  const products = [...db.products].map((product) => ({
+    id: product.id,
+    name: product.name,
+    primaryOwnerName: nameOf(db, product.primaryOwnerId),
+    mode: product.mode,
   }));
-  const rows = db.factories.map((factory) => buildRow(db, factory.id, platforms.map((platform) => platform.id)));
-  return { asOf: db.asOf, platforms, rows };
+  const rows = db.factories.map((factory) => buildRow(db, factory.id, products.map((product) => product.id)));
+  return { asOf: db.asOf, products, rows };
 }
 
 export function buildFactory(db: Database, id: string): FactoryDetail {
@@ -96,7 +98,9 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
     technologyLabel: enumLabel(db, "technologyNode", factory.technology),
     pmId: factory.pmId,
     pmName: nameOf(db, factory.pmId),
-    pmContact: factory.pmContact,
+    pmDepartment: departmentOf(db, factory.pmId),
+    machineTotal: plannedTotal(factoryRollup(db, id)),
+    machineRollup: factoryRollup(db, id),
     plannedStart: factory.plannedStart,
     plannedEnd: factory.plannedEnd,
     actualStart: factory.actualStart,
@@ -128,35 +132,36 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
           ownerName: nameOf(db, milestone.ownerId),
         })),
     })),
-    windows: db.platforms.map((platform) => {
-      const plan = db.plans.find((item) => item.factoryId === id && item.platformId === platform.id);
+    windows: db.products.map((product) => {
+      const plan = db.plans.find((item) => item.factoryId === id && item.productId === product.id);
       const check = evaluateConstructionWindow(
         { start: plan?.constructionStart ?? null, end: plan?.constructionEnd ?? null },
         phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
       );
       return {
-        id: platform.id,
-        label: platform.name,
+        id: product.id,
+        label: product.name,
         start: plan?.constructionStart ?? null,
         end: plan?.constructionEnd ?? null,
         state: check.state,
         reasons: check.reasons,
       };
     }),
-    plans: db.platforms.map((platform) => {
-      const plan = db.plans.find((item) => item.factoryId === id && item.platformId === platform.id);
+    plans: db.products.map((product) => {
+      const plan = db.plans.find((item) => item.factoryId === id && item.productId === product.id);
       const check = evaluateConstructionWindow(
         { start: plan?.constructionStart ?? null, end: plan?.constructionEnd ?? null },
         phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
       );
       return {
         id: plan?.id ?? "",
-        platformId: platform.id,
-        platformName: platform.name,
-        mode: platform.mode,
+        productId: product.id,
+        productName: product.name,
+        mode: product.mode,
         status: plan?.status ?? "NOT_SUBMITTED",
-        providedVersion: platform.mode === "VERSIONED" ? versionName(db, plan?.providedVersionId ?? null) : null,
-        changeCount: plan?.featureChanges.length ?? 0,
+        providedVersion: product.mode === "VERSIONED" ? versionName(db, plan?.providedVersionId ?? null) : null,
+        changeCount: plan?.adHocChanges.length ?? 0,
+        adHocChanges: adHocViews(db, plan?.adHocChanges ?? []),
         windowStart: plan?.constructionStart ?? null,
         windowEnd: plan?.constructionEnd ?? null,
         windowState: check.state,
@@ -167,15 +172,15 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
     deployments: db.deployments
       .filter((deployment) => deployment.factoryId === id)
       .map((deployment) => {
-        const platform = mustPlatform(db, deployment.platformId);
+        const product = mustProduct(db, deployment.productId);
         const planned = versionName(db, deployment.plannedVersionId);
         const actual = versionName(db, deployment.actualVersionId);
-        const latest = latestVersion(db, platform.id);
+        const latest = latestVersion(db, product.id);
         return {
           id: deployment.id,
-          platformId: platform.id,
-          platformName: platform.name,
-          mode: platform.mode,
+          productId: product.id,
+          productName: product.name,
+          mode: product.mode,
           status: deployment.status,
           plannedVersion: planned,
           actualVersion: actual,
@@ -200,7 +205,6 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
         raisedOn: topic.raisedOn,
       })),
     activity: activityItems(db).filter((item) => relatedToFactory(db, item, id)).slice(0, 12),
-    machineRollup: factoryRollup(db, id),
   };
 }
 
@@ -218,18 +222,18 @@ export function buildIssue(db: Database, id: string): IssuePage {
   };
 }
 
-export function buildPlatforms(db: Database): { asOf: string; items: PlatformSummary[] } {
-  return { asOf: db.asOf, items: db.platforms.map((platform) => platformSummary(db, platform.id)) };
+export function buildProducts(db: Database): { asOf: string; items: ProductSummary[] } {
+  return { asOf: db.asOf, items: db.products.map((product) => platformSummary(db, product.id)) };
 }
 
-export function buildPlatform(db: Database, id: string): PlatformDetail {
+export function buildProduct(db: Database, id: string): ProductDetail {
   const summary = platformSummary(db, id);
-  mustPlatform(db, id);
+  mustProduct(db, id);
   return {
     ...summary,
     asOf: db.asOf,
     versions: db.versions
-      .filter((version) => version.platformId === id)
+      .filter((version) => version.productId === id)
       .sort((a, b) => (compareSemver(a.version, b.version) ?? 0))
       .map((version) => ({
         id: version.id,
@@ -237,21 +241,21 @@ export function buildPlatform(db: Database, id: string): PlatformDetail {
         releasedAt: version.releasedAt,
         notes: version.notes,
         features: db.features
-          .filter((feature) => feature.platformId === id)
+          .filter((feature) => feature.productId === id)
           .map((feature) => ({
             id: feature.id,
             name: feature.name,
             supported: db.versionFeatures.some((row) => row.versionId === version.id && row.featureId === feature.id && row.supported),
           })),
       })),
-    features: db.features.filter((feature) => feature.platformId === id).map((feature) => ({
+    features: db.features.filter((feature) => feature.productId === id).map((feature) => ({
       id: feature.id,
       code: feature.code,
       name: feature.name,
       defaultEnabled: feature.defaultEnabled,
     })),
     deployments: db.deployments
-      .filter((deployment) => deployment.platformId === id)
+      .filter((deployment) => deployment.productId === id)
       .map((deployment) => {
         const factory = mustFactory(db, deployment.factoryId);
         const planned = versionName(db, deployment.plannedVersionId);
@@ -283,74 +287,73 @@ export function buildCapabilities(db: Database): CapabilityMatrix {
     id: feature.id,
     code: feature.code,
     name: feature.name,
-    platformId: feature.platformId,
-    platformName: mustPlatform(db, feature.platformId).name,
+    productId: feature.productId,
+    productName: mustProduct(db, feature.productId).name,
   }));
   return {
     asOf: db.asOf,
     features,
     rows: db.deployments.map((deployment) => {
-      const platform = mustPlatform(db, deployment.platformId);
+      const product = mustProduct(db, deployment.productId);
       const factory = mustFactory(db, deployment.factoryId);
-      const plan = db.plans.find((item) => item.factoryId === factory.id && item.platformId === platform.id);
-      const versionId = platform.mode === "VERSIONED" ? plan?.providedVersionId ?? null : null;
-      const platformFeatures = db.features.filter((feature) => feature.platformId === platform.id);
+      const plan = db.plans.find((item) => item.factoryId === factory.id && item.productId === product.id);
+      const versionId = product.mode === "VERSIONED" ? plan?.providedVersionId ?? null : null;
+      const platformFeatures = db.features.filter((feature) => feature.productId === product.id);
       return {
         deploymentId: deployment.id,
         factoryId: factory.id,
         factoryName: factory.name,
-        platformId: platform.id,
-        platformName: platform.name,
-        mode: platform.mode,
+        productId: product.id,
+        productName: product.name,
+        mode: product.mode,
         versionLabel: versionName(db, versionId),
         cells: platformFeatures.map((feature) => {
           const supported = versionId
             ? db.versionFeatures.some((row) => row.versionId === versionId && row.featureId === feature.id && row.supported)
             : null;
           const plannedRow = plan?.plannedFeatures.find((row) => row.featureId === feature.id);
-          const change = plan?.featureChanges.find((row) => row.featureId === feature.id);
-          return {
-            featureId: feature.id,
-            planned: resolvePlanned({
-              mode: platform.mode,
-              versionSupported: platform.mode === "VERSIONED" ? supported : null,
-              changeType: change?.changeType ?? null,
-              plannedEnabled: plannedRow ? plannedRow.enabled : null,
-            }),
-          };
+          const override = plan?.adHocChanges.find((row) => row.kind === "FEATURE_OVERRIDE" && row.featureId === feature.id);
+          const cell = capabilityCell({
+            mode: product.mode,
+            defaultEnabled: feature.defaultEnabled,
+            plannedEnabled: product.mode === "FEATURE_ONLY" ? (plannedRow ? plannedRow.enabled : null) : null,
+            versionSupported: product.mode === "VERSIONED" ? supported : null,
+            overrideEnabled: override ? Boolean(override.enabled) : null,
+          });
+          return { featureId: feature.id, ...cell, note: override?.description ?? "" };
         }),
+        adHocChanges: adHocViews(db, plan?.adHocChanges ?? []),
       };
     }),
     factories: db.factories.map((factory) => ({ id: factory.id, name: factory.name })),
-    platforms: db.platforms.map((platform) => ({ id: platform.id, name: platform.name, mode: platform.mode })),
+    products: db.products.map((product) => ({ id: product.id, name: product.name, mode: product.mode })),
   };
 }
 
-export function buildPlan(db: Database, factoryId: string, platformId: string, actorId: string): PlanPage {
+export function buildPlan(db: Database, factoryId: string, productId: string, actorId: string, role: AccountRole = "viewer"): PlanPage {
   const factory = mustFactory(db, factoryId);
-  const platform = mustPlatform(db, platformId);
-  const deployment = db.deployments.find((item) => item.factoryId === factoryId && item.platformId === platformId);
-  const plan = db.plans.find((item) => item.factoryId === factoryId && item.platformId === platformId);
-  if (!deployment || !plan) throw new ApiError("找不到這份平台計畫", 404);
+  const product = mustProduct(db, productId);
+  const deployment = db.deployments.find((item) => item.factoryId === factoryId && item.productId === productId);
+  const plan = db.plans.find((item) => item.factoryId === factoryId && item.productId === productId);
+  if (!deployment || !plan) throw new ApiError("找不到這份產品計畫", 404);
   const phase2 = db.phases.find((phase) => phase.factoryId === factoryId && phase.order === 2) ?? null;
   const window = evaluateConstructionWindow(
     { start: plan.constructionStart, end: plan.constructionEnd },
     phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
   );
-  mustUser(db, actorId);
-  const canEdit = true;
-  const canApprove = plan.status === "SUBMITTED";
+  mustPerson(db, actorId);
+  const canEdit = role === "editor";
+  const canApprove = role === "editor" && plan.status === "SUBMITTED";
   return {
     asOf: db.asOf,
     factoryId,
     factoryName: factory.name,
-    platformId,
-    platformName: platform.name,
-    platformCode: platform.code,
-    mode: platform.mode,
-    primaryOwnerName: nameOf(db, platform.primaryOwnerId),
-    devDepartment: platform.devDepartment,
-    projectDepartment: platform.projectDepartment,
+    productId,
+    productName: product.name,
+    mode: product.mode,
+    primaryOwnerName: nameOf(db, product.primaryOwnerId),
+    devDepartment: product.devDepartment,
+    projectDepartment: product.projectDepartment,
     phase2: phase2
       ? { id: phase2.id, name: phase2.name, status: phase2.status, plannedStart: phase2.plannedStart, plannedEnd: phase2.plannedEnd }
       : null,
@@ -362,7 +365,7 @@ export function buildPlan(db: Database, factoryId: string, platformId: string, a
     status: plan.status,
     providedVersionId: plan.providedVersionId,
     plannedFeatures: plan.plannedFeatures,
-    featureChanges: plan.featureChanges,
+    adHocChanges: adHocViews(db, plan.adHocChanges),
     constructionStart: plan.constructionStart,
     constructionEnd: plan.constructionEnd,
     note: plan.note,
@@ -371,11 +374,11 @@ export function buildPlan(db: Database, factoryId: string, platformId: string, a
     windowState: window.state,
     windowReasons: window.reasons,
     versions: db.versions
-      .filter((version) => version.platformId === platformId)
+      .filter((version) => version.productId === productId)
       .sort((a, b) => compareSemver(a.version, b.version) ?? 0)
       .map((version) => ({ id: version.id, version: version.version, notes: version.notes })),
     features: db.features
-      .filter((feature) => feature.platformId === platformId)
+      .filter((feature) => feature.productId === productId)
       .map((feature) => ({ id: feature.id, code: feature.code, name: feature.name, defaultEnabled: feature.defaultEnabled })),
     revisions: db.revisions
       .filter((revision) => revision.planId === plan.id)
@@ -385,12 +388,7 @@ export function buildPlan(db: Database, factoryId: string, platformId: string, a
         number: revision.number,
         action: revision.action,
         version: versionName(db, revision.providedVersionId),
-        changes: revision.featureChanges.map((change) => ({
-          featureId: change.featureId,
-          featureName: db.features.find((feature) => feature.id === change.featureId)?.name ?? change.featureId,
-          changeType: change.changeType,
-          summary: change.summary,
-        })),
+        adHocChanges: adHocViews(db, revision.adHocChanges ?? []),
         constructionStart: revision.constructionStart,
         constructionEnd: revision.constructionEnd,
         machines: (revision.machines ?? []).map((line) => ({
@@ -404,23 +402,23 @@ export function buildPlan(db: Database, factoryId: string, platformId: string, a
       })),
     canEdit,
     canApprove,
-    accessNote: "單一管理視角，可以直接修改與核准。",
+    accessNote: role === "editor" ? "編輯者可以修改與核准。" : "使用者只能閱讀。",
   };
 }
 
 export function buildDeployment(db: Database, id: string): DeploymentPage {
   const deployment = db.deployments.find((item) => item.id === id);
   if (!deployment) throw new ApiError("找不到這筆部署", 404);
-  const platform = mustPlatform(db, deployment.platformId);
+  const product = mustProduct(db, deployment.productId);
   const factory = mustFactory(db, deployment.factoryId);
   return {
     asOf: db.asOf,
     id: deployment.id,
     factoryId: factory.id,
     factoryName: factory.name,
-    platformId: platform.id,
-    platformName: platform.name,
-    mode: platform.mode,
+    productId: product.id,
+    productName: product.name,
+    mode: product.mode,
     status: deployment.status,
     plannedVersionId: deployment.plannedVersionId,
     actualVersionId: deployment.actualVersionId,
@@ -431,10 +429,10 @@ export function buildDeployment(db: Database, id: string): DeploymentPage {
     deployedAt: deployment.deployedAt,
     notes: deployment.notes,
     versions: db.versions
-      .filter((version) => version.platformId === platform.id)
+      .filter((version) => version.productId === product.id)
       .sort((a, b) => compareSemver(a.version, b.version) ?? 0)
       .map((version) => ({ id: version.id, version: version.version })),
-    users: db.users,
+    people: db.people,
     phases: db.phases
       .filter((phase) => phase.factoryId === factory.id)
       .sort((a, b) => a.order - b.order)
@@ -443,7 +441,7 @@ export function buildDeployment(db: Database, id: string): DeploymentPage {
       .filter((link) => link.deploymentId === id)
       .map((link) => ({ phaseId: link.phaseId, relation: link.relation })),
     features: db.features
-      .filter((feature) => feature.platformId === platform.id)
+      .filter((feature) => feature.productId === product.id)
       .map((feature) => {
         const config = db.featureConfigs.find((item) => item.deploymentId === id && item.featureId === feature.id);
         const supportedByActual = deployment.actualVersionId
@@ -466,7 +464,7 @@ export function buildActivity(db: Database): { asOf: string; items: ActivityItem
 }
 
 export function buildFactories(db: Database) {
-  return { asOf: db.asOf, items: db.factories.map((factory) => boardRow(db, factory.id)), users: db.users, enumerations: db.enumerations };
+  return { asOf: db.asOf, items: db.factories.map((factory) => boardRow(db, factory.id)), people: db.people, enumerations: db.enumerations };
 }
 
 function boardRow(db: Database, factoryId: string): FactoryBoardRow {
@@ -478,15 +476,15 @@ function boardRow(db: Database, factoryId: string): FactoryBoardRow {
   let outside = 0;
   let missing = 0;
   let notReady = 0;
-  for (const platform of db.platforms) {
-    const plan = plans.find((item) => item.platformId === platform.id);
+  for (const product of db.products) {
+    const plan = plans.find((item) => item.productId === product.id);
     if (!plan || plan.status === "NOT_SUBMITTED") missing += 1;
     const check = evaluateConstructionWindow(
       { start: plan?.constructionStart ?? null, end: plan?.constructionEnd ?? null },
       phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
     );
     if (check.state === "OUTSIDE") outside += 1;
-    if (!readinessFor(db, factoryId, platform.id, phase2).readiness.ready) notReady += 1;
+    if (!readinessFor(db, factoryId, product.id, phase2).readiness.ready) notReady += 1;
   }
   return {
     id: factory.id,
@@ -500,8 +498,11 @@ function boardRow(db: Database, factoryId: string): FactoryBoardRow {
     regionLabel: enumLabel(db, "factoryRegion", factory.region),
     technology: factory.technology,
     technologyLabel: enumLabel(db, "technologyNode", factory.technology),
+    pmId: factory.pmId,
     pmName: nameOf(db, factory.pmId),
-    pmContact: factory.pmContact,
+    pmDepartment: departmentOf(db, factory.pmId),
+    machineTotal: plannedTotal(factoryRollup(db, factoryId)),
+    machineRollup: factoryRollup(db, factoryId),
     openTopics: db.topics.filter((topic) => topic.factoryId === factoryId && (topic.status === "OPEN" || topic.status === "IN_DISCUSSION")).length,
     currentPhaseName: current?.name ?? "—",
     currentPhaseOrder: current?.order ?? 0,
@@ -527,53 +528,53 @@ function boardRow(db: Database, factoryId: string): FactoryBoardRow {
 function readinessFor(
   db: Database,
   factoryId: string,
-  platformId: string,
+  productId: string,
   phase2: { plannedStart: string; plannedEnd: string } | null,
 ) {
-  const platform = mustPlatform(db, platformId);
-  const plan = db.plans.find((item) => item.factoryId === factoryId && item.platformId === platformId);
+  const product = mustProduct(db, productId);
+  const plan = db.plans.find((item) => item.factoryId === factoryId && item.productId === productId);
   const window = evaluateConstructionWindow(
     { start: plan?.constructionStart ?? null, end: plan?.constructionEnd ?? null },
     phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
   );
-  const featureIds = db.features.filter((feature) => feature.platformId === platformId).map((feature) => feature.id);
+  const featureIds = db.features.filter((feature) => feature.productId === productId).map((feature) => feature.id);
   return {
     window,
     plan,
-    platform,
+    product,
     readiness: cellReadiness({
       planStatus: plan?.status ?? "NOT_SUBMITTED",
       windowState: window.state,
-      mode: platform.mode,
+      mode: product.mode,
       hasProvidedVersion: Boolean(plan?.providedVersionId),
       featurePlanComplete: isFeaturePlanComplete(featureIds, plan?.plannedFeatures ?? []),
     }),
   };
 }
 
-function buildRow(db: Database, factoryId: string, platformIds: string[]): BuildRow {
+function buildRow(db: Database, factoryId: string, productIds: string[]): BuildRow {
   const factory = mustFactory(db, factoryId);
   const phase2 = db.phases.find((phase) => phase.factoryId === factoryId && phase.order === 2) ?? null;
-  const cells: BuildCell[] = platformIds.map((platformId) => {
-    const deployment = db.deployments.find((item) => item.factoryId === factoryId && item.platformId === platformId);
-    const { window, plan, platform, readiness } = readinessFor(db, factoryId, platformId, phase2);
+  const cells: BuildCell[] = productIds.map((productId) => {
+    const deployment = db.deployments.find((item) => item.factoryId === factoryId && item.productId === productId);
+    const { window, plan, product, readiness } = readinessFor(db, factoryId, productId, phase2);
     const planStatus = plan?.status ?? "NOT_SUBMITTED";
     const deploymentStatus = deployment?.status ?? "PLANNED";
-    const providedVersion = platform.mode === "VERSIONED" ? versionName(db, plan?.providedVersionId ?? null) : null;
-    const actualVersion = platform.mode === "VERSIONED" ? versionName(db, deployment?.actualVersionId ?? null) : null;
+    const providedVersion = product.mode === "VERSIONED" ? versionName(db, plan?.providedVersionId ?? null) : null;
+    const actualVersion = product.mode === "VERSIONED" ? versionName(db, deployment?.actualVersionId ?? null) : null;
     return {
       factoryId,
-      platformId,
+      productId,
       deploymentId: deployment?.id ?? "",
       planId: plan?.id ?? "",
       deploymentStatus,
       planStatus,
-      mode: platform.mode,
+      mode: product.mode,
       providedVersion,
       actualVersion,
-      changeCount: plan?.featureChanges.length ?? 0,
+      changeCount: plan?.adHocChanges.length ?? 0,
       versionGap: Boolean(providedVersion && actualVersion && providedVersion !== actualVersion),
-      primaryOwnerName: nameOf(db, platform.primaryOwnerId),
+      primaryOwnerName: nameOf(db, product.primaryOwnerId),
       secondaryOwnerName: deployment ? nameOf(db, deployment.secondaryOwnerId) : "—",
       machines: deployment ? machineLines(db, deployment.id) : [],
       plannedTotal: deployment ? plannedTotal(machineLines(db, deployment.id)) : 0,
@@ -601,6 +602,8 @@ function buildRow(db: Database, factoryId: string, platformIds: string[]): Build
       : null,
     cells,
     readyCount: cells.filter((cell) => cell.ready).length,
+    machineRollup: factoryRollup(db, factoryId),
+    machineTotal: plannedTotal(factoryRollup(db, factoryId)),
   };
 }
 
@@ -613,7 +616,7 @@ function exceptions(db: Database) {
         rank: 0,
         tone: "danger",
         title: `${factory.name}延遲`,
-        detail: "工廠整體狀態是延遲，先看平台建立的未提報計畫與超出時程。",
+        detail: "工廠整體狀態是延遲，先看產品建立的未提報計畫與超出時程。",
         href: `/factories/${factory.id}`,
         factoryName: factory.name,
       });
@@ -642,8 +645,8 @@ function exceptions(db: Database) {
         });
       }
     }
-    for (const platform of db.platforms) {
-      const plan = db.plans.find((item) => item.factoryId === factory.id && item.platformId === platform.id);
+    for (const product of db.products) {
+      const plan = db.plans.find((item) => item.factoryId === factory.id && item.productId === product.id);
       const check = evaluateConstructionWindow(
         { start: plan?.constructionStart ?? null, end: plan?.constructionEnd ?? null },
         phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
@@ -651,25 +654,25 @@ function exceptions(db: Database) {
       if (!plan || plan.status === "NOT_SUBMITTED") {
         const active = phase2 && (phase2.status === "IN_PROGRESS" || phase2.status === "AT_RISK" || phase2.status === "DELAYED");
         items.push({
-          id: `ex-plan-${factory.id}-${platform.id}`,
+          id: `ex-plan-${factory.id}-${product.id}`,
           rank: active ? 2 : 8,
           tone: active ? "warning" : "info",
-          title: `${factory.name} · ${platform.name}計畫未提報`,
-          detail: platform.mode === "FEATURE_ONLY"
-            ? "平台團隊尚未送出功能開關與施工時程。"
-            : "平台團隊尚未送出提供版本、異動功能與施工時程。",
-          href: `/factories/${factory.id}/plans/${platform.id}`,
+          title: `${factory.name} · ${product.name}計畫未提報`,
+          detail: product.mode === "FEATURE_ONLY"
+            ? "產品團隊尚未送出功能開關與施工時程。"
+            : "產品團隊尚未送出提供版本、異動功能與施工時程。",
+          href: `/factories/${factory.id}/plans/${product.id}`,
           factoryName: factory.name,
         });
       }
       if (check.state === "OUTSIDE") {
         items.push({
-          id: `ex-win-${factory.id}-${platform.id}`,
+          id: `ex-win-${factory.id}-${product.id}`,
           rank: 2,
           tone: "danger",
-          title: `${factory.name} · ${platform.name}施工時程超出平台建立`,
+          title: `${factory.name} · ${product.name}施工時程超出產品建立`,
           detail: `${plan?.constructionStart ?? "—"} – ${plan?.constructionEnd ?? "—"}，階段 ${phase2?.plannedStart ?? "—"} – ${phase2?.plannedEnd ?? "—"}。平行施工的重疊不算衝突。`,
-          href: `/factories/${factory.id}/plans/${platform.id}`,
+          href: `/factories/${factory.id}/plans/${product.id}`,
           factoryName: factory.name,
         });
       }
@@ -717,15 +720,15 @@ function pendingPlans(db: Database): PendingPlan[] {
   return db.plans
     .filter((plan) => plan.status === "SUBMITTED")
     .map((plan) => {
-      const platform = mustPlatform(db, plan.platformId);
+      const product = mustProduct(db, plan.productId);
       return {
         id: plan.id,
         factoryId: plan.factoryId,
         factoryName: mustFactory(db, plan.factoryId).name,
-        platformId: platform.id,
-        platformName: platform.name,
+        productId: product.id,
+        productName: product.name,
         status: plan.status,
-        mode: platform.mode,
+        mode: product.mode,
       };
     });
 }
@@ -741,8 +744,8 @@ function issueItem(db: Database, issue: Database["issues"][number]): IssueListIt
     factoryName: mustFactory(db, issue.factoryId).name,
     phaseId: issue.phaseId,
     phaseName: issue.phaseId ? db.phases.find((phase) => phase.id === issue.phaseId)?.name ?? null : null,
-    platformId: issue.platformId,
-    platformName: issue.platformId ? mustPlatform(db, issue.platformId).name : null,
+    productId: issue.productId,
+    productName: issue.productId ? mustProduct(db, issue.productId).name : null,
     ownerId: issue.ownerId,
     ownerName: nameOf(db, issue.ownerId),
     severity: issue.severity,
@@ -755,25 +758,24 @@ function issueItem(db: Database, issue: Database["issues"][number]): IssueListIt
   };
 }
 
-function platformSummary(db: Database, id: string): PlatformSummary {
-  const platform = mustPlatform(db, id);
+function platformSummary(db: Database, id: string): ProductSummary {
+  const product = mustProduct(db, id);
   const latest = latestVersion(db, id);
   const outdated = db.deployments.filter((deployment) => {
-    if (deployment.platformId !== id) return false;
+    if (deployment.productId !== id) return false;
     const actual = versionName(db, deployment.actualVersionId);
     return Boolean(latest && actual && (compareSemver(actual, latest) ?? 0) < 0);
   }).length;
   return {
-    id: platform.id,
-    code: platform.code,
-    name: platform.name,
-    description: platform.description,
-    devDepartment: platform.devDepartment,
-    projectDepartment: platform.projectDepartment,
-    primaryOwnerId: platform.primaryOwnerId,
-    primaryOwnerName: nameOf(db, platform.primaryOwnerId),
-    mode: platform.mode,
-    versionCount: db.versions.filter((version) => version.platformId === id).length,
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    devDepartment: product.devDepartment,
+    projectDepartment: product.projectDepartment,
+    primaryOwnerId: product.primaryOwnerId,
+    primaryOwnerName: nameOf(db, product.primaryOwnerId),
+    mode: product.mode,
+    versionCount: db.versions.filter((version) => version.productId === id).length,
     latestVersion: latest,
     outdatedFactories: outdated,
   };
@@ -810,8 +812,8 @@ function relatedToFactory(db: Database, item: ActivityItem, factoryId: string): 
   return false;
 }
 
-function latestVersion(db: Database, platformId: string): string | null {
-  const versions = db.versions.filter((version) => version.platformId === platformId).map((version) => version.version);
+function latestVersion(db: Database, productId: string): string | null {
+  const versions = db.versions.filter((version) => version.productId === productId).map((version) => version.version);
   if (versions.length === 0) return null;
   return versions.sort((a, b) => compareSemver(a, b) ?? 0).at(-1) ?? null;
 }
@@ -854,13 +856,29 @@ function enumLabel(db: Database, set: Database["enumerations"][number]["set"], c
 }
 
 function nameOf(db: Database, id: string): string {
-  return db.users.find((user) => user.id === id)?.name ?? "—";
+  return db.people.find((person) => person.id === id)?.name ?? "—";
 }
 
-function mustUser(db: Database, id: string): User {
-  const user = db.users.find((item) => item.id === id);
-  if (!user) throw new ApiError("找不到這位人員", 404);
-  return user;
+function departmentOf(db: Database, id: string): string {
+  return db.people.find((person) => person.id === id)?.department ?? "—";
+}
+
+function mustPerson(db: Database, id: string): Person {
+  const person = db.people.find((item) => item.id === id);
+  if (!person) throw new ApiError("找不到這位人員", 404);
+  return person;
+}
+
+function adHocViews(db: Database, rows: AdHocChange[]): AdHocView[] {
+  return rows.map((change) => ({
+    id: change.id,
+    kind: change.kind,
+    featureId: change.featureId,
+    featureName: change.featureId ? db.features.find((feature) => feature.id === change.featureId)?.name ?? change.featureId : null,
+    enabled: change.enabled,
+    title: change.title,
+    description: change.description,
+  }));
 }
 
 function mustFactory(db: Database, id: string) {
@@ -869,10 +887,10 @@ function mustFactory(db: Database, id: string) {
   return factory;
 }
 
-function mustPlatform(db: Database, id: string) {
-  const platform = db.platforms.find((item) => item.id === id);
-  if (!platform) throw new ApiError("找不到這個平台", 404);
-  return platform;
+function mustProduct(db: Database, id: string) {
+  const product = db.products.find((item) => item.id === id);
+  if (!product) throw new ApiError("找不到這個產品", 404);
+  return product;
 }
 
 function addDaysLoose(iso: string, days: number): string {

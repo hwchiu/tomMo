@@ -1,13 +1,13 @@
-import { PlatformEditor } from "@/components/platform-views";
-import { platformParams } from "@/lib/static-params";
+import { ProductEditor } from "@/components/product-views";
+import { productParams } from "@/lib/static-params";
 
 export function generateStaticParams() {
-  return platformParams();
+  return productParams();
 }
 
 export const dynamicParams = false;
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <PlatformEditor id={id} />;
+  return <ProductEditor id={id} />;
 }

@@ -7,7 +7,7 @@ import type {
   PhaseLinkRelation,
   PhaseStatus,
   PlanStatus,
-  PlatformMode,
+  ProductMode,
   RevisionAction,
   TopicStatus,
 } from "./types";
@@ -29,10 +29,15 @@ export const phaseStatusLabel: Record<PhaseStatus, string> = {
   COMPLETED: "已完成",
 };
 
-export const platformModeLabel: Record<PlatformMode, string> = {
+export const productModeLabel: Record<ProductMode, string> = {
   VERSIONED: "有版本",
-  FEATURE_ONLY: "feature-flag only",
+  FEATURE_ONLY: "純功能開關",
 };
+
+export const accountRoleLabel = {
+  editor: "編輯者",
+  viewer: "使用者",
+} as const;
 
 export const deploymentStatusLabel: Record<DeploymentStatus, string> = {
   PLANNED: "已規劃",
@@ -91,15 +96,15 @@ export const revisionActionLabel: Record<RevisionAction, string> = {
 
 export const windowStateLabel: Record<WindowState, string> = {
   MISSING: "未填時程",
-  INSIDE: "在平台建立區間內",
-  OUTSIDE: "超出平台建立區間",
+  INSIDE: "在產品建立區間內",
+  OUTSIDE: "超出產品建立區間",
 };
 
 export const windowReasonLabel: Record<WindowReason, string> = {
   MISSING_DATES: "尚未填報施工起迄",
-  MISSING_PHASE: "此工廠沒有平台建立階段",
-  STARTS_BEFORE_PHASE: "開工早於平台建立階段",
-  ENDS_AFTER_PHASE: "完工晚於平台建立階段",
+  MISSING_PHASE: "此工廠沒有產品建立階段",
+  STARTS_BEFORE_PHASE: "開工早於產品建立階段",
+  ENDS_AFTER_PHASE: "完工晚於產品建立階段",
 };
 
 export const readinessFlagLabel: Record<ReadinessFlag, string> = {

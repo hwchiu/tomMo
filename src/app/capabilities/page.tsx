@@ -17,8 +17,10 @@ function CapabilityQuery() {
   return (
     <CapabilityView
       factoryId={query.get("factory") ?? ""}
-      platformId={query.get("platform") ?? ""}
+      productId={query.get("product") ?? ""}
       featureId={query.get("feature") ?? ""}
+      onlyChanges={query.get("changes") === "1"}
+      adhocOnly={query.get("adhoc") === "1"}
     />
   );
 }

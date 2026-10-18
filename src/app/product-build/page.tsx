@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { PlatformBuildView } from "@/components/platform-build-view";
+import { ProductBuildView } from "@/components/product-build-view";
 
 export default function Page() {
   return (
@@ -15,7 +15,7 @@ export default function Page() {
 function BuildQuery() {
   const query = useSearchParams();
   return (
-    <PlatformBuildView
+    <ProductBuildView
       category={query.get("category") ?? ""}
       region={query.get("region") ?? ""}
       technology={query.get("technology") ?? ""}

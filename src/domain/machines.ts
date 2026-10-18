@@ -9,7 +9,7 @@ export function nonNegativeInt(value: number): number {
   return Math.trunc(value);
 }
 
-/** Sum planned quantities of the same machine type across platform deployments. */
+/** Sum planned quantities of the same machine type across product deployments. */
 export function rollupPlanned(
   groups: Array<Array<{ machineTypeId: string; planned: number }>>,
 ): Array<{ machineTypeId: string; planned: number }> {

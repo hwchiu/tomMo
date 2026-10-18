@@ -9,7 +9,7 @@ import { factoryStatusLabel, phaseStatusLabel, relationLabel } from "@/domain/la
 import type { DeploymentStatus, FactoryStatus, PhaseLinkRelation, PhaseStatus } from "@/domain/types";
 import { deploymentStatusLabel } from "@/domain/labels";
 import { MachineText } from "@/components/machines";
-import { useApp } from "@/components/shell";
+import { useApp, WhenEditor } from "@/components/shell";
 import { AsyncView, Button, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
 import { toast } from "@/lib/toast";
 import { useLiveQuery } from "@/lib/use-live-query";
@@ -40,11 +40,6 @@ export function FactoryForm({ id }: { id?: string }) {
                   region: String(form.get("region") ?? ""),
                   technology: String(form.get("technology") ?? ""),
                   pmId: String(form.get("pmId") ?? ""),
-                  pmContact: {
-                    name: String(form.get("pmContactName") ?? ""),
-                    email: String(form.get("pmContactEmail") ?? ""),
-                    phone: String(form.get("pmContactPhone") ?? ""),
-                  },
                   plannedStart: String(form.get("plannedStart") ?? ""),
                   plannedEnd: String(form.get("plannedEnd") ?? data?.plannedEnd ?? ""),
                   status: String(form.get("status") ?? "ON_TRACK") as FactoryStatus,
@@ -62,14 +57,11 @@ export function FactoryForm({ id }: { id?: string }) {
               <EnumSelect name="category" label="類別 Category" set="factoryCategory" value={data?.category} />
               <EnumSelect name="region" label="區域 Region" set="factoryRegion" value={data?.region} />
               <EnumSelect name="technology" label="製程節點" set="technologyNode" value={data?.technology} />
-              <Field label="系統帳號">
-                <select name="pmId" className={controlClass} defaultValue={data?.pmId ?? app.currentUser.id}>
-                  {app.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              <Field label="廠區 PM">
+                <select name="pmId" className={controlClass} defaultValue={data?.pmId ?? app.actor.id}>
+                  {app.people.filter((person) => person.active || person.id === data?.pmId).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
                 </select>
               </Field>
-              <Field label="廠區 PM 姓名"><input name="pmContactName" defaultValue={data?.pmContact.name ?? ""} className={controlClass} required /></Field>
-              <Field label="廠區 PM 信箱"><input name="pmContactEmail" type="email" defaultValue={data?.pmContact.email ?? ""} className={controlClass} required /></Field>
-              <Field label="廠區 PM 電話／分機"><input name="pmContactPhone" defaultValue={data?.pmContact.phone ?? ""} className={controlClass} required /></Field>
               <Field label="狀態">
                 <select name="status" className={controlClass} defaultValue={data?.status ?? "ON_TRACK"}>
                   {Object.entries(factoryStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -142,8 +134,8 @@ export function PhaseForm({ factoryId, phaseId }: { factoryId: string; phaseId?:
                 <Field label="名稱"><input name="name" defaultValue={phase?.name ?? ""} className={controlClass} required /></Field>
                 <Field label="順序"><input name="order" type="number" defaultValue={phase?.order ?? factory.phases.length + 1} className={controlClass} /></Field>
                 <Field label="負責人">
-                  <select name="ownerId" className={controlClass} defaultValue={phase?.ownerId ?? app?.currentUser.id}>
-                    {(app?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                  <select name="ownerId" className={controlClass} defaultValue={phase?.ownerId ?? app?.actor.id}>
+                    {(app?.people ?? []).filter((person) => person.active || person.id === phase?.ownerId).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
                   </select>
                 </Field>
                 <Field label="狀態">
@@ -196,7 +188,7 @@ function MilestoneCreator({ phaseId, factory }: { phaseId?: string; factory: Fac
               name,
               dueDate: factory.asOf,
               deliverables: "",
-              ownerId: app?.currentUser.id ?? factory.pmId,
+              ownerId: app?.actor.id ?? factory.pmId,
               done: false,
             }).then(() => {
               setName("");
@@ -221,8 +213,8 @@ export function DeploymentForm({ id }: { id: string }) {
         <div>
           <PageHeader
             kicker={data.factoryName}
-            title={`${data.platformName}部署`}
-            description={data.mode === "FEATURE_ONLY" ? "這個平台沒有版本。實際啟用的功能由工程師手動填報。" : "實際版本與功能由工程師手動填報。之後若要自動同步，可以走同一支更新介面，不必改畫面。"}
+            title={`${data.productName}部署`}
+            description={data.mode === "FEATURE_ONLY" ? "這個產品沒有版本。實際啟用的功能由工程師手動填報。" : "實際版本與功能由工程師手動填報。之後若要自動同步，可以走同一支更新介面，不必改畫面。"}
           />
           <Panel className="p-4">
             <form
@@ -256,8 +248,8 @@ export function DeploymentForm({ id }: { id: string }) {
             >
               {data.mode === "FEATURE_ONLY" ? (
                 <div className="md:col-span-2">
-                  <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">feature-flag only</span>
-                  <p className="mt-1 text-xs text-muted">此平台不填版本。功能的期望來自施工計畫，實際狀態在下面填報。</p>
+                  <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">純功能開關</span>
+                  <p className="mt-1 text-xs text-muted">此產品不填版本。功能的期望來自施工計畫，實際狀態在下面填報。</p>
                 </div>
               ) : (
                 <>
@@ -282,7 +274,7 @@ export function DeploymentForm({ id }: { id: string }) {
               </Field>
               <Field label="副責">
                 <select name="secondaryOwnerId" className={controlClass} defaultValue={data.secondaryOwnerId}>
-                  {data.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                  {data.people.filter((person) => person.active || person.id === data.secondaryOwnerId).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
                 </select>
               </Field>
               <div className="md:col-span-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
@@ -343,7 +335,7 @@ export function FactoryDirectory() {
     <AsyncView state={state} skeleton={<Skeleton className="h-64" />}>
       {(data) => (
         <div>
-          <PageHeader kicker="Factory" title="工廠" description="每座工廠有自己的階段副本。類別、區域與製程來自可設定的列舉。" actions={<Link href="/factories/new" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white">新增工廠</Link>} />
+          <PageHeader kicker="Factory" title="工廠" description="每座工廠有自己的階段副本。類別、區域與製程來自可設定的列舉。" actions={<WhenEditor><Link href="/factories/new" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white">新增工廠</Link></WhenEditor>} />
           {data.items.length === 0 ? <p className="text-sm text-muted">還沒有工廠。</p> : (
             <div className="overflow-x-auto rounded-xl border border-line bg-panel">
               <table className="w-full min-w-[720px] text-left text-sm">

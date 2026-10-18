@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { api } from "@/api";
-import { getFault, getFaultServer, subscribeFault, type FaultMode } from "@/api/session";
+import { api, useMock } from "@/api";
+import { getAuth, getFault, getFaultServer, loginDemo, logoutDemo, subscribeFault, type FaultMode } from "@/api/session";
 import type { Bootstrap } from "@/api/types";
+import { accountRoleLabel } from "@/domain/labels";
 import { cn } from "@/lib/cn";
 import { useLiveQuery } from "@/lib/use-live-query";
+import { invalidate } from "@/api/live";
 
 const AppContext = createContext<Bootstrap | null>(null);
 
@@ -15,15 +17,25 @@ export function useApp(): Bootstrap | null {
   return useContext(AppContext);
 }
 
+export function useEditor(): boolean {
+  return useApp()?.role === "editor";
+}
+
+export function WhenEditor({ children }: { children: ReactNode }) {
+  if (!useEditor()) return null;
+  return <>{children}</>;
+}
+
 const NAV = [
   { href: "/", label: "總覽", en: "Portfolio" },
-  { href: "/platform-build", label: "平台建立", en: "Phase 2", focus: true },
+  { href: "/product-build", label: "產品建立", en: "Phase 2", focus: true },
   { href: "/factories", label: "工廠", en: "Factory" },
   { href: "/issues", label: "問題", en: "Issue" },
-  { href: "/platforms", label: "平台", en: "Platform" },
+  { href: "/products", label: "產品", en: "Product" },
   { href: "/capabilities", label: "能力矩陣", en: "Capability" },
   { href: "/activity", label: "活動", en: "Activity" },
   { href: "/settings", label: "設定", en: "Enums" },
+  { href: "/admin", label: "管理", en: "Admin" },
 ];
 
 function active(pathname: string, href: string): boolean {
@@ -31,11 +43,27 @@ function active(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function isLoginPath(pathname: string): boolean {
+  return pathname === "/login" || pathname.startsWith("/login/");
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const boot = useLiveQuery("bootstrap", () => api.bootstrap());
+  const router = useRouter();
+  const login = isLoginPath(pathname);
+  const boot = useLiveQuery(login ? "bootstrap:idle" : "bootstrap", () => {
+    if (login) return Promise.resolve(null as unknown as Bootstrap);
+    if (useMock && !getAuth()) return Promise.reject(new Error("請先登入"));
+    return api.bootstrap();
+  });
   const [toast, setToast] = useState<string | null>(null);
   const fault = useSyncExternalStore(subscribeFault, getFault, getFaultServer);
+  const editor = boot.data?.role === "editor";
+
+  useEffect(() => {
+    if (login) return;
+    if (useMock && !getAuth()) router.replace("/login");
+  }, [login, pathname, router]);
 
   useEffect(() => {
     const onToast = (event: Event) => {
@@ -47,17 +75,42 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("fpm-toast", onToast);
   }, []);
 
+  if (login) {
+    return (
+      <div className="min-h-screen bg-slate-100">
+        {children}
+        {toast ? <Toast message={toast} /> : null}
+      </div>
+    );
+  }
+
+  async function logout() {
+    try {
+      await api.logout();
+    } catch {
+      /* session may already be gone */
+    }
+    logoutDemo();
+    invalidate();
+    router.replace("/login");
+  }
+
+  const nav = NAV.filter((item) => editor || item.href !== "/settings");
+
   return (
     <AppContext.Provider value={boot.data}>
       <div className="min-h-screen md:pl-[228px]">
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[228px] flex-col bg-ink text-slate-200 md:flex">
           <Brand />
           <nav className="flex flex-1 flex-col gap-0.5 px-3">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} />
             ))}
           </nav>
-          <p className="px-4 pb-4 text-[11px] leading-5 text-slate-400">基準日 {boot.data?.asOf ?? "—"} · 修改存在這個瀏覽器</p>
+          <p className="px-4 pb-4 text-[11px] leading-5 text-slate-400">
+            基準日 {boot.data?.asOf ?? "—"}
+            {useMock ? " · 修改存在這個瀏覽器" : " · 已連線協調服務"}
+          </p>
         </aside>
         <div className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
           <div className="flex h-14 items-center gap-3 px-4 md:px-6">
@@ -65,34 +118,45 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Brand compact />
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-1 text-xs text-muted">
-                連線預覽
-                <select
-                  className="h-8 rounded-md border border-line bg-white px-2 text-xs"
-                  value={fault}
-                  onChange={(event) => {
-                    api.setFault(event.target.value as FaultMode);
+              {useMock ? (
+                <label className="flex items-center gap-1 text-xs text-muted">
+                  連線預覽
+                  <select
+                    className="h-8 rounded-md border border-line bg-white px-2 text-xs"
+                    value={fault}
+                    onChange={(event) => {
+                      api.setFault(event.target.value as FaultMode);
+                    }}
+                  >
+                    <option value="ok">正常</option>
+                    <option value="slow">慢速</option>
+                    <option value="error">失敗</option>
+                  </select>
+                </label>
+              ) : null}
+              {boot.data ? (
+                <span className="text-xs text-muted">
+                  {boot.data.actor.name} · {accountRoleLabel[boot.data.role]}
+                </span>
+              ) : null}
+              {editor ? (
+                <button
+                  type="button"
+                  className="h-8 rounded-md border border-line px-2 text-xs"
+                  onClick={() => {
+                    void api.resetDemo();
                   }}
                 >
-                  <option value="ok">正常</option>
-                  <option value="slow">慢速</option>
-                  <option value="error">失敗</option>
-                </select>
-              </label>
-              <span className="text-xs text-muted">管理視角</span>
-              <button
-                type="button"
-                className="h-8 rounded-md border border-line px-2 text-xs"
-                onClick={() => {
-                  void api.resetDemo();
-                }}
-              >
-                重設示範資料
+                  重設示範資料
+                </button>
+              ) : null}
+              <button type="button" className="h-8 rounded-md border border-line px-2 text-xs" onClick={() => void logout()}>
+                登出
               </button>
             </div>
           </div>
           <div className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -107,21 +171,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </div>
         </div>
-        {boot.error ? (
+        {boot.error && boot.error !== "請先登入" ? (
           <div className="border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-900 md:px-6">
             {boot.error}
-            <button type="button" className="ml-3 underline" onClick={() => api.setFault("ok")}>
-              改回正常連線
-            </button>
+            {useMock ? (
+              <button type="button" className="ml-3 underline" onClick={() => api.setFault("ok")}>
+                改回正常連線
+              </button>
+            ) : null}
           </div>
         ) : null}
         <main className="px-4 py-5 md:px-6 md:py-6">{children}</main>
       </div>
-      {toast ? (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-ink px-4 py-2 text-sm text-white shadow-lg">{toast}</div>
-      ) : null}
+      {toast ? <Toast message={toast} /> : null}
     </AppContext.Provider>
   );
+}
+
+function Toast({ message }: { message: string }) {
+  return <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-ink px-4 py-2 text-sm text-white shadow-lg">{message}</div>;
 }
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -158,4 +226,10 @@ function NavLink({ item, pathname }: { item: (typeof NAV)[number]; pathname: str
       </span>
     </Link>
   );
+}
+
+export async function signIn(username: string, password: string): Promise<void> {
+  if (useMock) loginDemo(username, password);
+  await api.login({ username, password });
+  invalidate();
 }

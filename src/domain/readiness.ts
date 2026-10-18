@@ -1,4 +1,4 @@
-import type { PlanStatus, PlatformMode } from "./types";
+import type { PlanStatus, ProductMode } from "./types";
 import type { WindowState } from "./windows";
 
 export type ReadinessFlag =
@@ -9,11 +9,11 @@ export type ReadinessFlag =
   | "VERSION_MISSING"
   | "FEATURE_UNPLANNED";
 
-/** Ready for 開發者進駐 from this platform's plan and feature state. */
+/** Ready for 開發者進駐 from this product's plan and feature state. */
 export function cellReadiness(input: {
   planStatus: PlanStatus;
   windowState: WindowState;
-  mode: PlatformMode;
+  mode: ProductMode;
   hasProvidedVersion: boolean;
   featurePlanComplete: boolean;
 }): { ready: boolean; flags: ReadinessFlag[] } {

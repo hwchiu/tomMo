@@ -109,8 +109,8 @@ function PortfolioBody({
       <PageHeader
         kicker="Portfolio"
         title="組合總覽"
-        description="例外先看。工廠依類別、區域、製程節點篩選；平台建立的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
-        actions={<TextLink href="/platform-build">打開平台建立矩陣</TextLink>}
+        description="例外先看。工廠依類別、區域、製程節點篩選；產品建立的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
+        actions={<TextLink href="/product-build">打開產品建立矩陣</TextLink>}
       />
       <Panel className="mb-4 p-4">
         <h2 className="mb-1 text-lg font-semibold">全廠時程</h2>
@@ -126,9 +126,9 @@ function PortfolioBody({
         <Stat label="延遲" value={scoped.filter((factory) => factory.status === "DELAYED").length} pressed={status === "DELAYED"} onClick={() => push({ status: status === "DELAYED" ? "" : "DELAYED" })} tone="danger" />
       </div>
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
-        <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/platform-build">未提報計畫 {missing}</Link>
-        <Link className="rounded-full bg-rose-50 px-3 py-1 text-rose-800" href="/platform-build">超出平台建立 {outside}</Link>
-        <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/platform-build?exceptions=1">未就緒平台 {notReady}</Link>
+        <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/product-build">未提報計畫 {missing}</Link>
+        <Link className="rounded-full bg-rose-50 px-3 py-1 text-rose-800" href="/product-build">超出產品建立 {outside}</Link>
+        <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/product-build?exceptions=1">未就緒產品 {notReady}</Link>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
         <FilterSelect label="類別" value={category} onChange={(value) => push({ category: value })} options={categories.map((item) => ({ value: item.code, label: item.label }))} />
@@ -203,8 +203,10 @@ function PortfolioBody({
                       </div>
                       <div className="text-right text-sm">
                         <div className="text-xs text-muted">廠區 PM</div>
-                        <div className="font-medium">{factory.pmContact.name}</div>
-                        <div className="text-xs text-muted">{factory.pmContact.phone}</div>
+                        <div className="font-medium">{factory.pmName}</div>
+                        <div className="text-xs text-muted">{factory.pmDepartment}</div>
+                        <div className="mt-1 text-lg font-semibold tabular-nums">{factory.machineTotal} 台</div>
+                        <div className="text-xs text-muted">{factory.machineRollup.map((line) => `${line.name} ${line.planned}`).join(" · ")}</div>
                         <div className={cn("text-xs", factory.openTopics ? "font-semibold text-rose-700" : "text-muted")}>例外 {factory.openTopics}</div>
                       </div>
                     </div>
@@ -217,7 +219,8 @@ function PortfolioBody({
                       ))}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
-                      <span className={factory.notReady ? "text-amber-800" : ""}>未就緒平台 {factory.notReady}</span>
+                      <span className="font-medium text-ink">計畫機台 {factory.machineTotal}</span>
+                      <span className={factory.notReady ? "text-amber-800" : ""}>未就緒產品 {factory.notReady}</span>
                       <span>阻礙 {factory.blockers}</span>
                       <span className={factory.missingPlans ? "text-amber-800" : ""}>未提報計畫 {factory.missingPlans}</span>
                       <span className={factory.outsideWindows ? "text-rose-700" : ""}>超出時程 {factory.outsideWindows}</span>
@@ -248,14 +251,14 @@ function PortfolioBody({
         </Panel>
         <Panel className="p-4">
           <h2 className="mb-2 font-semibold">需要 PM 核准的計畫</h2>
-          {needing.length === 0 ? <p className="text-sm text-muted">沒有已提報、等待核准的平台計畫。</p> : (
+          {needing.length === 0 ? <p className="text-sm text-muted">沒有已提報、等待核准的產品計畫。</p> : (
             <ul className="space-y-2 text-sm">
               {needing.map((plan) => (
                 <li key={plan.id} className="flex items-center justify-between gap-2">
-                  <Link href={`/factories/${plan.factoryId}/plans/${plan.platformId}`} className="hover:underline">
-                    {plan.factoryName} · {plan.platformName}
+                  <Link href={`/factories/${plan.factoryId}/plans/${plan.productId}`} className="hover:underline">
+                    {plan.factoryName} · {plan.productName}
                   </Link>
-                  <span className="text-xs text-muted">{plan.mode === "FEATURE_ONLY" ? "feature-flag only" : "有版本"}</span>
+                  <span className="text-xs text-muted">{plan.mode === "FEATURE_ONLY" ? "純功能開關" : "有版本"}</span>
                 </li>
               ))}
             </ul>

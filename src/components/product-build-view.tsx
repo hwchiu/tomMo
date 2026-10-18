@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/api";
 import type { BuildCell, BuildRow } from "@/api/types";
-import { platformModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
+import { productModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
 import { inFactoryScope } from "@/domain/select";
 import { useApp } from "@/components/shell";
 import { MetaChip, StatusChip } from "@/components/status-chip";
@@ -15,7 +15,7 @@ import { shortDate } from "@/domain/dates";
 import { withQuery } from "@/lib/search";
 import { useLiveQuery } from "@/lib/use-live-query";
 
-export function PlatformBuildView({
+export function ProductBuildView({
   category,
   region,
   technology,
@@ -26,7 +26,7 @@ export function PlatformBuildView({
   technology: string;
   onlyExceptions: boolean;
 }) {
-  const state = useLiveQuery("platform-build", () => api.platformBuild());
+  const state = useLiveQuery("product-build", () => api.productBuild());
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-[32rem]" />}>
       {(data) => (
@@ -43,7 +43,7 @@ function Body({
   technology,
   onlyExceptions,
 }: {
-  data: Awaited<ReturnType<typeof api.platformBuild>>;
+  data: Awaited<ReturnType<typeof api.productBuild>>;
   category: string;
   region: string;
   technology: string;
@@ -57,7 +57,7 @@ function Body({
 
   function push(next: Partial<{ category: string; region: string; technology: string; exceptions: string }>) {
     router.replace(
-      withQuery("/platform-build", {
+      withQuery("/product-build", {
         category,
         region,
         technology,
@@ -70,9 +70,9 @@ function Body({
   return (
     <div>
       <PageHeader
-        kicker="Phase 2 · 平台建立"
-        title="工廠 × 平台"
-        description="每一格是一座工廠上的一個平台：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出平台建立區間會先被標出來。各平台平行施工，時程重疊不算衝突。"
+        kicker="Phase 2 · 產品建立"
+        title="工廠 × 產品"
+        description="每一格是一座工廠上的一個產品：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出產品建立區間會先被標出來。各產品平行施工，時程重疊不算衝突。"
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={enums.filter((item) => item.set === "factoryCategory")} />
@@ -90,11 +90,11 @@ function Body({
       <div className="mb-3 flex flex-wrap gap-2 text-[11px] text-muted">
         <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-800">就緒：已核准、時程在階段內、版本或功能集已規劃</span>
         <span className="rounded bg-amber-50 px-2 py-1 text-amber-900">未提報</span>
-        <span className="rounded bg-rose-50 px-2 py-1 text-rose-800">超出平台建立</span>
+        <span className="rounded bg-rose-50 px-2 py-1 text-rose-800">超出產品建立</span>
         <span>重疊：允許，不標示</span>
       </div>
       {visible.length === 0 ? (
-        <EmptyState title="沒有要看的工廠" body="沒有符合篩選的列。清除篩選後會看到全部工廠。" action={<button type="button" className="text-sm text-accent" onClick={() => router.replace("/platform-build")}>清除篩選</button>} />
+        <EmptyState title="沒有要看的工廠" body="沒有符合篩選的列。清除篩選後會看到全部工廠。" action={<button type="button" className="text-sm text-accent" onClick={() => router.replace("/product-build")}>清除篩選</button>} />
       ) : (
         <>
           <div className="hidden overflow-auto rounded-xl border border-line bg-panel lg:block">
@@ -102,16 +102,16 @@ function Body({
               <thead>
                 <tr>
                   <th className="sticky left-0 top-0 z-30 min-w-[220px] border-b border-r border-line bg-white p-3 text-xs font-medium text-muted">工廠</th>
-                  {data.platforms.map((platform) => (
-                    <th key={platform.id} className="sticky top-0 z-20 min-w-[210px] border-b border-line bg-white p-3">
-                      <div className="text-sm font-semibold">{platform.name}</div>
-                      <div className="text-[11px] font-normal text-muted">{platform.code}</div>
-                      {platform.mode === "FEATURE_ONLY" ? (
-                        <div className="mt-1 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">{platformModeLabel.FEATURE_ONLY}</div>
+                  <th className="sticky top-0 z-20 min-w-[140px] border-b border-line bg-white p-3 text-xs font-medium text-muted">計畫機台合計</th>
+                  {data.products.map((product) => (
+                    <th key={product.id} className="sticky top-0 z-20 min-w-[210px] border-b border-line bg-white p-3">
+                      <div className="text-sm font-semibold">{product.name}</div>
+                      {product.mode === "FEATURE_ONLY" ? (
+                        <div className="mt-1 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">{productModeLabel.FEATURE_ONLY}</div>
                       ) : (
-                        <div className="text-[11px] font-normal text-muted">{platformModeLabel.VERSIONED}</div>
+                        <div className="text-[11px] font-normal text-muted">{productModeLabel.VERSIONED}</div>
                       )}
-                      <div className="text-[11px] font-normal text-muted">主責 {platform.primaryOwnerName}</div>
+                      <div className="text-[11px] font-normal text-muted">主責 {product.primaryOwnerName}</div>
                     </th>
                   ))}
                 </tr>
@@ -122,13 +122,32 @@ function Body({
                     <th className="sticky left-0 z-10 border-b border-r border-line bg-white p-3 align-top font-normal">
                       <RowHead row={row} />
                     </th>
+                    <td className="border-b border-line bg-slate-50 p-3 align-top">
+                      <div className="text-2xl font-semibold tabular-nums">{row.machineTotal}</div>
+                      <div className="mt-1 text-[11px] text-muted"><MachineText lines={row.machineRollup} /></div>
+                    </td>
                     {row.cells.map((cell) => (
-                      <td key={cell.platformId} className="border-b border-line p-2 align-top">
+                      <td key={cell.productId} className="border-b border-line p-2 align-top">
                         <Cell cell={cell} />
                       </td>
                     ))}
                   </tr>
                 ))}
+                <tr className="bg-ink text-white">
+                  <th className="sticky left-0 border-r border-white/10 bg-ink p-3 text-left text-sm font-semibold">可見工廠合計</th>
+                  <td className="p-3">
+                    <div className="text-2xl font-semibold tabular-nums">{visible.reduce((sum, row) => sum + row.machineTotal, 0)}</div>
+                    <div className="mt-1 text-[11px] text-slate-300">各廠計畫機台加總，依目前篩選</div>
+                  </td>
+                  {data.products.map((product) => (
+                    <td key={product.id} className="p-3 align-top text-sm">
+                      <div className="font-medium">{product.name}</div>
+                      <div className="text-lg font-semibold tabular-nums">
+                        {visible.reduce((sum, row) => sum + (row.cells.find((cell) => cell.productId === product.id)?.plannedTotal ?? 0), 0)}
+                      </div>
+                    </td>
+                  ))}
+                </tr>
               </tbody>
             </table>
           </div>
@@ -138,8 +157,8 @@ function Body({
                 <RowHead row={row} />
                 <div className="mt-3 space-y-2">
                   {row.cells.map((cell) => (
-                    <div key={cell.platformId}>
-                      <div className="mb-1 text-xs font-medium text-muted">{data.platforms.find((platform) => platform.id === cell.platformId)?.name}</div>
+                    <div key={cell.productId}>
+                      <div className="mb-1 text-xs font-medium text-muted">{data.products.find((product) => product.id === cell.productId)?.name}</div>
                       <Cell cell={cell} />
                     </div>
                   ))}
@@ -166,12 +185,11 @@ function RowHead({ row }: { row: BuildRow }) {
       <div className="mt-2"><StatusChip kind="factory" value={row.status} /></div>
       {row.phase2 ? (
         <p className="mt-2 text-[11px] text-muted">
-          平台建立 {row.phase2.plannedStart.slice(5)} – {row.phase2.plannedEnd.slice(5)} · <StatusChip kind="phase" value={row.phase2.status} />
+          產品建立 {row.phase2.plannedStart.slice(5)} – {row.phase2.plannedEnd.slice(5)} · <StatusChip kind="phase" value={row.phase2.status} />
         </p>
       ) : null}
-      <p className="mt-2 text-[11px] text-muted">
-        <MachineText lines={rollupLines(row.cells)} />
-      </p>
+      <p className="mt-2 text-lg font-semibold tabular-nums">{row.machineTotal}</p>
+      <p className="text-[11px] text-muted">計畫機台合計 · <MachineText lines={row.machineRollup} /></p>
       <p className={cn("mt-1 text-xs", row.readyCount === row.cells.length ? "text-emerald-800" : "text-amber-900")}>
         就緒 {row.readyCount}/{row.cells.length}
       </p>
@@ -179,24 +197,12 @@ function RowHead({ row }: { row: BuildRow }) {
   );
 }
 
-function rollupLines(cells: BuildCell[]) {
-  const totals = new Map<string, { name: string; planned: number }>();
-  for (const cell of cells) {
-    for (const line of cell.machines) {
-      const current = totals.get(line.machineTypeId) ?? { name: line.name, planned: 0 };
-      current.planned += line.planned;
-      totals.set(line.machineTypeId, current);
-    }
-  }
-  return [...totals.values()];
-}
-
 function Cell({ cell }: { cell: BuildCell }) {
   const missing = cell.flags.includes("PLAN_MISSING");
   const outside = cell.windowState === "OUTSIDE";
   return (
     <Link
-      href={cell.planId ? `/factories/${cell.factoryId}/plans/${cell.platformId}` : `/factories/${cell.factoryId}`}
+      href={cell.planId ? `/factories/${cell.factoryId}/plans/${cell.productId}` : `/factories/${cell.factoryId}`}
       className={cn(
         "block rounded-lg border p-2 text-xs leading-5",
         cell.ready && "border-emerald-200 bg-emerald-50/70",
@@ -216,7 +222,7 @@ function Cell({ cell }: { cell: BuildCell }) {
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-1">
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">feature-flag only</span>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">{productModeLabel.FEATURE_ONLY}</span>
           <span className="text-muted">異動 {cell.changeCount}</span>
         </div>
       )}

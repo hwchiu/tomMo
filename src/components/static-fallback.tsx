@@ -7,7 +7,7 @@ import { DeploymentForm, FactoryForm, PhaseForm } from "@/components/entity-form
 import { FactoryView } from "@/components/factory-view";
 import { IssueDetail } from "@/components/issue-views";
 import { PlanForm } from "@/components/plan-form";
-import { PlatformDetailView, PlatformEditor } from "@/components/platform-views";
+import { ProductDetailView, ProductEditor } from "@/components/product-views";
 import { basePath } from "@/lib/base-path";
 
 function browserPath(): string {
@@ -47,13 +47,13 @@ function match(path: string) {
   const phase = path.match(/^\/factories\/([^/]+)\/phases\/([^/]+)$/);
   if (phase) return <PhaseForm factoryId={decodeURIComponent(phase[1])} phaseId={decodeURIComponent(phase[2])} />;
   const plan = path.match(/^\/factories\/([^/]+)\/plans\/([^/]+)$/);
-  if (plan) return <PlanForm factoryId={decodeURIComponent(plan[1])} platformId={decodeURIComponent(plan[2])} />;
+  if (plan) return <PlanForm factoryId={decodeURIComponent(plan[1])} productId={decodeURIComponent(plan[2])} />;
   const deployment = path.match(/^\/deployments\/([^/]+)$/);
   if (deployment) return <DeploymentForm id={decodeURIComponent(deployment[1])} />;
-  const platformEdit = path.match(/^\/platforms\/([^/]+)\/edit$/);
-  if (platformEdit) return <PlatformEditor id={decodeURIComponent(platformEdit[1])} />;
-  const platform = path.match(/^\/platforms\/([^/]+)$/);
-  if (platform) return <PlatformDetailView id={decodeURIComponent(platform[1])} />;
+  const platformEdit = path.match(/^\/products\/([^/]+)\/edit$/);
+  if (platformEdit) return <ProductEditor id={decodeURIComponent(platformEdit[1])} />;
+  const product = path.match(/^\/products\/([^/]+)$/);
+  if (product) return <ProductDetailView id={decodeURIComponent(product[1])} />;
   const issue = path.match(/^\/issues\/([^/]+)$/);
   if (issue) return <IssueDetail id={decodeURIComponent(issue[1])} />;
   return null;

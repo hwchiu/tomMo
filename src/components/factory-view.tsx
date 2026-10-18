@@ -28,7 +28,6 @@ export function FactoryView({ id }: { id: string }) {
               <>
                 <TextLink href={`/factories/${data.id}/edit`}>編輯工廠</TextLink>
                 <TextLink href={`/factories/${data.id}/phases/new`}>新增階段</TextLink>
-                <TextLink href={`/handoffs/new?factory=${data.id}`}>新增交接</TextLink>
                 <TextLink href={`/issues/new?factory=${data.id}`}>新增問題</TextLink>
               </>
             }
@@ -52,7 +51,6 @@ export function FactoryView({ id }: { id: string }) {
               ["#topics", "例外事項"],
               ["#plans", "施工計畫"],
               ["#deployments", "部署"],
-              ["#handoffs", "交接"],
               ["#issues", "問題"],
               ["#activity", "活動"],
             ].map(([href, label]) => (
@@ -152,7 +150,7 @@ export function FactoryView({ id }: { id: string }) {
                     <tr>
                       <th className="py-2">平台</th>
                       <th>狀態</th>
-                      <th>提供版本</th>
+                      <th>版本</th>
                       <th>施工時程</th>
                       <th>判斷</th>
                       <th>改版</th>
@@ -165,7 +163,11 @@ export function FactoryView({ id }: { id: string }) {
                           <Link href={`/factories/${data.id}/plans/${plan.platformId}`} className="hover:underline">{plan.platformName}</Link>
                         </td>
                         <td><StatusChip kind="plan" value={plan.status} /></td>
-                        <td>{plan.providedVersion ?? "—"}</td>
+                        <td>
+                          {plan.mode === "VERSIONED" ? (plan.providedVersion ?? "—") : (
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">feature-flag only</span>
+                          )}
+                        </td>
                         <td>{plan.windowStart ?? "—"} – {plan.windowEnd ?? "—"}</td>
                         <td className={plan.windowState === "OUTSIDE" ? "text-rose-700" : plan.windowState === "MISSING" ? "text-amber-800" : "text-emerald-800"}>
                           {plan.windowState === "OUTSIDE" ? plan.windowReasons.map((reason) => windowReasonLabel[reason]).join("、") : windowStateLabel[plan.windowState]}
@@ -190,9 +192,15 @@ export function FactoryView({ id }: { id: string }) {
                         <td className="py-2"><Link className="hover:underline" href={`/deployments/${deployment.id}`}>{deployment.platformName}</Link></td>
                         <td><StatusChip kind="deployment" value={deployment.status} /></td>
                         <td>
-                          {deployment.plannedVersion ?? "—"} / {deployment.actualVersion ?? "未填"}
-                          {deployment.behindPlan ? <span className="ml-1 text-rose-700">落後計畫</span> : null}
-                          {deployment.behindLatest ? <span className="ml-1 text-amber-800">落後最新</span> : null}
+                          {deployment.mode === "FEATURE_ONLY" ? (
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">feature-flag only</span>
+                          ) : (
+                            <>
+                              {deployment.plannedVersion ?? "—"} / {deployment.actualVersion ?? "未填"}
+                              {deployment.behindPlan ? <span className="ml-1 text-rose-700">落後計畫</span> : null}
+                              {deployment.behindLatest ? <span className="ml-1 text-amber-800">落後最新</span> : null}
+                            </>
+                          )}
                         </td>
                         <td>{deployment.secondaryOwnerName}</td>
                         <td><MachineText lines={deployment.machines} /></td>
@@ -203,16 +211,7 @@ export function FactoryView({ id }: { id: string }) {
               </div>
             )}
           </Panel>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Panel id="handoffs" className="p-4">
-              <h2 className="mb-3 font-semibold">交接</h2>
-              {data.handoffs.length === 0 ? <p className="text-sm text-muted">還沒有交接。</p> : data.handoffs.map((handoff) => (
-                <Link key={handoff.id} href={`/handoffs/${handoff.id}`} className="flex items-center justify-between gap-2 border-t border-line py-2 text-sm">
-                  <span>{handoff.code} {handoff.title}</span>
-                  <StatusChip kind="handoff" value={handoff.status} />
-                </Link>
-              ))}
-            </Panel>
+          <div>
             <Panel id="issues" className="p-4">
               <h2 className="mb-3 font-semibold">問題</h2>
               {data.issues.length === 0 ? <p className="text-sm text-muted">沒有問題。</p> : data.issues.map((issue) => (

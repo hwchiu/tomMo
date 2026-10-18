@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DeploymentForm, FactoryForm, PhaseForm } from "@/components/entity-forms";
 import { FactoryView } from "@/components/factory-view";
-import { HandoffDetail } from "@/components/handoff-views";
 import { IssueDetail } from "@/components/issue-views";
 import { PlanForm } from "@/components/plan-form";
 import { PlatformDetailView, PlatformEditor } from "@/components/platform-views";
@@ -51,8 +50,6 @@ function match(path: string) {
   if (plan) return <PlanForm factoryId={decodeURIComponent(plan[1])} platformId={decodeURIComponent(plan[2])} />;
   const deployment = path.match(/^\/deployments\/([^/]+)$/);
   if (deployment) return <DeploymentForm id={decodeURIComponent(deployment[1])} />;
-  const handoff = path.match(/^\/handoffs\/([^/]+)$/);
-  if (handoff) return <HandoffDetail id={decodeURIComponent(handoff[1])} />;
   const platformEdit = path.match(/^\/platforms\/([^/]+)\/edit$/);
   if (platformEdit) return <PlatformEditor id={decodeURIComponent(platformEdit[1])} />;
   const platform = path.match(/^\/platforms\/([^/]+)$/);

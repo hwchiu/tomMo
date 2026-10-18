@@ -19,7 +19,6 @@ const NAV = [
   { href: "/", label: "總覽", en: "Portfolio" },
   { href: "/platform-build", label: "平台建立", en: "Phase 2", focus: true },
   { href: "/factories", label: "工廠", en: "Factory" },
-  { href: "/handoffs", label: "交接", en: "Handoff" },
   { href: "/issues", label: "問題", en: "Issue" },
   { href: "/platforms", label: "平台", en: "Platform" },
   { href: "/capabilities", label: "能力矩陣", en: "Capability" },

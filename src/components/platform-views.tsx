@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/api";
+import { platformModeLabel } from "@/domain/labels";
+import type { PlatformMode } from "@/domain/types";
 import { useApp } from "@/components/shell";
 import { MachineText } from "@/components/machines";
 import { StatusChip } from "@/components/status-chip";
@@ -31,12 +33,12 @@ export function PlatformList() {
                     <div className="font-mono text-xs text-muted">{platform.code}</div>
                     <h2 className="text-lg font-semibold">{platform.name}</h2>
                   </div>
-                  <span className="text-sm text-muted">{platform.latestVersion ?? "無版本"}</span>
+                  <span className="text-sm text-muted">{platform.mode === "FEATURE_ONLY" ? platformModeLabel.FEATURE_ONLY : platform.latestVersion ?? "無版本"}</span>
                 </div>
                 <p className="mt-1 text-sm text-muted">{platform.description}</p>
                 <p className="mt-2 text-xs text-muted">{platform.devDepartment} · {platform.projectDepartment}</p>
                 <p className="text-xs">主責 {platform.primaryOwnerName}</p>
-                <p className="mt-1 text-xs">{platform.outdatedFactories ? <span className="text-amber-800">{platform.outdatedFactories} 座工廠落後最新版本</span> : "沒有工廠落後最新版本"}</p>
+                <p className="mt-1 text-xs">{platform.mode === "FEATURE_ONLY" ? "沒有版本，各廠用功能開關規劃。" : platform.outdatedFactories ? <span className="text-amber-800">{platform.outdatedFactories} 座工廠落後最新版本</span> : "沒有工廠落後最新版本"}</p>
               </Link>
             ))}
           </div>
@@ -58,22 +60,36 @@ export function PlatformDetailView({ id }: { id: string }) {
             description={data.description}
             actions={<Link href={`/platforms/${data.id}/edit`} className="text-sm text-accent">編輯名稱與主責</Link>}
           />
-          <div className="mb-4 text-sm text-muted">{data.devDepartment} / {data.projectDepartment} · 主責 {data.primaryOwnerName} · 最新 {data.latestVersion ?? "—"}</div>
+          <div className="mb-4 text-sm text-muted">{data.devDepartment} / {data.projectDepartment} · 主責 {data.primaryOwnerName} · {data.mode === "FEATURE_ONLY" ? platformModeLabel.FEATURE_ONLY : `最新 ${data.latestVersion ?? "—"}`}</div>
           <Panel className="mb-4 p-4">
-            <h2 className="mb-3 font-semibold">版本與支援功能</h2>
-            <div className="grid gap-3 md:grid-cols-3">
-              {data.versions.map((version) => (
-                <div key={version.id} className="rounded-lg border border-line p-3 text-sm">
-                  <div className="font-mono font-semibold">{version.version}</div>
-                  <p className="text-xs text-muted">{version.notes}</p>
-                  <ul className="mt-2 text-xs">
-                    {version.features.map((feature) => (
-                      <li key={feature.id} className={feature.supported ? "" : "text-slate-400"}>{feature.supported ? "支援" : "不含"} {feature.name}</li>
-                    ))}
-                  </ul>
+            {data.mode === "FEATURE_ONLY" ? (
+              <>
+                <h2 className="mb-1 font-semibold">功能與預設</h2>
+                <p className="mb-3 text-xs text-muted">此平台沒有版本。各廠計畫相對這些預設決定要開或關。</p>
+                <ul className="space-y-1 text-sm">
+                  {data.features.map((feature) => (
+                    <li key={feature.id}>{feature.name} · 預設{feature.defaultEnabled ? "開啟" : "關閉"}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <>
+                <h2 className="mb-3 font-semibold">版本與支援功能</h2>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {data.versions.map((version) => (
+                    <div key={version.id} className="rounded-lg border border-line p-3 text-sm">
+                      <div className="font-mono font-semibold">{version.version}</div>
+                      <p className="text-xs text-muted">{version.notes}</p>
+                      <ul className="mt-2 text-xs">
+                        {version.features.map((feature) => (
+                          <li key={feature.id} className={feature.supported ? "" : "text-slate-400"}>{feature.supported ? "支援" : "不含"} {feature.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </Panel>
           <Panel className="p-4">
             <h2 className="mb-3 font-semibold">哪些工廠部署了它</h2>
@@ -86,8 +102,12 @@ export function PlatformDetailView({ id }: { id: string }) {
                       <td className="py-2"><Link className="hover:underline" href={`/factories/${deployment.factoryId}`}>{deployment.factoryName}</Link></td>
                       <td><StatusChip kind="deployment" value={deployment.status} /></td>
                       <td>
-                        {deployment.plannedVersion ?? "—"} / {deployment.actualVersion ?? "未填"}
-                        {deployment.behindLatest ? <span className="ml-1 text-amber-800">落後最新</span> : null}
+                        {data.mode === "FEATURE_ONLY" ? "—" : (
+                          <>
+                            {deployment.plannedVersion ?? "—"} / {deployment.actualVersion ?? "未填"}
+                            {deployment.behindLatest ? <span className="ml-1 text-amber-800">落後最新</span> : null}
+                          </>
+                        )}
                       </td>
                       <td><Link href={`/factories/${deployment.factoryId}/plans/${data.id}`}><StatusChip kind="plan" value={deployment.planStatus} /></Link></td>
                       <td>{deployment.secondaryOwnerName}</td>
@@ -127,6 +147,7 @@ export function PlatformEditor({ id }: { id?: string }) {
               devDepartment: String(form.get("devDepartment") ?? ""),
               projectDepartment: String(form.get("projectDepartment") ?? ""),
               primaryOwnerId: String(form.get("primaryOwnerId") ?? ""),
+              mode: String(form.get("mode") ?? "VERSIONED") as PlatformMode,
             };
             const action = id ? api.updatePlatform(id, body) : api.createPlatform(body);
             void action.then((result) => {
@@ -142,6 +163,12 @@ export function PlatformEditor({ id }: { id?: string }) {
           <Field label="主責">
             <select name="primaryOwnerId" className={controlClass} defaultValue={data?.primaryOwnerId ?? app.currentUser.id}>
               {app.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select>
+          </Field>
+          <Field label="版本模式" hint="feature-flag only 的平台沒有版本，各廠計畫只填功能開關。">
+            <select name="mode" className={controlClass} defaultValue={data?.mode ?? "VERSIONED"}>
+              <option value="VERSIONED">有版本</option>
+              <option value="FEATURE_ONLY">feature-flag only</option>
             </select>
           </Field>
           <Field label="說明"><textarea name="description" defaultValue={data?.description ?? ""} className={`${controlClass} h-24 py-2 md:col-span-2`} /></Field>

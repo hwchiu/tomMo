@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/api";
 import type { BuildCell, BuildRow } from "@/api/types";
-import { readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
+import { platformModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
 import { inFactoryScope } from "@/domain/select";
 import { useApp } from "@/components/shell";
 import { MetaChip, StatusChip } from "@/components/status-chip";
@@ -72,7 +72,7 @@ function Body({
       <PageHeader
         kicker="Phase 2 · 平台建立"
         title="工廠 × 平台"
-        description="每一格是一座工廠上的一個平台：部署狀態、提供／實際版本、主責與副責、機台數，以及能不能進入開發者進駐。未提報與超出平台建立區間會先被標出來。各平台平行施工，時程重疊不算衝突。"
+        description="每一格是一座工廠上的一個平台：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出平台建立區間會先被標出來。各平台平行施工，時程重疊不算衝突。"
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={enums.filter((item) => item.set === "factoryCategory")} />
@@ -88,7 +88,7 @@ function Body({
         <span className="text-muted">基準日 {data.asOf}</span>
       </div>
       <div className="mb-3 flex flex-wrap gap-2 text-[11px] text-muted">
-        <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-800">可交接：已核准、時程在階段內、部署完成</span>
+        <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-800">就緒：已核准、時程在階段內、版本或功能集已規劃</span>
         <span className="rounded bg-amber-50 px-2 py-1 text-amber-900">未提報</span>
         <span className="rounded bg-rose-50 px-2 py-1 text-rose-800">超出平台建立</span>
         <span>重疊：允許，不標示</span>
@@ -106,6 +106,11 @@ function Body({
                     <th key={platform.id} className="sticky top-0 z-20 min-w-[210px] border-b border-line bg-white p-3">
                       <div className="text-sm font-semibold">{platform.name}</div>
                       <div className="text-[11px] font-normal text-muted">{platform.code}</div>
+                      {platform.mode === "FEATURE_ONLY" ? (
+                        <div className="mt-1 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">{platformModeLabel.FEATURE_ONLY}</div>
+                      ) : (
+                        <div className="text-[11px] font-normal text-muted">{platformModeLabel.VERSIONED}</div>
+                      )}
                       <div className="text-[11px] font-normal text-muted">主責 {platform.primaryOwnerName}</div>
                     </th>
                   ))}
@@ -168,16 +173,8 @@ function RowHead({ row }: { row: BuildRow }) {
         <MachineText lines={rollupLines(row.cells)} />
       </p>
       <p className={cn("mt-1 text-xs", row.readyCount === row.cells.length ? "text-emerald-800" : "text-amber-900")}>
-        交接就緒 {row.readyCount}/{row.cells.length}
+        就緒 {row.readyCount}/{row.cells.length}
       </p>
-      {row.handoff ? (
-        <Link href={`/handoffs/${row.handoff.id}`} className="mt-1 block text-[11px] text-accent">
-          {row.handoff.code} · 條件 {row.handoff.met}/{row.handoff.total}
-          {row.handoff.allMet && row.handoff.status === "PENDING_ACCEPTANCE" ? " · 仍須手動驗收" : ""}
-        </Link>
-      ) : (
-        <p className="mt-1 text-[11px] text-muted">尚無第 2→3 交接</p>
-      )}
     </div>
   );
 }
@@ -212,8 +209,17 @@ function Cell({ cell }: { cell: BuildCell }) {
         <StatusChip kind="deployment" value={cell.deploymentStatus} />
         <StatusChip kind="plan" value={cell.planStatus} />
       </div>
-      <div>提供 {cell.providedVersion ?? "—"}</div>
-      <div className={cell.versionGap ? "text-amber-900" : ""}>實際 {cell.actualVersion ?? "未填"}{cell.versionGap ? " · 與提供版本不同" : ""}</div>
+      {cell.mode === "VERSIONED" ? (
+        <>
+          <div>提供 {cell.providedVersion ?? "—"}</div>
+          <div className={cell.versionGap ? "text-amber-900" : ""}>實際 {cell.actualVersion ?? "未填"}{cell.versionGap ? " · 與提供版本不同" : ""}</div>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">feature-flag only</span>
+          <span className="text-muted">異動 {cell.changeCount}</span>
+        </div>
+      )}
       <div className="text-muted">主責 {cell.primaryOwnerName}</div>
       <div className="text-muted">副責 {cell.secondaryOwnerName}</div>
       <div><MachineText lines={cell.machines} /></div>
@@ -222,7 +228,7 @@ function Cell({ cell }: { cell: BuildCell }) {
         {outside ? <span className="text-rose-700"> · {cell.windowReasons.map((reason) => windowReasonLabel[reason]).join("、")}</span> : null}
       </div>
       <div className={cell.ready ? "text-emerald-800" : "text-ink"}>
-        {cell.ready ? "可進入開發者進駐" : cell.flags.map((flag) => readinessFlagLabel[flag]).join(" · ")}
+        {cell.ready ? "計畫就緒" : cell.flags.map((flag) => readinessFlagLabel[flag]).join(" · ")}
       </div>
     </Link>
   );

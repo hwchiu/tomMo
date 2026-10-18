@@ -137,7 +137,7 @@ export function IssueCreate({ factoryId }: { factoryId: string }) {
   if (!app) return <Skeleton className="h-40" />;
   return (
     <div>
-      <PageHeader kicker="Issue" title="登錄問題" description="可掛到工廠、階段、平台或交接。逾期會出現在總覽例外。" />
+      <PageHeader kicker="Issue" title="登錄問題" description="可掛到工廠、階段或平台。逾期會出現在總覽例外。" />
       <IssueForm
         initial={{
           title: "",
@@ -145,7 +145,6 @@ export function IssueCreate({ factoryId }: { factoryId: string }) {
           factoryId,
           phaseId: null,
           platformId: null,
-          handoffId: null,
           ownerId: app.currentUser.id,
           severity: "MEDIUM",
           priority: "P2",
@@ -173,7 +172,6 @@ function IssueForm({
     factoryId: string;
     phaseId: string | null;
     platformId: string | null;
-    handoffId: string | null;
     ownerId: string;
     severity: IssueSeverity;
     priority: "P0" | "P1" | "P2" | "P3";
@@ -187,7 +185,6 @@ function IssueForm({
     factoryId: string;
     phaseId: string | null;
     platformId: string | null;
-    handoffId: string | null;
     ownerId: string;
     severity: IssueSeverity;
     priority: "P0" | "P1" | "P2" | "P3";
@@ -215,7 +212,6 @@ function IssueForm({
             factoryId,
             phaseId: String(form.get("phaseId") ?? "") || null,
             platformId: String(form.get("platformId") ?? "") || null,
-            handoffId: String(form.get("handoffId") ?? "") || null,
             ownerId: String(form.get("ownerId") ?? ""),
             severity: String(form.get("severity") ?? "MEDIUM") as IssueSeverity,
             priority: String(form.get("priority") ?? "P2") as "P0" | "P1" | "P2" | "P3",
@@ -242,12 +238,6 @@ function IssueForm({
           <select name="platformId" className={controlClass} defaultValue={initial.platformId ?? ""}>
             <option value="">—</option>
             {(platforms.data?.items ?? []).map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
-          </select>
-        </Field>
-        <Field label="交接">
-          <select name="handoffId" className={controlClass} defaultValue={initial.handoffId ?? ""}>
-            <option value="">—</option>
-            {(detail.data?.handoffs ?? []).map((handoff) => <option key={handoff.id} value={handoff.id}>{handoff.code}</option>)}
           </select>
         </Field>
         <Field label="負責人">

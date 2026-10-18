@@ -222,7 +222,7 @@ export function DeploymentForm({ id }: { id: string }) {
           <PageHeader
             kicker={data.factoryName}
             title={`${data.platformName}部署`}
-            description="實際版本與功能由工程師手動填報。之後若要自動同步，可以走同一支更新介面，不必改畫面。"
+            description={data.mode === "FEATURE_ONLY" ? "這個平台沒有版本。實際啟用的功能由工程師手動填報。" : "實際版本與功能由工程師手動填報。之後若要自動同步，可以走同一支更新介面，不必改畫面。"}
           />
           <Panel className="p-4">
             <form
@@ -239,8 +239,8 @@ export function DeploymentForm({ id }: { id: string }) {
                   actual: form.get(`actual-${feature.id}`) === "" ? null : form.get(`actual-${feature.id}`) === "true",
                 }));
                 void api.updateDeployment(id, {
-                  plannedVersionId: String(form.get("plannedVersionId") ?? "") || null,
-                  actualVersionId: String(form.get("actualVersionId") ?? "") || null,
+                  plannedVersionId: data.mode === "FEATURE_ONLY" ? null : String(form.get("plannedVersionId") ?? "") || null,
+                  actualVersionId: data.mode === "FEATURE_ONLY" ? null : String(form.get("actualVersionId") ?? "") || null,
                   status: String(form.get("status") ?? "PLANNED") as DeploymentStatus,
                   secondaryOwnerId: String(form.get("secondaryOwnerId") ?? ""),
                   plannedDate: String(form.get("plannedDate") ?? "") || null,
@@ -254,18 +254,27 @@ export function DeploymentForm({ id }: { id: string }) {
                 }).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "儲存失敗"));
               }}
             >
-              <Field label="計畫版本">
-                <select name="plannedVersionId" className={controlClass} defaultValue={data.plannedVersionId ?? ""}>
-                  <option value="">—</option>
-                  {data.versions.map((version) => <option key={version.id} value={version.id}>{version.version}</option>)}
-                </select>
-              </Field>
-              <Field label="實際版本">
-                <select name="actualVersionId" className={controlClass} defaultValue={data.actualVersionId ?? ""}>
-                  <option value="">尚未填報</option>
-                  {data.versions.map((version) => <option key={version.id} value={version.id}>{version.version}</option>)}
-                </select>
-              </Field>
+              {data.mode === "FEATURE_ONLY" ? (
+                <div className="md:col-span-2">
+                  <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">feature-flag only</span>
+                  <p className="mt-1 text-xs text-muted">此平台不填版本。功能的期望來自施工計畫，實際狀態在下面填報。</p>
+                </div>
+              ) : (
+                <>
+                  <Field label="計畫版本">
+                    <select name="plannedVersionId" className={controlClass} defaultValue={data.plannedVersionId ?? ""}>
+                      <option value="">—</option>
+                      {data.versions.map((version) => <option key={version.id} value={version.id}>{version.version}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="實際版本">
+                    <select name="actualVersionId" className={controlClass} defaultValue={data.actualVersionId ?? ""}>
+                      <option value="">尚未填報</option>
+                      {data.versions.map((version) => <option key={version.id} value={version.id}>{version.version}</option>)}
+                    </select>
+                  </Field>
+                </>
+              )}
               <Field label="狀態">
                 <select name="status" className={controlClass} defaultValue={data.status}>
                   {Object.entries(deploymentStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -299,7 +308,7 @@ export function DeploymentForm({ id }: { id: string }) {
               </fieldset>
               <div className="md:col-span-2 overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="text-xs text-muted"><tr><th>功能</th><th>期望</th><th>實際</th><th>此實際版本支援</th></tr></thead>
+                  <thead className="text-xs text-muted"><tr><th>功能</th><th>期望</th><th>實際</th><th>{data.mode === "FEATURE_ONLY" ? "預設" : "此實際版本支援"}</th></tr></thead>
                   <tbody>
                     {data.features.map((feature) => (
                       <tr key={feature.id} className="border-t border-line">
@@ -312,7 +321,7 @@ export function DeploymentForm({ id }: { id: string }) {
                             <option value="false">關閉</option>
                           </select>
                         </td>
-                        <td>{feature.supportedByActual === null ? "—" : feature.supportedByActual ? "是" : "否"}</td>
+                        <td>{data.mode === "FEATURE_ONLY" ? (feature.defaultEnabled ? "開啟" : "關閉") : feature.supportedByActual === null ? "—" : feature.supportedByActual ? "是" : "否"}</td>
                       </tr>
                     ))}
                   </tbody>

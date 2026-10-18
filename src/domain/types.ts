@@ -6,16 +6,6 @@ export type FactoryStatus = (typeof FACTORY_STATUSES)[number];
 export const PHASE_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "AT_RISK", "DELAYED", "COMPLETED"] as const;
 export type PhaseStatus = (typeof PHASE_STATUSES)[number];
 
-export const HANDOFF_STATUSES = [
-  "WORK_DONE",
-  "PROPOSED",
-  "PENDING_ACCEPTANCE",
-  "ACCEPTED",
-  "REJECTED",
-  "BLOCKED",
-] as const;
-export type HandoffStatus = (typeof HANDOFF_STATUSES)[number];
-
 export const DEPLOYMENT_STATUSES = ["PLANNED", "IN_PROGRESS", "DEPLOYED", "ACCEPTED"] as const;
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
 
@@ -36,9 +26,6 @@ export type ChangeType = (typeof CHANGE_TYPES)[number];
 
 export const PHASE_LINK_RELATIONS = ["INTRODUCED", "UPGRADED", "ACCEPTED"] as const;
 export type PhaseLinkRelation = (typeof PHASE_LINK_RELATIONS)[number];
-
-export const REQUIREMENT_KINDS = ["MIN_VERSION", "FEATURE_ENABLED", "DEPLOYMENT_COMPLETE"] as const;
-export type RequirementKind = (typeof REQUIREMENT_KINDS)[number];
 
 export const ENUM_SETS = ["factoryCategory", "factoryRegion", "technologyNode"] as const;
 export type EnumSet = (typeof ENUM_SETS)[number];
@@ -140,6 +127,9 @@ export interface Milestone {
   ownerId: string;
 }
 
+export const PLATFORM_MODES = ["VERSIONED", "FEATURE_ONLY"] as const;
+export type PlatformMode = (typeof PLATFORM_MODES)[number];
+
 /** A platform is the product entity: globally defined, deployed per factory. */
 export interface Platform {
   id: string;
@@ -149,6 +139,8 @@ export interface Platform {
   devDepartment: string;
   projectDepartment: string;
   primaryOwnerId: string;
+  /** VERSIONED plans pick a release. FEATURE_ONLY plans set each feature on or off. */
+  mode: PlatformMode;
 }
 
 export interface PlatformVersion {
@@ -165,6 +157,8 @@ export interface FeatureDefinition {
   code: string;
   name: string;
   description: string;
+  /** Baseline for feature-flag platforms. 異動功能 is anything that differs from this. */
+  defaultEnabled: boolean;
 }
 
 export interface VersionFeature {
@@ -208,6 +202,12 @@ export interface FeatureChange {
   summary: string;
 }
 
+/** Planned on/off for one feature on a feature-flag platform. */
+export interface PlannedFeature {
+  featureId: string;
+  enabled: boolean;
+}
+
 /**
  * Per-factory plan submitted by the platform team.
  * Current fields mirror the latest revision; history lives in PlanRevision.
@@ -218,7 +218,10 @@ export interface PlatformFactoryPlan {
   platformId: string;
   deploymentId: string;
   status: PlanStatus;
+  /** Set only when the platform mode is VERSIONED. */
   providedVersionId: string | null;
+  /** Full feature set for FEATURE_ONLY. Empty on versioned plans. */
+  plannedFeatures: PlannedFeature[];
   featureChanges: FeatureChange[];
   constructionStart: string | null;
   constructionEnd: string | null;
@@ -257,6 +260,7 @@ export interface PlanRevision {
   number: number;
   action: RevisionAction;
   providedVersionId: string | null;
+  plannedFeatures: PlannedFeature[];
   featureChanges: FeatureChange[];
   constructionStart: string | null;
   constructionEnd: string | null;
@@ -264,35 +268,6 @@ export interface PlanRevision {
   actorId: string;
   createdAt: string;
   note: string;
-}
-
-export interface Handoff {
-  id: string;
-  code: string;
-  title: string;
-  factoryId: string;
-  fromPhaseId: string;
-  toPhaseId: string;
-  fromOwnerId: string;
-  toOwnerId: string;
-  escalationOwnerId: string | null;
-  plannedDate: string;
-  actualDate: string | null;
-  deliverables: string;
-  acceptanceCriteria: string;
-  blockers: string;
-  status: HandoffStatus;
-  rejectionReason: string;
-}
-
-export interface HandoffRequirement {
-  id: string;
-  handoffId: string;
-  kind: RequirementKind;
-  platformId: string;
-  minVersion: string | null;
-  featureId: string | null;
-  description: string;
 }
 
 export interface Issue {
@@ -304,7 +279,6 @@ export interface Issue {
   phaseId: string | null;
   milestoneId: string | null;
   platformId: string | null;
-  handoffId: string | null;
   ownerId: string;
   severity: IssueSeverity;
   priority: IssuePriority;
@@ -318,7 +292,6 @@ export type ActivityEntity =
   | "FACTORY"
   | "PHASE"
   | "MILESTONE"
-  | "HANDOFF"
   | "ISSUE"
   | "TOPIC"
   | "DEPLOYMENT"
@@ -358,8 +331,6 @@ export interface Database {
   featureConfigs: FeatureConfiguration[];
   plans: PlatformFactoryPlan[];
   revisions: PlanRevision[];
-  handoffs: Handoff[];
-  requirements: HandoffRequirement[];
   issues: Issue[];
   topics: DiscussionTopic[];
   activity: Activity[];

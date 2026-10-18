@@ -22,10 +22,6 @@ export function deploymentParams(): Array<{ id: string }> {
   return seed().deployments.map((deployment) => ({ id: deployment.id }));
 }
 
-export function handoffParams(): Array<{ id: string }> {
-  return seed().handoffs.map((handoff) => ({ id: handoff.id }));
-}
-
 export function platformParams(): Array<{ id: string }> {
   return seed().platforms.map((platform) => ({ id: platform.id }));
 }

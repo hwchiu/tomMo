@@ -4,14 +4,14 @@ import type {
   Enumeration,
   FactoryStatus,
   FeatureChange,
-  HandoffStatus,
   IssueSeverity,
   IssueStatus,
   PhaseLinkRelation,
   PmContact,
   TopicStatus,
   PhaseStatus,
-  RequirementKind,
+  PlannedFeature,
+  PlatformMode,
 } from "@/domain/types";
 import { apiRequest } from "./client";
 import { invalidate } from "./live";
@@ -23,8 +23,6 @@ import type {
   DeploymentPage,
   FactoryBoardRow,
   FactoryDetail,
-  HandoffListItem,
-  HandoffPage,
   IssueListItem,
   IssuePage,
   PlanPage,
@@ -79,15 +77,6 @@ export const api = {
     apiRequest<{ id: string; factoryId: string }>(`/api/v1/phases/${phaseId}/milestones`, { method: "POST", body }),
   updateMilestone: (id: string, body: MilestoneBody) =>
     apiRequest<{ factoryId: string }>(`/api/v1/milestones/${id}`, { method: "PATCH", body }),
-  handoffs: () => apiRequest<{ asOf: string; items: HandoffListItem[] }>("/api/v1/handoffs"),
-  handoff: (id: string) => apiRequest<HandoffPage>(`/api/v1/handoffs/${id}`),
-  createHandoff: (body: HandoffBody) => apiRequest<{ id: string }>("/api/v1/handoffs", { method: "POST", body }),
-  updateHandoff: (id: string, body: Omit<HandoffBody, "factoryId" | "status">) =>
-    apiRequest<{ id: string }>(`/api/v1/handoffs/${id}`, { method: "PATCH", body }),
-  transitionHandoff: (id: string, body: { status: HandoffStatus; rejectionReason?: string; blockers?: string; acknowledgeGaps?: boolean; unmet?: number }) =>
-    apiRequest<{ id: string }>(`/api/v1/handoffs/${id}/transitions`, { method: "POST", body }),
-  addRequirement: (id: string, body: { kind: RequirementKind; platformId: string; minVersion: string | null; featureId: string | null; description: string }) =>
-    apiRequest<{ id: string }>(`/api/v1/handoffs/${id}/requirements`, { method: "POST", body }),
   issues: () => apiRequest<{ asOf: string; items: IssueListItem[] }>("/api/v1/issues"),
   issue: (id: string) => apiRequest<IssuePage>(`/api/v1/issues/${id}`),
   createIssue: (body: IssueBody) => apiRequest<{ id: string }>("/api/v1/issues", { method: "POST", body }),
@@ -157,28 +146,12 @@ interface MilestoneBody {
   done: boolean;
 }
 
-interface HandoffBody {
-  title: string;
-  factoryId: string;
-  fromPhaseId: string;
-  toPhaseId: string;
-  fromOwnerId: string;
-  toOwnerId: string;
-  escalationOwnerId: string | null;
-  plannedDate: string;
-  deliverables: string;
-  acceptanceCriteria: string;
-  blockers: string;
-  status: HandoffStatus;
-}
-
 interface IssueBody {
   title: string;
   description: string;
   factoryId: string;
   phaseId: string | null;
   platformId: string | null;
-  handoffId: string | null;
   ownerId: string;
   severity: IssueSeverity;
   priority: "P0" | "P1" | "P2" | "P3";
@@ -194,6 +167,7 @@ interface PlatformBody {
   devDepartment: string;
   projectDepartment: string;
   primaryOwnerId: string;
+  mode: PlatformMode;
 }
 
 interface DeploymentBody {
@@ -210,6 +184,7 @@ interface DeploymentBody {
 
 interface PlanBody {
   providedVersionId: string | null;
+  plannedFeatures: PlannedFeature[];
   featureChanges: Array<{ featureId: string; changeType: ChangeType; summary: string }>;
   constructionStart: string | null;
   constructionEnd: string | null;

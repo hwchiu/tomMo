@@ -1,7 +1,6 @@
 import {
   deploymentStatusLabel,
   factoryStatusLabel,
-  handoffStatusLabel,
   issueStatusLabel,
   phaseStatusLabel,
   planStatusLabel,
@@ -31,7 +30,6 @@ function toneFor(kind: string, value: string): Tone {
 const dictionaries: Record<string, Record<string, string>> = {
   factory: factoryStatusLabel,
   phase: phaseStatusLabel,
-  handoff: handoffStatusLabel,
   plan: planStatusLabel,
   deployment: deploymentStatusLabel,
   issue: issueStatusLabel,

@@ -2,12 +2,12 @@ import type {
   ChangeType,
   DeploymentStatus,
   FactoryStatus,
-  HandoffStatus,
   IssueSeverity,
   IssueStatus,
   PhaseLinkRelation,
   PhaseStatus,
   PlanStatus,
+  PlatformMode,
   RevisionAction,
   TopicStatus,
 } from "./types";
@@ -29,13 +29,9 @@ export const phaseStatusLabel: Record<PhaseStatus, string> = {
   COMPLETED: "已完成",
 };
 
-export const handoffStatusLabel: Record<HandoffStatus, string> = {
-  WORK_DONE: "工作完成",
-  PROPOSED: "已提出",
-  PENDING_ACCEPTANCE: "待驗收",
-  ACCEPTED: "已驗收",
-  REJECTED: "已退回",
-  BLOCKED: "受阻",
+export const platformModeLabel: Record<PlatformMode, string> = {
+  VERSIONED: "有版本",
+  FEATURE_ONLY: "feature-flag only",
 };
 
 export const deploymentStatusLabel: Record<DeploymentStatus, string> = {
@@ -111,7 +107,8 @@ export const readinessFlagLabel: Record<ReadinessFlag, string> = {
   PLAN_NOT_APPROVED: "計畫尚未核准",
   WINDOW_MISSING: "施工時程未填",
   WINDOW_OUTSIDE: "施工時程超出階段",
-  DEPLOYMENT_INCOMPLETE: "部署尚未完成",
+  VERSION_MISSING: "尚未選擇版本",
+  FEATURE_UNPLANNED: "功能集未規劃完整",
 };
 
 export const enumSetLabel = {

@@ -19,8 +19,8 @@ export interface WindowCheck {
 
 /**
  * A construction window is flagged only when it is missing or falls outside
- * Phase 2 (平台建立). Overlapping windows between platforms are not conflicts:
- * platforms build in parallel, so this function judges one window at a time.
+ * Phase 2 (產品建立). Overlapping windows between products are not conflicts:
+ * products build in parallel, so this function judges one window at a time.
  */
 export function evaluateConstructionWindow(
   window: ConstructionWindow,

@@ -3,8 +3,7 @@ import { basePath } from "./src/lib/base-path";
 
 const nextConfig: NextConfig = {
   output: "export",
-  basePath,
-  assetPrefix: basePath,
+  ...(basePath ? { basePath, assetPrefix: basePath } : {}),
   trailingSlash: true,
   images: { unoptimized: true },
   turbopack: {

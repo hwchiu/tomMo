@@ -17,11 +17,10 @@ function CapabilityQuery() {
   return (
     <CapabilityView
       factoryId={query.get("factory") ?? ""}
-      phaseId={query.get("phase") ?? ""}
-      platformId={query.get("platform") ?? ""}
-      versionId={query.get("version") ?? ""}
+      productId={query.get("product") ?? ""}
       featureId={query.get("feature") ?? ""}
-      mismatches={query.get("mismatch") === "1"}
+      onlyChanges={query.get("changes") === "1"}
+      adhocOnly={query.get("adhoc") === "1"}
     />
   );
 }

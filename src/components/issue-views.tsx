@@ -7,7 +7,7 @@ import { api } from "@/api";
 import type { IssueListItem, IssuePage } from "@/api/types";
 import { issueStatusLabel, severityLabel } from "@/domain/labels";
 import type { IssueSeverity, IssueStatus } from "@/domain/types";
-import { useApp } from "@/components/shell";
+import { useApp, WhenEditor } from "@/components/shell";
 import { StatusChip } from "@/components/status-chip";
 import { AsyncView, Button, EmptyState, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
 import { toast } from "@/lib/toast";
@@ -57,7 +57,7 @@ function List({
   }
   return (
     <div>
-      <PageHeader kicker="Issue" title="問題與阻礙" description="跨工廠看逾期、嚴重程度與所屬工廠。開啟中的問題若過了基準日，會標成逾期。" actions={<Link className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white" href="/issues/new">登錄問題</Link>} />
+      <PageHeader kicker="Issue" title="問題與阻礙" description="跨工廠看逾期、嚴重程度與所屬工廠。開啟中的問題若過了基準日，會標成逾期。" actions={<WhenEditor><Link className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white" href="/issues/new">登錄問題</Link></WhenEditor>} />
       <div className="mb-3 flex flex-wrap gap-2">
         <input className="h-8 rounded-md border border-line px-2 text-sm" placeholder="搜尋標題" value={q} onChange={(event) => setQ(event.target.value)} />
         <select className="h-8 rounded-md border border-line bg-white px-2 text-sm" value={factoryId} onChange={(event) => push({ factory: event.target.value })}>
@@ -137,16 +137,15 @@ export function IssueCreate({ factoryId }: { factoryId: string }) {
   if (!app) return <Skeleton className="h-40" />;
   return (
     <div>
-      <PageHeader kicker="Issue" title="登錄問題" description="可掛到工廠、階段、平台或交接。逾期會出現在總覽例外。" />
+      <PageHeader kicker="Issue" title="登錄問題" description="可掛到工廠、階段或產品。逾期會出現在總覽例外。" />
       <IssueForm
         initial={{
           title: "",
           description: "",
           factoryId,
           phaseId: null,
-          platformId: null,
-          handoffId: null,
-          ownerId: app.currentUser.id,
+          productId: null,
+          ownerId: app.actor.id,
           severity: "MEDIUM",
           priority: "P2",
           status: "OPEN",
@@ -172,8 +171,7 @@ function IssueForm({
     description: string;
     factoryId: string;
     phaseId: string | null;
-    platformId: string | null;
-    handoffId: string | null;
+    productId: string | null;
     ownerId: string;
     severity: IssueSeverity;
     priority: "P0" | "P1" | "P2" | "P3";
@@ -186,8 +184,7 @@ function IssueForm({
     description: string;
     factoryId: string;
     phaseId: string | null;
-    platformId: string | null;
-    handoffId: string | null;
+    productId: string | null;
     ownerId: string;
     severity: IssueSeverity;
     priority: "P0" | "P1" | "P2" | "P3";
@@ -198,7 +195,7 @@ function IssueForm({
 }) {
   const app = useApp();
   const factories = useLiveQuery("factories", () => api.factories());
-  const platforms = useLiveQuery("platforms", () => api.platforms());
+  const products = useLiveQuery("products", () => api.products());
   const [factoryId, setFactoryId] = useState(initial.factoryId);
   const detail = useLiveQuery(factoryId ? `issue-factory:${factoryId}` : "issue-factory:none", () => factoryId ? api.factory(factoryId) : Promise.resolve(null));
   const [error, setError] = useState<string | null>(null);
@@ -214,8 +211,7 @@ function IssueForm({
             description: String(form.get("description") ?? ""),
             factoryId,
             phaseId: String(form.get("phaseId") ?? "") || null,
-            platformId: String(form.get("platformId") ?? "") || null,
-            handoffId: String(form.get("handoffId") ?? "") || null,
+            productId: String(form.get("productId") ?? "") || null,
             ownerId: String(form.get("ownerId") ?? ""),
             severity: String(form.get("severity") ?? "MEDIUM") as IssueSeverity,
             priority: String(form.get("priority") ?? "P2") as "P0" | "P1" | "P2" | "P3",
@@ -238,21 +234,15 @@ function IssueForm({
             {(detail.data?.phases ?? []).map((phase) => <option key={phase.id} value={phase.id}>{phase.name}</option>)}
           </select>
         </Field>
-        <Field label="平台">
-          <select name="platformId" className={controlClass} defaultValue={initial.platformId ?? ""}>
+        <Field label="產品">
+          <select name="productId" className={controlClass} defaultValue={initial.productId ?? ""}>
             <option value="">—</option>
-            {(platforms.data?.items ?? []).map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
-          </select>
-        </Field>
-        <Field label="交接">
-          <select name="handoffId" className={controlClass} defaultValue={initial.handoffId ?? ""}>
-            <option value="">—</option>
-            {(detail.data?.handoffs ?? []).map((handoff) => <option key={handoff.id} value={handoff.id}>{handoff.code}</option>)}
+            {(products.data?.items ?? []).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
           </select>
         </Field>
         <Field label="負責人">
           <select name="ownerId" className={controlClass} defaultValue={initial.ownerId}>
-            {(app?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            {(app?.people ?? []).filter((person) => person.active).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
           </select>
         </Field>
         <Field label="嚴重度">

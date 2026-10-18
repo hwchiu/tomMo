@@ -13,21 +13,17 @@ export function phaseParams(): Array<{ id: string; phaseId: string }> {
   return seed().phases.map((phase) => ({ id: phase.factoryId, phaseId: phase.id }));
 }
 
-export function planParams(): Array<{ id: string; platformId: string }> {
+export function planParams(): Array<{ id: string; productId: string }> {
   const db = seed();
-  return db.factories.flatMap((factory) => db.platforms.map((platform) => ({ id: factory.id, platformId: platform.id })));
+  return db.factories.flatMap((factory) => db.products.map((product) => ({ id: factory.id, productId: product.id })));
 }
 
 export function deploymentParams(): Array<{ id: string }> {
   return seed().deployments.map((deployment) => ({ id: deployment.id }));
 }
 
-export function handoffParams(): Array<{ id: string }> {
-  return seed().handoffs.map((handoff) => ({ id: handoff.id }));
-}
-
-export function platformParams(): Array<{ id: string }> {
-  return seed().platforms.map((platform) => ({ id: platform.id }));
+export function productParams(): Array<{ id: string }> {
+  return seed().products.map((product) => ({ id: product.id }));
 }
 
 export function issueParams(): Array<{ id: string }> {

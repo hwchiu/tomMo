@@ -1,7 +1,11 @@
 import { ApiError } from "./errors";
 import { invalidate } from "./live";
+import { basePath } from "@/lib/base-path";
 import { mockRoute } from "./router";
-import { getActorId, getFault, hydrateSession } from "./session";
+import { getFault, hydrateSession } from "./session";
+
+/** Static GitHub Pages build keeps the in-browser mock. The Go binary sets this to "0". */
+export const useMock = process.env.NEXT_PUBLIC_USE_MOCK !== "0";
 
 interface RequestOptions {
   method?: string;
@@ -20,26 +24,27 @@ function sleep(ms: number): Promise<void> {
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   hydrateSession();
   const method = options.method ?? "GET";
-  const fault = getFault();
+  const fault = useMock ? getFault() : "ok";
   if (fault === "error") {
     await sleep(180);
     throw new ApiError("無法連線到協調服務", 503);
   }
-  await sleep(fault === "slow" ? 1100 : 140);
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+  if (useMock) await sleep(fault === "slow" ? 1100 : 80);
   let result: T;
-  if (!base) {
+  if (useMock) {
     result = mockRoute<T>({ method, path, body: options.body });
   } else {
-    const response = await fetch(`${base}${path}`, {
+    const response = await fetch(path, {
       method,
-      headers: {
-        "content-type": "application/json",
-        "x-actor-id": getActorId(),
-      },
+      credentials: "include",
+      headers: { "content-type": "application/json" },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     const payload = (await response.json().catch(() => ({}))) as { message?: string };
+    if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/login")) {
+      const loginUrl = new URL(`${basePath}/login/`, window.location.origin);
+      window.location.assign(loginUrl.href);
+    }
     if (!response.ok) throw new ApiError(payload.message || `請求失敗（${response.status}）`, response.status);
     result = payload as T;
   }

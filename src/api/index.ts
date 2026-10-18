@@ -1,19 +1,19 @@
 import type {
-  ChangeType,
   DeploymentStatus,
   Enumeration,
   FactoryStatus,
   FeatureChange,
-  HandoffStatus,
   IssueSeverity,
   IssueStatus,
   PhaseLinkRelation,
-  PmContact,
   TopicStatus,
   PhaseStatus,
-  RequirementKind,
+  PlannedFeature,
+  ProductMode,
 } from "@/domain/types";
-import { apiRequest } from "./client";
+import { apiRequest, useMock } from "./client";
+
+export { useMock };
 import { invalidate } from "./live";
 import { setActorId, setFault, type FaultMode } from "./session";
 import type {
@@ -23,23 +23,21 @@ import type {
   DeploymentPage,
   FactoryBoardRow,
   FactoryDetail,
-  HandoffListItem,
-  HandoffPage,
   IssueListItem,
   IssuePage,
   PlanPage,
-  PlatformBuild,
-  PlatformDetail,
-  PlatformSummary,
+  ProductBuild,
+  ProductDetail,
+  ProductSummary,
   Portfolio,
 } from "./types";
 
 export const api = {
   bootstrap: () => apiRequest<Bootstrap>("/api/v1/bootstrap"),
   portfolio: () => apiRequest<Portfolio>("/api/v1/portfolio"),
-  platformBuild: () => apiRequest<PlatformBuild>("/api/v1/platform-build"),
+  productBuild: () => apiRequest<ProductBuild>("/api/v1/product-build"),
   factories: () =>
-    apiRequest<{ asOf: string; items: FactoryBoardRow[]; users: Bootstrap["users"]; enumerations: Bootstrap["enumerations"] }>("/api/v1/factories"),
+    apiRequest<{ asOf: string; items: FactoryBoardRow[]; people: Bootstrap["people"]; enumerations: Bootstrap["enumerations"] }>("/api/v1/factories"),
   factory: (id: string) => apiRequest<FactoryDetail>(`/api/v1/factories/${id}`),
   createFactory: (body: {
     code: string;
@@ -50,7 +48,6 @@ export const api = {
     region: string;
     technology: string;
     pmId: string;
-    pmContact: PmContact;
     plannedStart: string;
     status: FactoryStatus;
   }) => apiRequest<{ id: string }>("/api/v1/factories", { method: "POST", body }),
@@ -63,7 +60,6 @@ export const api = {
     region: string;
     technology: string;
     pmId: string;
-    pmContact: PmContact;
     plannedStart: string;
     plannedEnd: string;
     status: FactoryStatus;
@@ -79,31 +75,28 @@ export const api = {
     apiRequest<{ id: string; factoryId: string }>(`/api/v1/phases/${phaseId}/milestones`, { method: "POST", body }),
   updateMilestone: (id: string, body: MilestoneBody) =>
     apiRequest<{ factoryId: string }>(`/api/v1/milestones/${id}`, { method: "PATCH", body }),
-  handoffs: () => apiRequest<{ asOf: string; items: HandoffListItem[] }>("/api/v1/handoffs"),
-  handoff: (id: string) => apiRequest<HandoffPage>(`/api/v1/handoffs/${id}`),
-  createHandoff: (body: HandoffBody) => apiRequest<{ id: string }>("/api/v1/handoffs", { method: "POST", body }),
-  updateHandoff: (id: string, body: Omit<HandoffBody, "factoryId" | "status">) =>
-    apiRequest<{ id: string }>(`/api/v1/handoffs/${id}`, { method: "PATCH", body }),
-  transitionHandoff: (id: string, body: { status: HandoffStatus; rejectionReason?: string; blockers?: string; acknowledgeGaps?: boolean; unmet?: number }) =>
-    apiRequest<{ id: string }>(`/api/v1/handoffs/${id}/transitions`, { method: "POST", body }),
-  addRequirement: (id: string, body: { kind: RequirementKind; platformId: string; minVersion: string | null; featureId: string | null; description: string }) =>
-    apiRequest<{ id: string }>(`/api/v1/handoffs/${id}/requirements`, { method: "POST", body }),
   issues: () => apiRequest<{ asOf: string; items: IssueListItem[] }>("/api/v1/issues"),
   issue: (id: string) => apiRequest<IssuePage>(`/api/v1/issues/${id}`),
   createIssue: (body: IssueBody) => apiRequest<{ id: string }>("/api/v1/issues", { method: "POST", body }),
   updateIssue: (id: string, body: IssueBody) => apiRequest<{ id: string }>(`/api/v1/issues/${id}`, { method: "PATCH", body }),
-  platforms: () => apiRequest<{ asOf: string; items: PlatformSummary[] }>("/api/v1/platforms"),
-  platform: (id: string) => apiRequest<PlatformDetail>(`/api/v1/platforms/${id}`),
-  createPlatform: (body: PlatformBody) => apiRequest<{ id: string }>("/api/v1/platforms", { method: "POST", body }),
-  updatePlatform: (id: string, body: PlatformBody) => apiRequest<{ id: string }>(`/api/v1/platforms/${id}`, { method: "PATCH", body }),
+  products: () => apiRequest<{ asOf: string; items: ProductSummary[] }>("/api/v1/products"),
+  product: (id: string) => apiRequest<ProductDetail>(`/api/v1/products/${id}`),
+  createProduct: (body: ProductBody) => apiRequest<{ id: string }>("/api/v1/products", { method: "POST", body }),
+  updateProduct: (id: string, body: ProductBody) => apiRequest<{ id: string }>(`/api/v1/products/${id}`, { method: "PATCH", body }),
+  people: () => apiRequest<{ items: Bootstrap["people"] }>("/api/v1/people"),
+  createPerson: (body: { name: string; department: string }) => apiRequest<{ id: string }>("/api/v1/people", { method: "POST", body }),
+  updatePerson: (id: string, body: { name: string; department: string; active?: boolean }) =>
+    apiRequest<{ id: string }>(`/api/v1/people/${id}`, { method: "PATCH", body }),
+  login: (body: { username: string; password: string }) => apiRequest<{ ok: boolean }>("/api/v1/login", { method: "POST", body }),
+  logout: () => apiRequest<{ ok: boolean }>("/api/v1/logout", { method: "POST", body: {} }),
   capabilities: () => apiRequest<CapabilityMatrix>("/api/v1/capabilities"),
   deployment: (id: string) => apiRequest<DeploymentPage>(`/api/v1/deployments/${id}`),
   updateDeployment: (id: string, body: DeploymentBody) => apiRequest<{ id: string }>(`/api/v1/deployments/${id}`, { method: "PATCH", body }),
-  plan: (factoryId: string, platformId: string) => apiRequest<PlanPage>(`/api/v1/factories/${factoryId}/platforms/${platformId}/plan`),
-  savePlan: (factoryId: string, platformId: string, body: PlanBody) =>
-    apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/platforms/${platformId}/plan`, { method: "PUT", body }),
-  approvePlan: (factoryId: string, platformId: string) =>
-    apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/platforms/${platformId}/plan/approve`, { method: "POST" }),
+  plan: (factoryId: string, productId: string) => apiRequest<PlanPage>(`/api/v1/factories/${factoryId}/products/${productId}/plan`),
+  savePlan: (factoryId: string, productId: string, body: PlanBody) =>
+    apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/products/${productId}/plan`, { method: "PUT", body }),
+  approvePlan: (factoryId: string, productId: string) =>
+    apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/products/${productId}/plan/approve`, { method: "POST" }),
   featureDiff: (from: string | null, to: string) =>
     apiRequest<{ changes: FeatureChange[] }>(`/api/v1/feature-diff?from=${encodeURIComponent(from ?? "")}&to=${encodeURIComponent(to)}`),
   activity: () => apiRequest<{ asOf: string; items: ActivityItem[] }>("/api/v1/activity"),
@@ -157,28 +150,12 @@ interface MilestoneBody {
   done: boolean;
 }
 
-interface HandoffBody {
-  title: string;
-  factoryId: string;
-  fromPhaseId: string;
-  toPhaseId: string;
-  fromOwnerId: string;
-  toOwnerId: string;
-  escalationOwnerId: string | null;
-  plannedDate: string;
-  deliverables: string;
-  acceptanceCriteria: string;
-  blockers: string;
-  status: HandoffStatus;
-}
-
 interface IssueBody {
   title: string;
   description: string;
   factoryId: string;
   phaseId: string | null;
-  platformId: string | null;
-  handoffId: string | null;
+  productId: string | null;
   ownerId: string;
   severity: IssueSeverity;
   priority: "P0" | "P1" | "P2" | "P3";
@@ -187,13 +164,13 @@ interface IssueBody {
   resolution: string;
 }
 
-interface PlatformBody {
-  code: string;
+interface ProductBody {
   name: string;
   description: string;
   devDepartment: string;
   projectDepartment: string;
   primaryOwnerId: string;
+  mode: ProductMode;
 }
 
 interface DeploymentBody {
@@ -210,7 +187,9 @@ interface DeploymentBody {
 
 interface PlanBody {
   providedVersionId: string | null;
-  featureChanges: Array<{ featureId: string; changeType: ChangeType; summary: string }>;
+  plannedFeatures: PlannedFeature[];
+  reasons?: Record<string, string>;
+  adHocChanges: Array<{ id: string; kind: "FEATURE_OVERRIDE" | "CUSTOM"; featureId: string | null; enabled: boolean | null; title: string; description: string }>;
   constructionStart: string | null;
   constructionEnd: string | null;
   machines: Array<{ machineTypeId: string; planned: number }>;

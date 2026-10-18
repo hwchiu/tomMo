@@ -1,25 +1,41 @@
 # 廠務協調台
 
-P0 coordination workspace for several factories moving through the same four phases. The screen that matters most is **平台建立 (Phase 2)**: each factory × platform cell shows the deployment, the platform team's plan, and whether that cell can support the handoff into **開發者進駐**.
+P0 coordination workspace for several factories moving through the same four phases. The screen that matters most is **產品建立 (Phase 2)**: each factory × product cell shows the deployment, the product team's plan, and whether that plan is ready for **開發者進駐**.
 
-This repository is the Next.js client. Persistence and authorization are expected to move to a Go JSON service. Until that service exists, `src/api` serves the same paths from typed fixtures in the browser.
+The GitHub Pages build keeps an in-browser mock. The Go binary in this repo serves the same JSON API from SQLite and embeds that frontend. See [docs/deployment-architecture.md](docs/deployment-architecture.md).
 
 ## Run
+
+GitHub Pages / local mock (base path `/tomMo-`):
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000/tomMo-/](http://localhost:3000/tomMo-/). The app is served under `/tomMo-` so the same build works on GitHub Pages.
+Open [http://localhost:3000/tomMo-/login/](http://localhost:3000/tomMo-/login/).
 
 ```bash
-npm test    # handoff evaluator and construction windows
+npm test
 npm run lint
-npm run build   # writes the static site to out/
+npm run build   # static export in out/, mock mode
 ```
 
-This build is a single admin view. There is no user switcher and no per-role screen. The header can preview a slow or failed network. Edits stay in this browser’s `localStorage`. **重設示範資料** restores the seed data. `X-Actor-Id` is still sent for the future Go service; the client always uses the seeded PM.
+Go monolith (app at `/`, cookie session, SQLite):
+
+```bash
+NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_BASE_PATH= npm run build
+rm -rf web/dist && cp -a out web/dist
+go run ./cmd/server
+```
+
+Or `docker build -t fpm .` then `docker run --rm -p 8080:8080 -e ADMIN_PASSWORD=admin -e SESSION_SECRET=dev-session-secret fpm`.
+
+Open [http://localhost:8080/login/](http://localhost:8080/login/).
+
+Default accounts: `admin` / `admin`（編輯者，林品均）and `viewer` / `viewer`（使用者，陳浩宇）. Override with `ADMIN_PASSWORD`, `VIEWER_PASSWORD`, and `SESSION_SECRET`.
+
+編輯者 can create and edit, including 管理. 使用者 is read-only. The mock stores edits in `localStorage`. **重設示範資料** is editor-only.
 
 ## Public site
 
@@ -29,54 +45,48 @@ After the pull request is merged, the site is [https://hwchiu.github.io/tomMo-/]
 
 GitHub Pages source is **GitHub Actions**. The public site is [https://www.hwchiu.com/tomMo-/](https://www.hwchiu.com/tomMo-/). The site goes live when the workflow on `main` succeeds.
 
-Point the client at Go by setting:
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-```
-
-The client then `fetch`es the paths in [docs/openapi.yaml](docs/openapi.yaml) and sends `X-Actor-Id`.
+The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_USE_MOCK=0`. Paths are in [docs/openapi.yaml](docs/openapi.yaml). Session is the `fpm_session` cookie, not `X-Actor-Id`.
 
 ## What you can do
 
 | Screen | Path | What it is for |
 | --- | --- | --- |
-| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, blocked handoffs, overdue issues. Filter and group by 類別 / 區域 / 製程. |
-| 平台建立 | `/platform-build` | Factory × platform grid. Status, versions, owners, machine counts, and Phase 2 → 3 readiness. |
-| 工廠 | `/factories` | Per-factory month-and-week timeline, PM contact, discussion topics, plan windows, deployments, handoffs, issues. |
-| 施工計畫 | `/factories/{id}/plans/{platformId}` | Version to provide, feature changes, construction window, revision history, submit and approve. |
-| 交接 | `/handoffs` | Requirements evaluated against actual deployments. A person still accepts. |
-| 問題 | `/issues` | Blockers tied to a factory, phase, platform, or handoff. |
-| 平台 | `/platforms` | Global platforms: 開發部門, 專案部門, 主責, estimated machines. |
-| 能力矩陣 | `/capabilities` | Supported by the actual version, desired, and reported actual. |
-| 活動 / 設定 | `/activity`, `/settings` | Change history, and the category / region / technology enumerations. |
+| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, overdue issues. Filter and group by 類別 / 區域 / 製程. |
+| 產品建立 | `/product-build` | Factory × product grid. Status, version or 純功能開關, owners, per-factory machine total, and a grand total. |
+| 工廠 | `/factories` | Timeline, PM name and department, machine total, ad-hoc changes, topics, deployments, issues. |
+| 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
+| 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
+| 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
+| 能力矩陣 | `/capabilities` | Factory × product rows, features grouped by product. Grey / green / red against the baseline, adhoc badge, filters. |
+| 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
+| 活動 / 設定 | `/activity`, `/settings` | Change history, and enumerations. 設定 is hidden from 使用者. |
 
 Default phases, copied onto each new factory and still editable there:
 
 1. 硬體導入 Hardware Onboarding
-2. 平台建立 Platform Build
+2. 產品建立 Product Build
 3. 開發者進駐 Developer Onboarding
 4. 開始營運 Operations Start
 
-Seeded platforms: 運算 Compute, 儲存 Storage, 資料 Data, 開發 Developer, 監控 Monitoring.
+Seeded products: 運算 Compute and 儲存 Storage are versioned. 資料 Data, 開發 Developer, and 監控 Monitoring are feature-flag only: a factory plan lists each feature as enabled or disabled, and 異動功能 is whatever differs from that feature's default.
 
-Machine counts are planned quantities per machine type (機種A, 機種B, and any type added in 設定). Each factory × platform plan stores the breakdown. Screens show the computed total. There is no actual or delivered machine count. A factory page rolls the planned quantities up by type across its platforms.
+Machine counts are planned quantities per machine type (機種A, 機種B, and any type added in 設定). Each factory × product plan stores the breakdown. Screens show the computed total. There is no actual or delivered machine count. A factory page rolls the planned quantities up by type across its products.
 
 ## Rules that the screens follow
 
-- **Exceptions first.** Missing plans, windows outside Phase 2, blocked or overdue handoffs, and open issues past the as-of date are ranked above factories that are quiet.
+- **Exceptions first.** Missing plans, windows outside Phase 2, and open issues past the as-of date are ranked above factories that are quiet.
 - **One factory, its own phases.** Templates are only a starting copy. Dates, owners, names, and extra phases belong to that factory.
-- **Handoffs do not accept themselves.** `evaluateHandoffRequirements` reports whether `MIN_VERSION`, `FEATURE_ENABLED`, and `DEPLOYMENT_COMPLETE` are met. Moving to 已驗收 is a person, and unmet items must be acknowledged.
-- **Versions compare numerically.** `2.10.0` is newer than `2.3.0`. A `v` prefix is ignored.
-- **Capability is three facts.** A feature can be supported by the actual version, desired for this factory, and actually enabled. Those are not the same field.
-- **Construction windows may overlap.** Platforms build in parallel. A window is flagged only when it is missing, or when it starts before or ends after that factory's Phase 2 dates. There is no overlap conflict.
+- **Version is optional per product.** `VERSIONED` plans choose a release. `FEATURE_ONLY` plans set every feature on or off. The change list is the features whose planned state differs from `defaultEnabled`.
+- **Versions compare numerically.** `2.10.0` is newer than `2.3.0`. A `v` prefix is ignored. Feature-flag products do not have versions.
+- **Capability is the planned feature set.** A cell is on, off, or not planned yet. Versioned rows derive that from the provided version and its feature changes.
+- **Construction windows may overlap.** Products build in parallel. A window is flagged only when it is missing, or when it starts before or ends after that factory's Phase 2 dates. There is no overlap conflict.
 
-The window check lives in `src/domain/windows.ts` and is covered by `src/domain/windows.test.ts`. Readiness for the Phase 2 → 3 handoff (`src/domain/readiness.ts`) still requires an approved plan, a window inside Phase 2, and a deployment that is `DEPLOYED` or `ACCEPTED`. An outside window can be submitted and approved; it just does not count as ready.
+The window check lives in `src/domain/windows.ts` and is covered by `src/domain/windows.test.ts`. Readiness (`src/domain/readiness.ts`) requires an approved plan and a window inside Phase 2. A versioned product also needs a provided version. A feature-flag product needs a planned state for every feature. An outside window can be submitted and approved; it just does not count as ready.
 
 ## Layout
 
 ```text
-src/domain     pure TypeScript: types, semver, windows, readiness, handoff evaluation
+src/domain     pure TypeScript: types, semver, windows, readiness, feature baseline
 src/mocks      demo fixtures
 src/api        client, in-memory router, and view models shaped like the Go JSON
 src/components screens
@@ -88,16 +98,16 @@ docs/openapi.yaml
 
 ## Go contract
 
-[docs/openapi.yaml](docs/openapi.yaml) is the request and response contract: factories, phases, milestones, handoffs and their transitions, issues, platforms, deployments, plans, feature diff, activity, and enumerations.
+[docs/openapi.yaml](docs/openapi.yaml) is the request and response contract: factories, phases, milestones, issues, products, deployments, plans, feature diff, activity, and enumerations.
 
-Plan and platform-build payloads include `windowState` (`MISSING` | `INSIDE` | `OUTSIDE`) and `windowReasons`. Allowed reasons are only:
+Plan and product-build payloads include `windowState` (`MISSING` | `INSIDE` | `OUTSIDE`) and `windowReasons`. Allowed reasons are only:
 
 - `MISSING_DATES`
 - `MISSING_PHASE`
 - `STARTS_BEFORE_PHASE`
 - `ENDS_AFTER_PHASE`
 
-Do not add an overlap reason. Two platforms whose windows share days are both `INSIDE` when each window sits inside Phase 2.
+Do not add an overlap reason. Two products whose windows share days are both `INSIDE` when each window sits inside Phase 2.
 
 Errors are `{ "message": "..." }` with an HTTP status. The mock uses 404 for unknown resources and 503 for the header's failure preview.
 
@@ -106,41 +116,35 @@ Errors are `{ "message": "..." }` with an HTTP status. The mock uses 404 for unk
 ```mermaid
 erDiagram
   ENUMERATION ||--o{ FACTORY : classifies
-  USER ||--o{ FACTORY : "PM"
+  PERSON ||--o{ FACTORY : "PM"
   FACTORY ||--|{ PHASE : owns
   PHASE ||--o{ MILESTONE : contains
   PHASE ||--o{ PHASE : dependsOn
-  PLATFORM ||--|{ PLATFORM_VERSION : releases
-  PLATFORM ||--|{ FEATURE : defines
+  PRODUCT ||--o{ PLATFORM_VERSION : "releases when versioned"
+  PRODUCT ||--|{ FEATURE : defines
   PLATFORM_VERSION ||--o{ VERSION_FEATURE : supports
   FEATURE ||--o{ VERSION_FEATURE : supportedBy
   FACTORY ||--|{ DEPLOYMENT : hosts
-  PLATFORM ||--|{ DEPLOYMENT : deployedAs
+  PRODUCT ||--|{ DEPLOYMENT : deployedAs
   DEPLOYMENT ||--o{ FEATURE_CONFIGURATION : desiredVsActual
   DEPLOYMENT ||--o{ DEPLOYMENT_PHASE_LINK : introducedIn
   FACTORY ||--|{ PLATFORM_FACTORY_PLAN : plans
-  PLATFORM ||--|{ PLATFORM_FACTORY_PLAN : plans
+  PRODUCT ||--|{ PLATFORM_FACTORY_PLAN : plans
   PLATFORM_FACTORY_PLAN ||--|{ PLAN_REVISION : history
-  FACTORY ||--o{ HANDOFF : betweenPhases
-  PHASE ||--o{ HANDOFF : fromOrTo
-  HANDOFF ||--o{ HANDOFF_REQUIREMENT : expects
   FACTORY ||--o{ ISSUE : tracks
-  USER ||--o{ ACTIVITY : writes
+  PERSON ||--o{ ACTIVITY : writes
+  ACCOUNT ||--|| PERSON : "login"
 ```
 
-`PLATFORM_FACTORY_PLAN` is the per-factory submission: provided version, feature changes, construction window, and status `NOT_SUBMITTED` | `SUBMITTED` | `APPROVED`. `PLAN_REVISION` keeps each draft, submit, and approval. A factory deployment may set a secondary owner. Planned machine quantities live on that deployment, one number per machine type, and are edited with the plan. The total is the sum.
+`PLATFORM_FACTORY_PLAN` is the per-factory submission: construction window, status `NOT_SUBMITTED` | `SUBMITTED` | `APPROVED`, and either a provided version or a full feature set. `PLAN_REVISION` keeps each draft, submit, and approval. A factory deployment may set a secondary owner. Planned machine quantities live on that deployment, one number per machine type, and are edited with the plan. The total is the sum. `PRODUCT.mode` is `VERSIONED` or `FEATURE_ONLY`. Feature-flag plans store `plannedFeatures`; 異動功能 is computed against each feature's `defaultEnabled`.
 
-## Client app and a Go + htmx UI
+## Frontend options
 
-Both can sit on this API. They are not equal fits for this product.
+Ship one Go binary and one Kubernetes Pod. The Next.js app stays a static export (`output: 'export'`). There is no Next.js server. `go:embed` serves that export, and the same process serves the JSON API under `/api`. SQLite (`modernc.org/sqlite`, WAL) is the database, at `/data/app.db` on a single ReadWriteOnce volume. The Deployment is `replicas: 1` with `strategy: Recreate`. Details, backup, and the manifests are in [docs/deployment-architecture.md](docs/deployment-architecture.md) and `deploy/k8s/`.
 
-| | Next.js client (this repo) | Go templates + htmx |
-| --- | --- | --- |
-| Where it helps | The Phase 2 grid, capability matrix, timeline, and plan form recompute filters and window previews as the person types. | Settings, factory create/edit, issue status, and other forms that replace a fragment and do not keep a large client model. |
-| Source of truth | Go JSON. The browser holds a view and a short-lived session copy of the demo. | Go JSON or HTML. The server renders the exception list and can share the same evaluators if they are ported. |
-| Handoff and window rules | Pure TypeScript modules, unit-tested here, called again when the view model is built. | The same rules should live in Go so a template cannot drift from the API. Duplicating them only in the browser will drift. |
-| Cost | A second runtime (Node) and a client bundle. Dense screens stay responsive without a round trip per keystroke. | One binary and progressive HTML. The factory × platform matrix, feature diff, and multi-filter board become a lot of partial endpoints and client script anyway. |
+The data layer switches with a build flag:
 
-Recommendation: keep this client for the coordination boards, and implement the OpenAPI service in Go. Port `evaluateHandoffRequirements`, semver compare, and `evaluateConstructionWindow` into Go and test them there with the same cases (equal and higher versions, `2.10` vs `2.3`, missing window, window past Phase 2, two overlapping windows that are both inside). Use htmx later for simple form pages if a server-rendered slice is useful; do not split the Phase 2 grid across two UI stacks.
+- GitHub Pages leaves `NEXT_PUBLIC_USE_MOCK` unset, so the browser keeps the mock in `localStorage` and the site stays under `/tomMo-`.
+- The container image sets `NEXT_PUBLIC_USE_MOCK=0` and an empty `NEXT_PUBLIC_BASE_PATH`. The same client then calls `fetch('/api/...')` with the session cookie.
 
-The mock is a stand-in, not the long-term store. Session reset and the fault switch exist so the screens can be reviewed before the Go service is up.
+Filters and the capability matrix still run in the browser. The API is the source of truth for the deployed site. Window checks, feature baseline, and machine totals live in Go as well as TypeScript, with the same cases (`2.10` vs `2.3`, a feature turned on against a default of off, a missing window, a window past Phase 2, two overlapping windows that are both inside).

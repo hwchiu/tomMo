@@ -5,7 +5,7 @@ import { api } from "@/api";
 import { enumSetLabel } from "@/domain/labels";
 import type { Enumeration } from "@/domain/types";
 import type { MachineType } from "@/domain/types";
-import { useApp } from "@/components/shell";
+import { useApp, useEditor } from "@/components/shell";
 import { AsyncView, Button, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
 import { formatWhen } from "@/domain/dates";
 import { toast } from "@/lib/toast";
@@ -20,10 +20,10 @@ export function ActivityView() {
         const items = data.items.filter((item) => !kind || item.entityType === kind);
         return (
           <div>
-            <PageHeader kicker="Activity" title="活動紀錄" description="狀態、版本、功能、交接與施工計畫的變更都會留在這裡。這是工廠與平台共用的軌跡。" />
+            <PageHeader kicker="Activity" title="活動紀錄" description="狀態、版本、功能開關與施工計畫的變更都會留在這裡。這是工廠與產品共用的軌跡。" />
             <select className="mb-3 h-8 rounded-md border border-line bg-white px-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value)}>
               <option value="">全部類型</option>
-              {["FACTORY", "PHASE", "MILESTONE", "HANDOFF", "ISSUE", "DEPLOYMENT", "FEATURE", "PLAN", "PLATFORM", "ENUM", "MACHINE"].map((item) => <option key={item}>{item}</option>)}
+              {["FACTORY", "PHASE", "MILESTONE", "ISSUE", "DEPLOYMENT", "FEATURE", "PLAN", "PRODUCT", "ENUM", "MACHINE"].map((item) => <option key={item}>{item}</option>)}
             </select>
             {items.length === 0 ? <p className="text-sm text-muted">沒有這個類型的紀錄。</p> : (
               <ol className="space-y-2">
@@ -44,20 +44,21 @@ export function ActivityView() {
 
 export function SettingsView() {
   const app = useApp();
+  const editor = useEditor();
   const [error, setError] = useState<string | null>(null);
   if (!app) return <Skeleton className="h-64" />;
   const sets = ["factoryCategory", "factoryRegion", "technologyNode"] as const;
   return (
     <div>
-      <PageHeader kicker="Settings" title="列舉設定" description="廠別、區域、製程節點與機種都是資料。機種用來填每座工廠、每個平台的計畫機台，沒有實際到貨數。" />
+      <PageHeader kicker="Settings" title="列舉設定" description="廠別、區域、製程節點與機種都是資料。機種用來填每座工廠、每個產品的計畫機台，沒有實際到貨數。" />
       <Panel className="mb-4 p-4">
         <h2 className="mb-3 font-semibold">機種 Machine type</h2>
         <ul className="grid gap-3 md:grid-cols-2">
           {app.machineTypes.map((item) => (
-            <MachineTypeRow key={item.id} item={item} onError={setError} />
+            <MachineTypeRow key={item.id} item={item} editor={editor} onError={setError} />
           ))}
         </ul>
-        <form
+        {editor ? <form
           className="mt-4 grid gap-2 border-t border-line pt-3 md:grid-cols-[1fr_1fr_auto]"
           onSubmit={(event) => {
             event.preventDefault();
@@ -74,7 +75,7 @@ export function SettingsView() {
           <Field label="代碼"><input name="code" className={controlClass} placeholder="C" /></Field>
           <Field label="名稱"><input name="name" className={controlClass} placeholder="機種C" /></Field>
           <div className="self-end"><Button type="submit">新增機種</Button></div>
-        </form>
+        </form> : null}
       </Panel>
       <div className="grid gap-4 lg:grid-cols-3">
         {sets.map((set) => (
@@ -82,10 +83,10 @@ export function SettingsView() {
             <h2 className="mb-3 font-semibold">{enumSetLabel[set]}</h2>
             <ul className="space-y-3">
               {app.enumerations.filter((item) => item.set === set).map((item) => (
-                <EnumRow key={item.id} item={item} onError={setError} />
+                <EnumRow key={item.id} item={item} editor={editor} onError={setError} />
               ))}
             </ul>
-            <form
+            {editor ? <form
               className="mt-4 space-y-2 border-t border-line pt-3"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -105,7 +106,7 @@ export function SettingsView() {
               <Field label="顯示名稱"><input name="label" className={controlClass} placeholder="N2E" /></Field>
               <Field label="說明"><input name="description" className={controlClass} /></Field>
               <Button type="submit">新增</Button>
-            </form>
+            </form> : null}
           </Panel>
         ))}
       </div>
@@ -114,15 +115,15 @@ export function SettingsView() {
   );
 }
 
-function MachineTypeRow({ item, onError }: { item: MachineType; onError: (message: string) => void }) {
+function MachineTypeRow({ item, editor, onError }: { item: MachineType; editor: boolean; onError: (message: string) => void }) {
   const [name, setName] = useState(item.name);
   const [active, setActive] = useState(item.active);
   return (
     <li className="text-sm">
       <div className="font-mono text-[11px] text-muted">{item.code}</div>
-      <input className={`${controlClass} mt-1`} value={name} onChange={(event) => setName(event.target.value)} />
-      <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} />啟用</label>
-      <button
+      <input className={`${controlClass} mt-1`} value={name} disabled={!editor} onChange={(event) => setName(event.target.value)} />
+      <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={active} disabled={!editor} onChange={(event) => setActive(event.target.checked)} />啟用</label>
+      {editor ? <button
         type="button"
         className="mt-1 text-xs text-accent"
         onClick={() => {
@@ -130,22 +131,22 @@ function MachineTypeRow({ item, onError }: { item: MachineType; onError: (messag
         }}
       >
         儲存名稱
-      </button>
+      </button> : null}
     </li>
   );
 }
 
-function EnumRow({ item, onError }: { item: Enumeration; onError: (message: string) => void }) {
+function EnumRow({ item, editor, onError }: { item: Enumeration; editor: boolean; onError: (message: string) => void }) {
   const [label, setLabel] = useState(item.label);
   const [description, setDescription] = useState(item.description);
   const [active, setActive] = useState(item.active);
   return (
     <li className="text-sm">
       <div className="font-mono text-[11px] text-muted">{item.code}</div>
-      <input className={`${controlClass} mt-1`} value={label} onChange={(event) => setLabel(event.target.value)} />
-      <input className={`${controlClass} mt-1`} value={description} onChange={(event) => setDescription(event.target.value)} />
-      <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} />啟用</label>
-      <button
+      <input className={`${controlClass} mt-1`} value={label} disabled={!editor} onChange={(event) => setLabel(event.target.value)} />
+      <input className={`${controlClass} mt-1`} value={description} disabled={!editor} onChange={(event) => setDescription(event.target.value)} />
+      <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={active} disabled={!editor} onChange={(event) => setActive(event.target.checked)} />啟用</label>
+      {editor ? <button
         type="button"
         className="mt-1 text-xs text-accent"
         onClick={() => {
@@ -153,7 +154,7 @@ function EnumRow({ item, onError }: { item: Enumeration; onError: (message: stri
         }}
       >
         儲存
-      </button>
+      </button> : null}
     </li>
   );
 }

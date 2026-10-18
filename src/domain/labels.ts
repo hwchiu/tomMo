@@ -2,12 +2,12 @@ import type {
   ChangeType,
   DeploymentStatus,
   FactoryStatus,
-  HandoffStatus,
   IssueSeverity,
   IssueStatus,
   PhaseLinkRelation,
   PhaseStatus,
   PlanStatus,
+  ProductMode,
   RevisionAction,
   TopicStatus,
 } from "./types";
@@ -29,14 +29,15 @@ export const phaseStatusLabel: Record<PhaseStatus, string> = {
   COMPLETED: "已完成",
 };
 
-export const handoffStatusLabel: Record<HandoffStatus, string> = {
-  WORK_DONE: "工作完成",
-  PROPOSED: "已提出",
-  PENDING_ACCEPTANCE: "待驗收",
-  ACCEPTED: "已驗收",
-  REJECTED: "已退回",
-  BLOCKED: "受阻",
+export const productModeLabel: Record<ProductMode, string> = {
+  VERSIONED: "有版本",
+  FEATURE_ONLY: "純功能開關",
 };
+
+export const accountRoleLabel = {
+  editor: "編輯者",
+  viewer: "使用者",
+} as const;
 
 export const deploymentStatusLabel: Record<DeploymentStatus, string> = {
   PLANNED: "已規劃",
@@ -95,15 +96,15 @@ export const revisionActionLabel: Record<RevisionAction, string> = {
 
 export const windowStateLabel: Record<WindowState, string> = {
   MISSING: "未填時程",
-  INSIDE: "在平台建立區間內",
-  OUTSIDE: "超出平台建立區間",
+  INSIDE: "在產品建立區間內",
+  OUTSIDE: "超出產品建立區間",
 };
 
 export const windowReasonLabel: Record<WindowReason, string> = {
   MISSING_DATES: "尚未填報施工起迄",
-  MISSING_PHASE: "此工廠沒有平台建立階段",
-  STARTS_BEFORE_PHASE: "開工早於平台建立階段",
-  ENDS_AFTER_PHASE: "完工晚於平台建立階段",
+  MISSING_PHASE: "此工廠沒有產品建立階段",
+  STARTS_BEFORE_PHASE: "開工早於產品建立階段",
+  ENDS_AFTER_PHASE: "完工晚於產品建立階段",
 };
 
 export const readinessFlagLabel: Record<ReadinessFlag, string> = {
@@ -111,7 +112,8 @@ export const readinessFlagLabel: Record<ReadinessFlag, string> = {
   PLAN_NOT_APPROVED: "計畫尚未核准",
   WINDOW_MISSING: "施工時程未填",
   WINDOW_OUTSIDE: "施工時程超出階段",
-  DEPLOYMENT_INCOMPLETE: "部署尚未完成",
+  VERSION_MISSING: "尚未選擇版本",
+  FEATURE_UNPLANNED: "功能集未規劃完整",
 };
 
 export const enumSetLabel = {

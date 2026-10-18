@@ -1,22 +1,20 @@
-import type { DeploymentSnapshot, RequirementInput } from "@/domain/handoff-evaluator";
 import type { ReadinessFlag } from "@/domain/readiness";
 import type {
   Activity,
-  ChangeType,
   DeploymentStatus,
   Enumeration,
   FactoryStatus,
-  FeatureChange,
-  HandoffStatus,
   IssueSeverity,
   IssueStatus,
   PhaseLinkRelation,
   PhaseStatus,
   PlanStatus,
-  PmContact,
+  AdHocChange,
+  Person,
+  PlannedFeature,
+  ProductMode,
   TopicStatus,
   RevisionAction,
-  User,
 } from "@/domain/types";
 import type { MachineType } from "@/domain/types";
 import type { WindowReason, WindowState } from "@/domain/windows";
@@ -76,15 +74,18 @@ export interface FactoryBoardRow {
   regionLabel: string;
   technology: string;
   technologyLabel: string;
+  pmId: string;
   pmName: string;
-  pmContact: PmContact;
+  pmDepartment: string;
+  machineTotal: number;
+  machineRollup: MachineLineView[];
   openTopics: number;
+  notReady: number;
   currentPhaseName: string;
   currentPhaseOrder: number;
   currentPhaseStatus: PhaseStatus;
   currentOwnerName: string;
   phases: PhaseBar[];
-  openHandoffs: number;
   blockers: number;
   missingPlans: number;
   outsideWindows: number;
@@ -102,25 +103,14 @@ export interface MilestoneRow {
   ownerName: string;
 }
 
-export interface HandoffListItem {
+export interface PendingPlan {
   id: string;
-  code: string;
-  title: string;
   factoryId: string;
   factoryName: string;
-  fromPhaseId: string;
-  toPhaseId: string;
-  fromPhaseName: string;
-  toPhaseName: string;
-  fromOwnerName: string;
-  toOwnerName: string;
-  escalationOwnerName: string | null;
-  plannedDate: string;
-  actualDate: string | null;
-  status: HandoffStatus;
-  blockers: string;
-  requirements: RequirementInput[];
-  snapshots: DeploymentSnapshot[];
+  productId: string;
+  productName: string;
+  status: PlanStatus;
+  mode: ProductMode;
 }
 
 export interface Portfolio {
@@ -129,18 +119,20 @@ export interface Portfolio {
   exceptions: ExceptionItem[];
   factories: FactoryBoardRow[];
   milestones: MilestoneRow[];
-  handoffs: HandoffListItem[];
+  pendingPlans: PendingPlan[];
 }
 
 export interface BuildCell {
   factoryId: string;
-  platformId: string;
+  productId: string;
   deploymentId: string;
   planId: string;
   deploymentStatus: DeploymentStatus;
   planStatus: PlanStatus;
+  mode: ProductMode;
   providedVersion: string | null;
   actualVersion: string | null;
+  changeCount: number;
   versionGap: boolean;
   primaryOwnerName: string;
   secondaryOwnerName: string;
@@ -172,25 +164,19 @@ export interface BuildRow {
     plannedStart: string;
     plannedEnd: string;
   } | null;
-  handoff: {
-    id: string;
-    code: string;
-    status: HandoffStatus;
-    met: number;
-    total: number;
-    allMet: boolean;
-  } | null;
   cells: BuildCell[];
   readyCount: number;
+  machineTotal: number;
+  machineRollup: MachineLineView[];
 }
 
-export interface PlatformBuild {
+export interface ProductBuild {
   asOf: string;
-  platforms: Array<{
+  products: Array<{
     id: string;
-    code: string;
     name: string;
     primaryOwnerName: string;
+    mode: ProductMode;
   }>;
   rows: BuildRow[];
 }
@@ -220,7 +206,8 @@ export interface FactoryDetail {
   technologyLabel: string;
   pmId: string;
   pmName: string;
-  pmContact: PmContact;
+  pmDepartment: string;
+  machineTotal: number;
   plannedStart: string;
   plannedEnd: string;
   actualStart: string | null;
@@ -253,10 +240,13 @@ export interface FactoryDetail {
   windows: TimelineWindow[];
   plans: Array<{
     id: string;
-    platformId: string;
-    platformName: string;
+    productId: string;
+    productName: string;
+    mode: ProductMode;
     status: PlanStatus;
     providedVersion: string | null;
+    changeCount: number;
+    adHocChanges: AdHocView[];
     windowStart: string | null;
     windowEnd: string | null;
     windowState: WindowState;
@@ -265,8 +255,9 @@ export interface FactoryDetail {
   }>;
   deployments: Array<{
     id: string;
-    platformId: string;
-    platformName: string;
+    productId: string;
+    productName: string;
+    mode: ProductMode;
     status: DeploymentStatus;
     plannedVersion: string | null;
     actualVersion: string | null;
@@ -276,7 +267,6 @@ export interface FactoryDetail {
     machines: MachineLineView[];
     plannedTotal: number;
   }>;
-  handoffs: HandoffListItem[];
   issues: IssueListItem[];
   topics: Array<{
     id: string;
@@ -300,10 +290,8 @@ export interface IssueListItem {
   factoryName: string;
   phaseId: string | null;
   phaseName: string | null;
-  platformId: string | null;
-  platformName: string | null;
-  handoffId: string | null;
-  handoffCode: string | null;
+  productId: string | null;
+  productName: string | null;
   ownerId: string;
   ownerName: string;
   severity: IssueSeverity;
@@ -320,33 +308,21 @@ export interface IssuePage extends IssueListItem {
   activity: ActivityItem[];
 }
 
-export interface HandoffPage extends HandoffListItem {
-  asOf: string;
-  deliverables: string;
-  acceptanceCriteria: string;
-  rejectionReason: string;
-  fromOwnerId: string;
-  toOwnerId: string;
-  escalationOwnerId: string | null;
-  activity: ActivityItem[];
-  issues: IssueListItem[];
-}
-
-export interface PlatformSummary {
+export interface ProductSummary {
   id: string;
-  code: string;
   name: string;
   description: string;
   devDepartment: string;
   projectDepartment: string;
   primaryOwnerId: string;
   primaryOwnerName: string;
+  mode: ProductMode;
   versionCount: number;
   latestVersion: string | null;
   outdatedFactories: number;
 }
 
-export interface PlatformDetail extends PlatformSummary {
+export interface ProductDetail extends ProductSummary {
   asOf: string;
   versions: Array<{
     id: string;
@@ -355,7 +331,7 @@ export interface PlatformDetail extends PlatformSummary {
     notes: string;
     features: Array<{ id: string; name: string; supported: boolean }>;
   }>;
-  features: Array<{ id: string; code: string; name: string }>;
+  features: Array<{ id: string; code: string; name: string; defaultEnabled: boolean }>;
   deployments: Array<{
     id: string;
     factoryId: string;
@@ -374,51 +350,54 @@ export interface PlatformDetail extends PlatformSummary {
   }>;
 }
 
+export type CapabilityTone = "UNPLANNED" | "UNCHANGED_ON" | "UNCHANGED_OFF" | "ADDED" | "REMOVED";
+
 export interface CapabilityCell {
   featureId: string;
-  supported: boolean | null;
-  desired: boolean;
-  actual: boolean | null;
+  tone: CapabilityTone;
+  planned: boolean | null;
+  baseline: boolean | null;
+  adhoc: boolean;
+  note: string;
+}
+
+export interface AdHocView {
+  id: string;
+  kind: AdHocChange["kind"];
+  featureId: string | null;
+  featureName: string | null;
+  enabled: boolean | null;
+  title: string;
+  description: string;
 }
 
 export interface CapabilityRow {
   deploymentId: string;
   factoryId: string;
   factoryName: string;
-  phaseIds: string[];
-  phaseNames: string[];
-  platformId: string;
-  platformName: string;
-  versionId: string | null;
-  versionLabel: string;
-  versionSource: "實際" | "計畫" | "無";
+  productId: string;
+  productName: string;
+  mode: ProductMode;
+  versionLabel: string | null;
   cells: CapabilityCell[];
+  adHocChanges: AdHocView[];
 }
 
 export interface CapabilityMatrix {
   asOf: string;
-  features: Array<{ id: string; code: string; name: string; platformId: string; platformName: string }>;
+  features: Array<{ id: string; code: string; name: string; productId: string; productName: string }>;
   rows: CapabilityRow[];
   factories: NamedRef[];
-  phases: Array<{ id: string; name: string; factoryId: string }>;
-  platforms: NamedRef[];
-  versions: Array<{ id: string; label: string; platformId: string }>;
-}
-
-export interface PlanChangeView {
-  featureId: string;
-  featureName: string;
-  changeType: ChangeType;
-  summary: string;
+  products: Array<NamedRef & { mode: ProductMode }>;
 }
 
 export interface PlanPage {
   asOf: string;
   factoryId: string;
   factoryName: string;
-  platformId: string;
-  platformName: string;
-  platformCode: string;
+  productId: string;
+  productName: string;
+  mode: ProductMode;
   primaryOwnerName: string;
   devDepartment: string;
   projectDepartment: string;
@@ -430,7 +409,8 @@ export interface PlanPage {
   planId: string;
   status: PlanStatus;
   providedVersionId: string | null;
-  featureChanges: FeatureChange[];
+  plannedFeatures: PlannedFeature[];
+  adHocChanges: AdHocView[];
   constructionStart: string | null;
   constructionEnd: string | null;
   note: string;
@@ -439,13 +419,13 @@ export interface PlanPage {
   windowState: WindowState;
   windowReasons: WindowReason[];
   versions: Array<{ id: string; version: string; notes: string }>;
-  features: Array<{ id: string; code: string; name: string }>;
+  features: Array<{ id: string; code: string; name: string; defaultEnabled: boolean }>;
   revisions: Array<{
     id: string;
     number: number;
     action: RevisionAction;
     version: string | null;
-    changes: PlanChangeView[];
+    adHocChanges: AdHocView[];
     constructionStart: string | null;
     constructionEnd: string | null;
     machines: Array<{ machineTypeId: string; name: string; planned: number }>;
@@ -463,8 +443,9 @@ export interface DeploymentPage {
   id: string;
   factoryId: string;
   factoryName: string;
-  platformId: string;
-  platformName: string;
+  productId: string;
+  productName: string;
+  mode: ProductMode;
   status: DeploymentStatus;
   plannedVersionId: string | null;
   actualVersionId: string | null;
@@ -475,23 +456,25 @@ export interface DeploymentPage {
   deployedAt: string | null;
   notes: string;
   versions: Array<{ id: string; version: string }>;
-  users: User[];
+  people: Person[];
   phases: Array<{ id: string; name: string }>;
   links: Array<{ phaseId: string; relation: PhaseLinkRelation }>;
-  features: Array<{ id: string; name: string; desired: boolean; actual: boolean | null; supportedByActual: boolean | null }>;
+  features: Array<{ id: string; name: string; defaultEnabled: boolean; desired: boolean; actual: boolean | null; supportedByActual: boolean | null }>;
 }
 
 export interface Bootstrap {
   asOf: string;
-  currentUser: User;
-  users: User[];
+  role: "editor" | "viewer";
+  username: string;
+  actor: Person;
+  people: Person[];
   enumerations: Enumeration[];
   machineTypes: MachineType[];
   phaseTemplates: Array<{ id: string; name: string; order: number; defaultDurationDays: number }>;
 }
 
 export interface FactoryFormOptions {
-  users: User[];
+  people: Person[];
   enumerations: Enumeration[];
   templates: Bootstrap["phaseTemplates"];
 }

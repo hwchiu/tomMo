@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# Generated static export copied here before `go build`. Docker overwrites this.
+/web/dist/*
+!/web/dist/index.html
+
 # production
 /build
 

@@ -39,16 +39,18 @@ spec:
               value: viewer
             - name: SEED_MODE
               value: none
-            - name: ADMIN_PASSWORD
+            # Used only when the account does not exist yet (first start on an empty PVC).
+            - name: INITIAL_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: fpm-auth
-                  key: ADMIN_PASSWORD
-            - name: VIEWER_PASSWORD
+                  key: INITIAL_ADMIN_PASSWORD
+            # Used only when the account does not exist yet (first start on an empty PVC).
+            - name: INITIAL_VIEWER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: fpm-auth
-                  key: VIEWER_PASSWORD
+                  key: INITIAL_VIEWER_PASSWORD
             - name: SESSION_SECRET
               valueFrom:
                 secretKeyRef:

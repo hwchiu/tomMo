@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -36,7 +38,9 @@ const (
 	SeedNone = "none"
 )
 
-// AccountConfig is applied on startup. A changed password rewrites the bcrypt hash.
+// AccountConfig is applied on startup. Passwords are only used when an account is
+// first created; an existing account keeps its stored hash. An empty password means
+// "generate a random one" and the generated value is returned by EnsureAccounts.
 // AdminPerson and ViewerPerson are directory names. An empty ViewerPerson skips the viewer account.
 type AccountConfig struct {
 	AdminUsername  string
@@ -220,55 +224,96 @@ func (s *Store) FindAccount(ctx context.Context, username string) (id, hash, rol
 	return id, hash, role, personID, true, nil
 }
 
-func (s *Store) EnsureAccounts(cfg AccountConfig) error {
+// GeneratedCredential is a password created at bootstrap because none was configured.
+type GeneratedCredential struct {
+	Username string
+	Role     string
+	Password string
+}
+
+func (s *Store) EnsureAccounts(cfg AccountConfig) ([]GeneratedCredential, error) {
 	cost := cfg.BcryptCost
 	if cost == 0 {
 		cost = bcrypt.DefaultCost
 	}
-	if err := s.ensureAccount(cfg.AdminUsername, cfg.AdminPassword, "editor", cfg.AdminPerson, cost); err != nil {
-		return err
+	var out []GeneratedCredential
+	gen, err := s.ensureAccount(cfg.AdminUsername, cfg.AdminPassword, "editor", cfg.AdminPerson, cost)
+	if err != nil {
+		return nil, err
+	}
+	if gen != "" {
+		out = append(out, GeneratedCredential{Username: cfg.AdminUsername, Role: "editor", Password: gen})
 	}
 	if cfg.ViewerPerson == "" || cfg.ViewerUsername == "" {
-		return nil
+		return out, nil
 	}
-	return s.ensureAccount(cfg.ViewerUsername, cfg.ViewerPassword, "viewer", cfg.ViewerPerson, cost)
+	gen, err = s.ensureAccount(cfg.ViewerUsername, cfg.ViewerPassword, "viewer", cfg.ViewerPerson, cost)
+	if err != nil {
+		return nil, err
+	}
+	if gen != "" {
+		out = append(out, GeneratedCredential{Username: cfg.ViewerUsername, Role: "viewer", Password: gen})
+	}
+	return out, nil
 }
 
-func (s *Store) ensureAccount(username, password, role, personName string, cost int) error {
+// RandomPassword returns a URL-safe random password with 192 bits of entropy.
+func RandomPassword() (string, error) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// PasswordMatches reports whether username exists and its stored hash matches password.
+func (s *Store) PasswordMatches(username, password string) bool {
+	var hash string
+	if err := s.sql.QueryRow(`SELECT password_hash FROM accounts WHERE username = ?`, username).Scan(&hash); err != nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+// ensureAccount creates the account when missing (generating a password if none is
+// given, returned as generated) and otherwise only reconciles role and person.
+// It never rewrites the password of an existing account.
+func (s *Store) ensureAccount(username, password, role, personName string, cost int) (generated string, err error) {
 	personID, found := s.lookupPerson(personName)
 	var id, hash, curRole, curPerson string
-	err := s.sql.QueryRow(`SELECT id, password_hash, role, person_id FROM accounts WHERE username = ?`, username).
+	err = s.sql.QueryRow(`SELECT id, password_hash, role, person_id FROM accounts WHERE username = ?`, username).
 		Scan(&id, &hash, &curRole, &curPerson)
 	if err == sql.ErrNoRows {
 		if !found {
-			return fmt.Errorf("找不到人員「%s」，無法建立帳號 %s", personName, username)
+			return "", fmt.Errorf("找不到人員「%s」，無法建立帳號 %s", personName, username)
+		}
+		if password == "" {
+			if password, err = RandomPassword(); err != nil {
+				return "", err
+			}
+			generated = password
 		}
 		raw, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 		if err != nil {
-			return err
+			return "", err
 		}
 		_, err = s.sql.Exec(`INSERT INTO accounts(id, username, password_hash, role, person_id) VALUES (?, ?, ?, ?, ?)`,
 			"acct_"+username, username, string(raw), role, personID)
-		return err
+		if err != nil {
+			return "", err
+		}
+		return generated, nil
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !found {
 		personID = curPerson
 	}
-	pwOK := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
-	if !pwOK {
-		raw, err := bcrypt.GenerateFromPassword([]byte(password), cost)
-		if err != nil {
-			return err
-		}
-		hash = string(raw)
+	if curRole != role || curPerson != personID {
+		_, err = s.sql.Exec(`UPDATE accounts SET role = ?, person_id = ? WHERE id = ?`, role, personID, id)
 	}
-	if !pwOK || curRole != role || curPerson != personID {
-		_, err = s.sql.Exec(`UPDATE accounts SET password_hash = ?, role = ?, person_id = ? WHERE id = ?`, hash, role, personID, id)
-	}
-	return err
+	return "", err
 }
 
 func (s *Store) lookupPerson(name string) (string, bool) {

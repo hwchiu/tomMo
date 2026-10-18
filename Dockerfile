@@ -1,9 +1,18 @@
+# Demo JSON is generated from data/demo/*.csv by the same importer the server uses.
+FROM golang:1.22-bookworm AS fixture
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go run ./cmd/fpmctl fixture -out /tmp/demo.json
+
 # Frontend static export. NEXT_PUBLIC_* is inlined at build time.
 FROM node:22-bookworm AS web
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+COPY --from=fixture /tmp/demo.json ./src/mocks/demo.json
 ENV NEXT_PUBLIC_USE_MOCK=0
 ENV NEXT_PUBLIC_BASE_PATH=
 RUN npm run build

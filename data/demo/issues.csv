@@ -1,0 +1,23 @@
+title,factory,owner,severity,priority,status,code,description,phase,product,milestone,due_date,resolution
+主變壓器交期落後,高雄三廠,蔡明哲,CRITICAL,P0,OPEN,ISS-014,高雄三廠主變壓器較計畫晚八週，產品建立無法送電。,產品建立 Product Build,,主變壓器送電,2026-09-01,
+產品建立受電不足,高雄三廠,黃詩涵,HIGH,P0,BLOCKED,ISS-015,受電條件不足，運算產品計畫尚未提報。,產品建立 Product Build,運算產品 Compute,,2026-09-20,
+液冷水路未達驗收,台中二廠,蔡明哲,HIGH,P1,OPEN,ISS-021,台中運算產品液冷測漏未過，影響 2.3 進版。,產品建立 Product Build,運算產品 Compute,液冷驗收,2026-10-10,
+開發產品施工計畫未提報,新竹一廠,吳佩蓉,MEDIUM,P1,OPEN,ISS-008,新竹一廠開發產品仍是未提報，產品建立審查前需要功能開關與時程。,產品建立 Product Build,開發產品 Developer,產品建立審查,2026-10-25,
+熊本機櫃海運波動,熊本一廠,周宜安,MEDIUM,P2,IN_PROGRESS,ISS-030,兩批機櫃改靠港，硬體導入有風險。產品計畫多數尚未提報。,硬體導入 Hardware Onboarding,,海運到港,2026-11-20,
+產品建立結案文件補章,台南四廠,黃詩涵,LOW,P3,RESOLVED,ISS-003,台南結案文件已補齊。,產品建立 Product Build,,產品建立結案,2026-08-20,2026-08-18 補齊簽核掃描檔。
+新竹二廠結案備品清點,新竹二廠,許家豪,LOW,P3,CLOSED,ISS-041,營運交接後備品帳與現場數量差兩台。,開始營運 Operations Start,,產品建立結案,2026-08-20,2026-08-12 盤點完成並更新帳冊。
+苗栗純水未達標,苗栗一廠,林佳穎,CRITICAL,P0,BLOCKED,ISS-042,純水導電度超出規格，機台不能進場。,產品建立 Product Build,運算產品 Compute,產品建立審查,2026-09-15,
+苗栗網路產品計畫未鎖版,苗栗一廠,馬怡君,HIGH,P1,OPEN,ISS-043,網路產品仍停在較早版本，流量調度尚未納入。,產品建立 Product Build,網路產品 Network,,2026-10-30,
+桃園卸貨區時段不足,桃園一廠,陳浩宇,MEDIUM,P2,IN_PROGRESS,ISS-044,產品建立與廠務夜間施工搶同一個卸貨區。,產品建立 Product Build,儲存產品 Storage,,2026-11-05,
+台南二廠營運交接簽名,台南二廠,黃詩涵,LOW,P3,RESOLVED,ISS-045,交接紀錄已補齊。,開始營運 Operations Start,,產品建立結案,2026-06-25,2026-06-18 完成雙簽。
+新加坡機櫃卡在保稅倉,新加坡一廠,周宜安,HIGH,P0,OPEN,ISS-046,海關文件缺分區證明，運算機櫃無法提領。,產品建立 Product Build,運算產品 Compute,產品建立審查,2026-10-28,
+新加坡電力窗口重疊,新加坡一廠,高子軒,MEDIUM,P1,IN_PROGRESS,ISS-047,廠務停電窗口與網路產品上線同一週。,產品建立 Product Build,網路產品 Network,,2026-11-12,
+亞利桑那廠房驗收未過,亞利桑那一廠,高子軒,CRITICAL,P0,OPEN,ISS-048,地板承重複驗未過，產品建立無法上架。,產品建立 Product Build,,產品建立審查,2026-09-10,
+亞利桑那弱點掃描未排程,亞利桑那一廠,宋柏廷,MEDIUM,P2,OPEN,ISS-049,安全產品只開了預設掃描，防火牆尚未討論。,產品建立 Product Build,安全產品 Security,,2026-11-01,
+大阪開發者門禁延後,大阪一廠,何嘉玲,LOW,P2,IN_PROGRESS,ISS-050,名冊已送，當地門禁系統下週才開帳號。,產品建立 Product Build,開發產品 Developer,,2026-11-18,
+新竹一廠存取控制未納版,新竹一廠,馬怡君,MEDIUM,P1,OPEN,ISS-051,網路產品 1.1 尚未包含存取控制，這座廠想提前打開。,產品建立 Product Build,網路產品 Network,,2026-11-02,
+台中應用防火牆規則未定,台中二廠,宋柏廷,HIGH,P1,IN_PROGRESS,ISS-052,安全產品想在台中多開防火牆，規則還在討論。,產品建立 Product Build,安全產品 Security,,2026-10-31,
+高雄骨幹路由延後,高雄三廠,馬怡君,HIGH,P0,BLOCKED,ISS-053,受電不足，網路產品無法與運算同時上架。,產品建立 Product Build,網路產品 Network,,2026-10-05,
+熊本帳號同步範圍未定,熊本一廠,周宜安,LOW,P3,OPEN,ISS-054,海外門禁與總部帳號要不要同步，還沒有結論。,硬體導入 Hardware Onboarding,安全產品 Security,,2026-12-01,
+台南四廠流量調度觀察,台南四廠,馬怡君,LOW,P2,RESOLVED,ISS-055,網路 1.1 已上線，流量調度觀察一週後關閉問題。,開發者進駐 Developer Onboarding,網路產品 Network,,2026-09-15,2026-09-12 觀察完成，沒有丟包。
+桃園冷卻水溫偏高,桃園一廠,葉思齊,MEDIUM,P1,OPEN,ISS-056,白班水溫接近上限，先降載觀察。,產品建立 Product Build,運算產品 Compute,產品建立審查,2026-11-08,

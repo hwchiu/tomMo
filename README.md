@@ -9,6 +9,7 @@ The GitHub Pages build keeps an in-browser mock. The Go binary in this repo serv
 GitHub Pages / local mock (base path `/tomMo-`):
 
 ```bash
+go run ./cmd/fpmctl fixture -out src/mocks/demo.json
 npm install
 npm run dev
 ```
@@ -33,9 +34,87 @@ Or `docker build -t fpm .` then `docker run --rm -p 8080:8080 -e ADMIN_PASSWORD=
 
 Open [http://localhost:8080/login/](http://localhost:8080/login/).
 
-Default accounts: `admin` / `admin`（編輯者，林品均）and `viewer` / `viewer`（使用者，陳浩宇）. Override with `ADMIN_PASSWORD`, `VIEWER_PASSWORD`, and `SESSION_SECRET`.
+Default accounts when `SEED_MODE=demo`: `admin` / `admin`（編輯者，林品均）and `viewer` / `viewer`（使用者，陳浩宇）. Override with `ADMIN_PASSWORD`, `VIEWER_PASSWORD`, and `SESSION_SECRET`. `SEED_MODE=none` creates only `admin`, linked to 系統管理員.
 
-編輯者 can create and edit, including 管理. 使用者 is read-only. The mock stores edits in `localStorage`. **重設示範資料** is editor-only.
+編輯者 can create and edit, including 管理. 使用者 is read-only. The mock stores edits in `localStorage`. **重設示範資料** is editor-only, and only when the process was started with `SEED_MODE=demo`.
+
+## 初始化資料
+
+資料只從 CSV（或同一欄位的 xlsx）進來。`data/demo/*.csv` 是展示資料的唯一來源。伺服器啟動、`fpmctl import`、Go 測試，以及 GitHub Pages 的 mock，都走 `internal/impex` 這套匯入。
+
+`SEED_MODE` 只在 `app.db` 還沒有資料時作用：
+
+| 值 | 空資料庫會有什麼 |
+| --- | --- |
+| `demo` | 讀取嵌進 binary 的 `data/demo/*.csv`。本機 `go run` 與測試的預設。 |
+| `none` | 列舉、四個階段模板，以及人員「系統管理員」。Kubernetes manifest 設這個。 |
+
+已有資料的資料庫不會被清掉，也不會重灌。`none` 底下按「重設示範資料」會回 `400`「這個環境沒有示範資料可重設」。
+
+帳號用姓名對人。`demo` 把 admin 對到林品均、viewer 對到陳浩宇。`none` 只建 admin，對到系統管理員。
+
+### 本機灌入展示資料
+
+空資料庫直接：
+
+```bash
+SEED_MODE=demo go run ./cmd/server
+```
+
+或對已經在跑、且 `SEED_MODE=none` 的服務用同一批 CSV（合併，不刪除檔案裡沒有的列）：
+
+```bash
+go build -o fpmctl ./cmd/fpmctl
+./fpmctl import --dir data/demo --base http://127.0.0.1:8080 --user admin --password admin
+```
+
+`--dry-run` 只印出會建立或更新的列。格式錯誤會帶檔名與列號，此時還沒有登入。
+
+### 準備正式資料
+
+1. 複製 `data/templates/`。每個檔有表頭和幾列範例，欄位用名稱互相參考，不用 id。
+2. 依實際人員、工廠、產品、階段、施工計畫、機台數量、議題改寫。`versions.csv`、`issues.csv`、`milestones.csv` 可以不放。
+3. 先乾跑，再匯入。同一目錄可以重跑；同名的列會更新，檔案裡沒有的列會留下。
+
+```bash
+./fpmctl import --dir ./my-data --dry-run --base http://127.0.0.1:8080 --user admin --password "$ADMIN_PASSWORD"
+./fpmctl import --dir ./my-data --base http://127.0.0.1:8080 --user admin --password "$ADMIN_PASSWORD"
+```
+
+也可以改給單一 xlsx，每個工作表對一個 CSV 檔名（去掉 `.csv`）：
+
+```bash
+./fpmctl import --xlsx ./my-data.xlsx --base http://127.0.0.1:8080 --user admin --password "$ADMIN_PASSWORD"
+```
+
+匯出目前資料（備份，或改完再匯回去）：
+
+```bash
+./fpmctl export --dir ./backup --base http://127.0.0.1:8080 --user admin --password "$ADMIN_PASSWORD"
+```
+
+密碼也可以放在環境變數 `FPM_PASSWORD`。
+
+### Kubernetes
+
+Manifest 設 `SEED_MODE=none`。第一次啟動只有系統管理員。把服務轉到本機再匯入：
+
+```bash
+kubectl -n <namespace> port-forward svc/fpm 8080:80
+./fpmctl import --dir ./my-data --base http://127.0.0.1:8080 --user admin --password "$ADMIN_PASSWORD"
+```
+
+`svc/fpm` 的 80 轉到 Pod 的 8080。要灌展示資料時，把 `--dir` 換成 `data/demo`。
+
+### 靜態展示站
+
+Pages 與 `npm test` 用的 mock 不是另一份資料。先由同一批 CSV 產生 `src/mocks/demo.json`（這個檔不進 git）：
+
+```bash
+go run ./cmd/fpmctl fixture -out src/mocks/demo.json
+```
+
+`npm test` 會自己跑這一步。GitHub Actions 與容器映像也在 `next build` 之前產生它。
 
 ## Public site
 
@@ -87,7 +166,9 @@ The window check lives in `src/domain/windows.ts` and is covered by `src/domain/
 
 ```text
 src/domain     pure TypeScript: types, semver, windows, readiness, feature baseline
-src/mocks      demo fixtures
+src/mocks      demo fixture generated from data/demo/*.csv
+data/demo      the only demo dataset (CSV)
+data/templates example CSV headers and rows
 src/api        client, in-memory router, and view models shaped like the Go JSON
 src/components screens
 src/app        App Router pages

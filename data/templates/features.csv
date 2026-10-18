@@ -1,0 +1,3 @@
+product,name,code,description,default_enabled,supported_versions
+運算產品 Compute,GPU 分割,gpu_partition,單機多租戶切分,true,2.2.0 2.3.0
+運算產品 Compute,液冷支援,liquid_cooling,液冷迴路監控與排程,false,2.4.0

@@ -21,6 +21,9 @@
 /web/dist/*
 !/web/dist/index.html
 
+# Generated from data/demo/*.csv by `go run ./cmd/fpmctl fixture`.
+/src/mocks/demo.json
+
 # production
 /build
 

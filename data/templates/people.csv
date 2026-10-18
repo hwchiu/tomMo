@@ -1,0 +1,4 @@
+name,department,active,source,external_id
+林品均,廠務處,true,manual,
+張承恩,運算開發處,true,manual,
+馬怡君,網路開發處,true,external,emp-2048

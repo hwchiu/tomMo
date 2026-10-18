@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "go run ./cmd/fpmctl fixture -out src/mocks/demo.json && vitest run"
   },
   "dependencies": {
     "next": "16.4.2",

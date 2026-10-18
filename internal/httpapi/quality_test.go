@@ -67,8 +67,9 @@ func TestWriteValidationAndHistory(t *testing.T) {
 		t.Fatalf("empty person %d %s", emptyPerson.Code, emptyPerson.Body.String())
 	}
 
-	emptyMilestone := do(srv, http.MethodPost, "/api/v1/phases/f_hsc_p2/milestones", admin, map[string]any{
-		"name": " ", "dueDate": "2026-11-01", "ownerId": "u_lin", "done": false,
+	ref := demoRefOf(t, srv, admin)
+	emptyMilestone := do(srv, http.MethodPost, "/api/v1/phases/"+ref.phase+"/milestones", admin, map[string]any{
+		"name": " ", "dueDate": "2026-11-01", "ownerId": ref.actor, "done": false,
 	})
 	if emptyMilestone.Code != 400 || !bytes.Contains(emptyMilestone.Body.Bytes(), []byte("請填里程碑名稱")) {
 		t.Fatalf("empty milestone %d %s", emptyMilestone.Code, emptyMilestone.Body.String())

@@ -1,0 +1,18 @@
+factory,phase,name,due_date,owner,deliverables,done
+新竹一廠,硬體導入 Hardware Onboarding,受電完成,2026-06-01,蔡明哲,受電報告,true
+新竹一廠,產品建立 Product Build,運算產品上線,2026-10-20,張承恩,運算產品部署紀錄,false
+新竹一廠,產品建立 Product Build,產品建立審查,2026-11-20,林品均,五個產品計畫與實際版本,false
+台中二廠,產品建立 Product Build,液冷驗收,2026-10-10,蔡明哲,水路測漏報告,false
+台中二廠,產品建立 Product Build,儲存產品交貨,2026-09-30,王雅婷,到貨簽收,true
+高雄三廠,產品建立 Product Build,主變壓器送電,2026-08-30,蔡明哲,送電許可,false
+台南四廠,開發者進駐 Developer Onboarding,開發者環境驗收,2026-10-28,吳佩蓉,開發產品驗收單,false
+台南四廠,產品建立 Product Build,產品建立結案,2026-08-12,黃詩涵,結案紀錄,true
+熊本一廠,硬體導入 Hardware Onboarding,海運到港,2026-10-30,周宜安,提單與開箱,false
+熊本一廠,硬體導入 Hardware Onboarding,產品計畫凍結,2026-11-10,林品均,五個產品施工計畫,false
+新竹二廠,產品建立 Product Build,產品建立結案,2026-03-31,許家豪,施工計畫與部署紀錄,true
+苗栗一廠,產品建立 Product Build,產品建立審查,2026-09-01,林佳穎,施工計畫與部署紀錄,false
+桃園一廠,產品建立 Product Build,產品建立審查,2026-12-20,陳浩宇,施工計畫與部署紀錄,false
+台南二廠,產品建立 Product Build,產品建立結案,2026-01-31,黃詩涵,施工計畫與部署紀錄,true
+新加坡一廠,產品建立 Product Build,產品建立審查,2026-12-31,周宜安,施工計畫與部署紀錄,false
+亞利桑那一廠,產品建立 Product Build,產品建立審查,2026-08-31,高子軒,施工計畫與部署紀錄,false
+大阪一廠,產品建立 Product Build,產品建立審查,2027-01-15,何嘉玲,施工計畫與部署紀錄,false

@@ -22,6 +22,7 @@ func main() {
 		AdminPassword:  env("ADMIN_PASSWORD", "admin"),
 		ViewerUsername: env("VIEWER_USERNAME", "viewer"),
 		ViewerPassword: env("VIEWER_PASSWORD", "viewer"),
+		SeedMode:       env("SEED_MODE", "demo"),
 		Logger:         logger,
 	}
 	srv, err := httpapi.New(cfg)
@@ -31,7 +32,7 @@ func main() {
 	}
 	defer srv.Close()
 	addr := ":" + env("PORT", "8080")
-	logger.Info("listening", "addr", addr, "data", cfg.DataDir)
+	logger.Info("listening", "addr", addr, "data", cfg.DataDir, "seed", cfg.SeedMode)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := srv.Listen(ctx, addr); err != nil && !errors.Is(err, http.ErrServerClosed) {

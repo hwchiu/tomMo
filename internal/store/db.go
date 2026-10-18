@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"fpm/internal/apierr"
 	"fpm/internal/domain"
-	"fpm/internal/seed"
+	"fpm/internal/impex"
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
@@ -22,21 +23,41 @@ var schemaSQL string
 
 // Store keeps the relational SQLite database and an in-memory copy of the domain model.
 type Store struct {
-	sql *sql.DB
-	mu  chan struct{}
-	db  domain.Database
+	sql      *sql.DB
+	mu       chan struct{}
+	db       domain.Database
+	seedMode string
 }
 
+const (
+	// SeedDemo loads data/demo through the shared importer when the database is empty.
+	SeedDemo = "demo"
+	// SeedNone leaves an empty database with the admin person only.
+	SeedNone = "none"
+)
+
 // AccountConfig is applied on startup. A changed password rewrites the bcrypt hash.
+// AdminPerson and ViewerPerson are directory names. An empty ViewerPerson skips the viewer account.
 type AccountConfig struct {
 	AdminUsername  string
 	AdminPassword  string
+	AdminPerson    string
 	ViewerUsername string
 	ViewerPassword string
+	ViewerPerson   string
 	BcryptCost     int
 }
 
+// Open loads a demo database. Tests and local startup use this.
 func Open(dataDir string) (*Store, error) {
+	return OpenWith(dataDir, SeedDemo)
+}
+
+// OpenWith loads demo CSV or an empty catalog when meta is empty. An existing database is left as-is.
+func OpenWith(dataDir, mode string) (*Store, error) {
+	if mode != SeedDemo && mode != SeedNone {
+		return nil, fmt.Errorf("SEED_MODE 必須是 none 或 demo")
+	}
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, err
 	}
@@ -46,7 +67,7 @@ func Open(dataDir string) (*Store, error) {
 		return nil, err
 	}
 	sqlDB.SetMaxOpenConns(1)
-	s := &Store{sql: sqlDB, mu: make(chan struct{}, 1)}
+	s := &Store{sql: sqlDB, mu: make(chan struct{}, 1), seedMode: mode}
 	s.mu <- struct{}{}
 	if err := s.migrate(); err != nil {
 		_ = sqlDB.Close()
@@ -58,10 +79,15 @@ func Open(dataDir string) (*Store, error) {
 		return nil, err
 	}
 	if n == 0 {
-		db, err := seed.Load()
-		if err != nil {
-			_ = sqlDB.Close()
-			return nil, err
+		var db domain.Database
+		if mode == SeedNone {
+			db = impex.LoadEmpty()
+		} else {
+			db, err = impex.LoadDemo()
+			if err != nil {
+				_ = sqlDB.Close()
+				return nil, err
+			}
 		}
 		s.db = db
 		if err := s.persist(context.Background()); err != nil {
@@ -150,9 +176,12 @@ func (s *Store) ResetContext(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if s.seedMode == SeedNone {
+		return apierr.New(400, "這個環境沒有示範資料可重設")
+	}
 	s.lock()
 	defer s.unlock()
-	db, err := seed.Load()
+	db, err := impex.LoadDemo()
 	if err != nil {
 		return err
 	}
@@ -196,17 +225,24 @@ func (s *Store) EnsureAccounts(cfg AccountConfig) error {
 	if cost == 0 {
 		cost = bcrypt.DefaultCost
 	}
-	if err := s.ensureAccount(cfg.AdminUsername, cfg.AdminPassword, "editor", "u_lin", cost); err != nil {
+	if err := s.ensureAccount(cfg.AdminUsername, cfg.AdminPassword, "editor", cfg.AdminPerson, cost); err != nil {
 		return err
 	}
-	return s.ensureAccount(cfg.ViewerUsername, cfg.ViewerPassword, "viewer", "u_chen", cost)
+	if cfg.ViewerPerson == "" || cfg.ViewerUsername == "" {
+		return nil
+	}
+	return s.ensureAccount(cfg.ViewerUsername, cfg.ViewerPassword, "viewer", cfg.ViewerPerson, cost)
 }
 
-func (s *Store) ensureAccount(username, password, role, personID string, cost int) error {
+func (s *Store) ensureAccount(username, password, role, personName string, cost int) error {
+	personID, found := s.lookupPerson(personName)
 	var id, hash, curRole, curPerson string
 	err := s.sql.QueryRow(`SELECT id, password_hash, role, person_id FROM accounts WHERE username = ?`, username).
 		Scan(&id, &hash, &curRole, &curPerson)
 	if err == sql.ErrNoRows {
+		if !found {
+			return fmt.Errorf("找不到人員「%s」，無法建立帳號 %s", personName, username)
+		}
 		raw, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 		if err != nil {
 			return err
@@ -217,6 +253,9 @@ func (s *Store) ensureAccount(username, password, role, personID string, cost in
 	}
 	if err != nil {
 		return err
+	}
+	if !found {
+		personID = curPerson
 	}
 	pwOK := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 	if !pwOK {
@@ -230,6 +269,15 @@ func (s *Store) ensureAccount(username, password, role, personID string, cost in
 		_, err = s.sql.Exec(`UPDATE accounts SET password_hash = ?, role = ?, person_id = ? WHERE id = ?`, hash, role, personID, id)
 	}
 	return err
+}
+
+func (s *Store) lookupPerson(name string) (string, bool) {
+	for _, person := range s.db.People {
+		if person.Name == name {
+			return person.ID, true
+		}
+	}
+	return "", false
 }
 
 func (s *Store) migrate() error {

@@ -1,0 +1,22 @@
+product,name,code,description,default_enabled,supported_versions
+運算產品 Compute,GPU 分割,gpu_partition,單機多租戶切分,true,2.2.0 2.3.0 2.4.0
+運算產品 Compute,機櫃級擴展,rack_scale,以機櫃為單位擴充,false,2.3.0 2.4.0
+運算產品 Compute,液冷支援,liquid_cooling,液冷迴路監控與排程,false,2.4.0
+儲存產品 Storage,NVMe 分層,nvme_tier,熱層 NVMe,true,1.4.0 1.6.0 1.7.0
+儲存產品 Storage,快照,snapshot,資料快照,false,1.6.0 1.7.0
+儲存產品 Storage,跨廠複製,cross_site,跨廠非同步複製,false,1.7.0
+資料產品 Data,資料血緣,lineage,資料集血緣,true,
+資料產品 Data,特徵庫,feature_store,線上特徵,false,
+資料產品 Data,批次追溯,batch_trace,訓練批次追溯,false,
+開發產品 Developer,映像倉庫,registry,容器映像,true,
+開發產品 Developer,沙箱,sandbox,隔離開發沙箱,false,
+開發產品 Developer,IDE 閘道,ide_gateway,遠端 IDE,false,
+監控產品 Monitoring,告警路由,alert_route,分級告警,true,
+監控產品 Monitoring,遠端診斷,remote_diag,遠端診斷通道,false,
+監控產品 Monitoring,OEE 看板,oee_dashboard,設備綜合效率,false,
+網路產品 Network,BGP 路由,bgp,廠區骨幹 BGP,true,1.0.0 1.1.0
+網路產品 Network,流量調度,qos,佇列與頻寬,false,1.1.0
+網路產品 Network,存取控制,acl,邊界存取清單,false,
+安全產品 Security,弱點掃描,vuln_scan,主機弱點掃描,true,
+安全產品 Security,應用防火牆,waf,入口 WAF,false,
+安全產品 Security,帳號同步,iam_sync,門禁與帳號同步,false,

@@ -185,6 +185,47 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Ok" }
+        "400":
+          description: This environment was started with SEED_MODE=none
+  /api/v1/export:
+    get:
+      tags: [session]
+      summary: Download the current database as CSV texts
+      operationId: exportData
+      responses:
+        "200":
+          description: One CSV text per entity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: object
+                    additionalProperties: { type: string }
+  /api/v1/import:
+    post:
+      tags: [session]
+      summary: Upsert CSV texts by name
+      operationId: importData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                dryRun: { type: boolean }
+                files:
+                  type: object
+                  additionalProperties: { type: string }
+      responses:
+        "200":
+          description: Created, updated, and unchanged rows
+        "400":
+          description: Validation errors include file and row
   /api/v1/portfolio:
     get:
       tags: [portfolio]

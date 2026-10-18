@@ -1,3 +1,5 @@
+import { getDb } from "@/api/store";
+
 export type FaultMode = "ok" | "slow" | "error";
 export type AccountRole = "editor" | "viewer";
 
@@ -10,10 +12,10 @@ export interface SessionAuth {
   personId: string;
 }
 
-/** Demo accounts for the static mock. The Go server uses bcrypt instead. */
-export const DEMO_ACCOUNTS: Array<SessionAuth & { password: string }> = [
-  { username: "admin", password: "admin", role: "editor", personId: "u_lin" },
-  { username: "viewer", password: "viewer", role: "viewer", personId: "u_chen" },
+/** Demo accounts for the static mock. Person ids come from the CSV import, so login matches by name. */
+const DEMO_ACCOUNTS: Array<{ username: string; password: string; role: AccountRole; personName: string }> = [
+  { username: "admin", password: "admin", role: "editor", personName: "林品均" },
+  { username: "viewer", password: "viewer", role: "viewer", personName: "陳浩宇" },
 ];
 
 let auth: SessionAuth | null = null;
@@ -31,7 +33,10 @@ export function hydrateSession(): void {
   const raw = window.sessionStorage.getItem(AUTH_KEY);
   if (raw) {
     try {
-      auth = JSON.parse(raw) as SessionAuth;
+      const parsed = JSON.parse(raw) as SessionAuth;
+      const known = getDb().people.some((item) => item.id === parsed.personId);
+      auth = known ? parsed : null;
+      if (!known) window.sessionStorage.removeItem(AUTH_KEY);
     } catch {
       auth = null;
     }
@@ -54,7 +59,9 @@ export function loginDemo(username: string, password: string): SessionAuth {
   hydrateSession();
   const found = DEMO_ACCOUNTS.find((account) => account.username === username && account.password === password);
   if (!found) throw new Error("帳號或密碼不正確");
-  auth = { username: found.username, role: found.role, personId: found.personId };
+  const person = getDb().people.find((item) => item.name === found.personName);
+  if (!person) throw new Error(`找不到人員「${found.personName}」`);
+  auth = { username: found.username, role: found.role, personId: person.id };
   if (typeof window !== "undefined") window.sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
   return auth;
 }

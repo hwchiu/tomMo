@@ -1,0 +1,3 @@
+product,version,released_at,notes
+運算產品 Compute,2.2.0,2026-03-01,基礎 GPU 分割
+運算產品 Compute,2.3.0,2026-06-12,加入機櫃級擴展

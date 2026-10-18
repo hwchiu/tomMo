@@ -69,7 +69,7 @@ export function capabilityCell(input: {
 
 let adhocSeq = 0;
 
-/** buildSeed calls this so generated override ids stay the same on every fresh database. */
+/** Resets override ids created while editing the in-browser mock. */
 export function resetAdhocIds(): void {
   adhocSeq = 0;
 }

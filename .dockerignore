@@ -1,7 +1,11 @@
 node_modules
 .next
 out
-data
+data/*
+!data/demo
+!data/demo/**
+!data/templates
+!data/templates/**
 .git
 coverage
 *.db

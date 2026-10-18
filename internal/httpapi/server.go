@@ -14,6 +14,7 @@ import (
 	"fpm/internal/apierr"
 	"fpm/internal/auth"
 	"fpm/internal/domain"
+	"fpm/internal/impex"
 	"fpm/internal/store"
 	"fpm/internal/views"
 	"fpm/web"
@@ -28,6 +29,7 @@ type Config struct {
 	ViewerUsername string
 	ViewerPassword string
 	BcryptCost     int
+	SeedMode       string
 	Logger         *slog.Logger
 }
 
@@ -60,13 +62,23 @@ func New(cfg Config) (*Server, error) {
 	if cfg.ViewerPassword == "" {
 		cfg.ViewerPassword = "viewer"
 	}
-	st, err := store.Open(cfg.DataDir)
+	mode := cfg.SeedMode
+	if mode == "" {
+		mode = store.SeedDemo
+	}
+	st, err := store.OpenWith(cfg.DataDir, mode)
 	if err != nil {
 		return nil, err
 	}
+	adminPerson := impex.DemoAdminName
+	viewerPerson := impex.DemoViewerName
+	if mode == store.SeedNone {
+		adminPerson = impex.EmptyAdminName
+		viewerPerson = ""
+	}
 	if err := st.EnsureAccounts(store.AccountConfig{
-		AdminUsername: cfg.AdminUsername, AdminPassword: cfg.AdminPassword,
-		ViewerUsername: cfg.ViewerUsername, ViewerPassword: cfg.ViewerPassword,
+		AdminUsername: cfg.AdminUsername, AdminPassword: cfg.AdminPassword, AdminPerson: adminPerson,
+		ViewerUsername: cfg.ViewerUsername, ViewerPassword: cfg.ViewerPassword, ViewerPerson: viewerPerson,
 		BcryptCost: cfg.BcryptCost,
 	}); err != nil {
 		_ = st.Close()
@@ -103,7 +115,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.log.Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.status, "dur_ms", time.Since(start).Milliseconds())
 	}()
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	timeout := 15 * time.Second
+	if strings.TrimRight(r.URL.Path, "/") == "/api/v1/import" {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	r = r.WithContext(ctx)
 	s.route(rec, r)
@@ -178,6 +194,14 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	if method != http.MethodGet && principal.Role != "editor" {
 		writeJSON(w, http.StatusForbidden, map[string]string{"message": "使用者只能閱讀"})
+		return
+	}
+	if method == http.MethodGet && path == "/api/v1/export" {
+		s.serveExport(w, r)
+		return
+	}
+	if method == http.MethodPost && path == "/api/v1/import" {
+		s.serveImport(w, r, principal)
 		return
 	}
 

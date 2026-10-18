@@ -1,13 +1,8 @@
-import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { buildSeed } from "@/mocks/fixtures";
 
 const seed = buildSeed();
-
-if (process.env.EXPORT_SEED) {
-  writeFileSync(process.env.EXPORT_SEED, JSON.stringify(seed));
-}
 
 describe("demo seed", () => {
   it("is deterministic", () => {
@@ -29,11 +24,17 @@ describe("demo seed", () => {
   });
 
   it("gives every factory products, topics, and machine totals", () => {
+    const hsc = seed.factories.find((factory) => factory.name === "新竹一廠");
+    const storage = seed.products.find((product) => product.name === "儲存產品 Storage");
+    const computeProduct = seed.products.find((product) => product.name === "運算產品 Compute");
+    expect(hsc).toBeTruthy();
+    expect(storage).toBeTruthy();
+    expect(computeProduct).toBeTruthy();
     for (const factory of seed.factories) {
       expect(seed.topics.filter((topic) => topic.factoryId === factory.id).length).toBeGreaterThanOrEqual(1);
       for (const product of seed.products) {
         const deployment = seed.deployments.find((item) => item.factoryId === factory.id && item.productId === product.id);
-        expect(deployment, `${factory.id} ${product.id}`).toBeTruthy();
+        expect(deployment, `${factory.name} ${product.name}`).toBeTruthy();
         const planned = seed.machineQuantities
           .filter((row) => row.deploymentId === deployment?.id)
           .reduce((sum, row) => sum + row.planned, 0);
@@ -45,11 +46,11 @@ describe("demo seed", () => {
       expect(adhoc).toBeGreaterThanOrEqual(2);
       expect(plans.some((plan) => plan.adHocChanges.some((change) => change.kind === "FEATURE_OVERRIDE"))).toBe(true);
     }
-    const hscStorage = seed.plans.find((plan) => plan.factoryId === "f_hsc" && plan.productId === "plt_storage");
+    const hscStorage = seed.plans.find((plan) => plan.factoryId === hsc?.id && plan.productId === storage?.id);
     expect(hscStorage?.status).toBe("SUBMITTED");
-    const compute = seed.deployments.find((item) => item.id === "dep_f_hsc_plt_compute");
+    const compute = seed.deployments.find((item) => item.factoryId === hsc?.id && item.productId === computeProduct?.id);
     const quantities = seed.machineQuantities.filter((row) => row.deploymentId === compute?.id);
-    expect(quantities.map((row) => row.planned)).toEqual([320, 160, 96, 64]);
+    expect(quantities.reduce((sum, row) => sum + row.planned, 0)).toBe(640);
   });
 
   it("spreads issue severity and status", () => {

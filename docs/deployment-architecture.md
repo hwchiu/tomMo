@@ -62,10 +62,9 @@ distroless 執行映像裡沒有 shell，也沒有 `sqlite3`。備份用上面�
 | --- | --- | --- |
 | `PORT` | 聽的埠 | `8080` |
 | `DATA_DIR` | SQLite 目錄，檔名固定 `app.db` | 映像 `/data`，本機 `./data` |
-| `SESSION_SECRET` | session cookie 的 HMAC 金鑰 | `dev-session-secret`（正式環境要改） |
+| `SESSION_SECRET` | session cookie 的 HMAC 金鑰 | 未設定時每次啟動產生，重啟後舊 session 失效 |
 | `ADMIN_USERNAME` / `VIEWER_USERNAME` | 帳號名稱 | `admin` / `viewer` |
 | `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD`（或 `*_FILE`） | 帳號第一次建立時的密碼，見「初始密碼」 | 未設定時隨機產生並寫到 `$DATA_DIR/initial-credentials.txt` |
-| `DEV_DEFAULT_PASSWORDS` | 開發用：未設定密碼時用 `admin` / `viewer` | 關 |
 | `LOG_INITIAL_PASSWORDS` | 開發用：把產生的密碼印到 log | 關 |
 | `SEED_MODE` | 空資料庫要灌 `demo` 或留 `none`。正式 manifest 是 `none`。行程未設定時是 `demo`，方便本機 `go run`。 | 行程 `demo`，Kubernetes `none` |
 
@@ -85,7 +84,7 @@ Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-For
 
 只在帳號不存在時使用；帳號已存在就不會覆寫密碼，之後改 Secret 也不會改到已存的密碼。
 
-都沒設定時，伺服器為這次會建立的帳號產生隨機密碼（192 bits），寫到 `$DATA_DIR/initial-credentials.txt`（權限 0600），log 只記錄檔案路徑，不印密碼。`SEED_MODE=none` 且 viewer 密碼留空時只會產生編輯者的密碼。只有本機開發明確設定 `LOG_INITIAL_PASSWORDS=true` 才會把產生的密碼印到 log。本機想用固定的 `admin` / `admin`、`viewer` / `viewer`，啟動時設 `DEV_DEFAULT_PASSWORDS=true`（僅限開發）。
+都沒設定時，伺服器為這次會建立的帳號產生隨機密碼（192 bits），寫到 `$DATA_DIR/initial-credentials.txt`（權限 0600），log 只記錄檔案路徑，不印密碼。`SEED_MODE=none` 且 viewer 密碼留空時只會產生編輯者的密碼。只有本機開發明確設定 `LOG_INITIAL_PASSWORDS=true` 才會把產生的密碼印到 log。不要在程式裡放固定密碼；本機要固定帳密時，自己設 `INITIAL_ADMIN_PASSWORD` 與 `INITIAL_VIEWER_PASSWORD`。`SESSION_SECRET` 未設定時，每次啟動產生新的金鑰，已發出的 session 在重啟後失效。
 
 登入頁的示範帳號提示只在 `admin` 的密碼仍是公開的 `admin` 時出現，不會顯示 Secret 或產生的密碼。
 
@@ -152,8 +151,9 @@ ENTRYPOINT ["/server"]
 ```bash
 docker build -t fpm .
 docker run --rm -p 8080:8080 \
-  -e DEV_DEFAULT_PASSWORDS=true \
-  -e SESSION_SECRET=dev-session-secret \
+  -e INITIAL_ADMIN_PASSWORD \
+  -e INITIAL_VIEWER_PASSWORD \
+  -e SESSION_SECRET \
   -v fpm-data:/data \
   fpm
 ```

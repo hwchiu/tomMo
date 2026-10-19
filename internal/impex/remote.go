@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
-	"strings"
 	"time"
 )
 
@@ -35,7 +35,11 @@ func ImportRemote(ctx context.Context, base, user, password string, files map[st
 	if err != nil {
 		return Report{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(base, "/")+"/api/v1/import", bytes.NewReader(payload))
+	target, err := endpoint(base, "/api/v1/import")
+	if err != nil {
+		return Report{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(payload))
 	if err != nil {
 		return Report{}, err
 	}
@@ -71,7 +75,11 @@ func ExportRemote(ctx context.Context, base, user, password string) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(base, "/")+"/api/v1/export", nil)
+	target, err := endpoint(base, "/api/v1/export")
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +112,22 @@ func authedClient(ctx context.Context, base, user, password string) (*http.Clien
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Jar: jar, Timeout: 60 * time.Second}
+	client := &http.Client{
+		Jar:     jar,
+		Timeout: 60 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("不跟隨重新導向")
+		},
+	}
 	payload, err := json.Marshal(map[string]string{"username": user, "password": password})
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(base, "/")+"/api/v1/login", bytes.NewReader(payload))
+	target, err := endpoint(base, "/api/v1/login")
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}

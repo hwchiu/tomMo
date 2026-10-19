@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -33,5 +34,9 @@ func TestInitialPasswordSources(t *testing.T) {
 	t.Setenv("INITIAL_ADMIN_PASSWORD_FILE", "/nonexistent")
 	if _, err := initialPassword("INITIAL_ADMIN_PASSWORD", "ADMIN_PASSWORD"); err == nil {
 		t.Fatal("missing file should error")
+	}
+	t.Setenv("INITIAL_ADMIN_PASSWORD_FILE", t.TempDir()+"/../pw")
+	if _, err := initialPassword("INITIAL_ADMIN_PASSWORD", "ADMIN_PASSWORD"); err == nil || !strings.Contains(err.Error(), "..") {
+		t.Fatalf("traversal %v", err)
 	}
 }

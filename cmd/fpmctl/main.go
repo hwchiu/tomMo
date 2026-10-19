@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"fpm/internal/impex"
+	"fpm/internal/safeio"
 )
 
 func main() {
@@ -110,7 +111,7 @@ func runExport(args []string) int {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-		if err := os.WriteFile(*xlsx, raw, 0o644); err != nil {
+		if err := safeio.WriteFile(*xlsx, raw); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -146,7 +147,7 @@ func runFixture(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err := os.WriteFile(*out, raw, 0o644); err != nil {
+	if err := safeio.WriteFile(*out, raw); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
@@ -166,7 +167,7 @@ func readInput(dir, xlsx string) (map[string]string, impex.Report, error) {
 		_, report := impex.ParseFiles(files)
 		return files, report, nil
 	}
-	raw, err := os.ReadFile(xlsx)
+	raw, err := safeio.ReadFile(xlsx)
 	if err != nil {
 		return nil, impex.Report{}, err
 	}

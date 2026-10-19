@@ -63,15 +63,47 @@ distroless 執行映像裡沒有 shell，也沒有 `sqlite3`。備份用上面�
 | `PORT` | 聽的埠 | `8080` |
 | `DATA_DIR` | SQLite 目錄，檔名固定 `app.db` | 映像 `/data`，本機 `./data` |
 | `SESSION_SECRET` | session cookie 的 HMAC 金鑰 | `dev-session-secret`（正式環境要改） |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 編輯者帳號 | `admin` / `admin` |
-| `VIEWER_USERNAME` / `VIEWER_PASSWORD` | 使用者帳號 | `viewer` / `viewer` |
+| `ADMIN_USERNAME` / `VIEWER_USERNAME` | 帳號名稱 | `admin` / `viewer` |
+| `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD`（或 `*_FILE`） | 帳號第一次建立時的密碼，見「初始密碼」 | 未設定時隨機產生並寫到 `$DATA_DIR/initial-credentials.txt` |
+| `DEV_DEFAULT_PASSWORDS` | 開發用：未設定密碼時用 `admin` / `viewer` | 關 |
+| `LOG_INITIAL_PASSWORDS` | 開發用：把產生的密碼印到 log | 關 |
 | `SEED_MODE` | 空資料庫要灌 `demo` 或留 `none`。正式 manifest 是 `none`。行程未設定時是 `demo`，方便本機 `go run`。 | 行程 `demo`，Kubernetes `none` |
 
-帳號用姓名對到人員目錄，不記固定 id。`SEED_MODE=demo` 時編輯者是林品均、使用者是陳浩宇。`SEED_MODE=none` 只建立編輯者，對到「系統管理員」，不建立 viewer 帳號。密碼以 bcrypt 存在 `accounts`。啟動時若環境變數的密碼與現有 hash 不同，會更新 hash。人員名稱還在時，每次啟動會依目前的 `SEED_MODE` 重新對上；名稱不在目錄裡時，既有帳號維持原來的人員。
+帳號用姓名對到人員目錄，不記固定 id。`SEED_MODE=demo` 時編輯者是林品均、使用者是陳浩宇。`SEED_MODE=none` 只建立編輯者，對到「系統管理員」，不建立 viewer 帳號。密碼以 bcrypt 存在 `accounts`。初始密碼只在帳號第一次建立時寫入，之後不會被環境變數覆寫。人員名稱還在時，每次啟動會依目前的 `SEED_MODE` 重新對上；名稱不在目錄裡時，既有帳號維持原來的人員。
 
 Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-Forwarded-Proto: https` 時加 Secure。編輯者可寫入；使用者的非 GET API 回 `403 {"message":"使用者只能閱讀"}`。未登入回 `401 {"message":"請先登入"}`。
 
 登入抽象成 `AuthProvider`。之後可換成 OIDC authorization code + PKCE：群組 `fpm-editors` 對應編輯者，其餘為使用者，並以 `sub` 或員工編號對上 `people.external_id`。人員的 `source` 為 `manual` 或 `external`。這段尚未實作。
+
+## 初始密碼
+
+第一次啟動（帳號還不存在）時，編輯者與使用者的密碼依序取自：
+
+1. `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD`
+2. `INITIAL_ADMIN_PASSWORD_FILE` / `INITIAL_VIEWER_PASSWORD_FILE`（掛載的 secret 檔路徑，去掉結尾換行）
+3. 舊名稱 `ADMIN_PASSWORD` / `VIEWER_PASSWORD`（相容用）
+
+只在帳號不存在時使用；帳號已存在就不會覆寫密碼，之後改 Secret 也不會改到已存的密碼。
+
+都沒設定時，伺服器產生隨機密碼（192 bits），寫到 `$DATA_DIR/initial-credentials.txt`（權限 0600），log 只記錄檔案路徑，不印密碼。只有本機開發明確設定 `LOG_INITIAL_PASSWORDS=true` 才會把產生的密碼印到 log。本機想用固定的 `admin` / `admin`、`viewer` / `viewer`，啟動時設 `DEV_DEFAULT_PASSWORDS=true`（僅限開發）。
+
+登入頁的示範帳號提示只在 `admin` 的密碼仍是公開的 `admin` 時出現，不會顯示 Secret 或產生的密碼。
+
+Kubernetes 安裝時用隨機值建立 Secret：
+
+```bash
+kubectl create secret generic fpm-auth \
+  --from-literal=INITIAL_ADMIN_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=INITIAL_VIEWER_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=SESSION_SECRET="$(openssl rand -base64 48)"
+```
+
+之後要取回初始密碼：
+
+```bash
+kubectl get secret fpm-auth -o jsonpath='{.data.INITIAL_ADMIN_PASSWORD}' | base64 -d; echo
+kubectl get secret fpm-auth -o jsonpath='{.data.INITIAL_VIEWER_PASSWORD}' | base64 -d; echo
+```
 
 ## Dockerfile
 
@@ -120,7 +152,7 @@ ENTRYPOINT ["/server"]
 ```bash
 docker build -t fpm .
 docker run --rm -p 8080:8080 \
-  -e ADMIN_PASSWORD=admin \
+  -e DEV_DEFAULT_PASSWORDS=true \
   -e SESSION_SECRET=dev-session-secret \
   -v fpm-data:/data \
   fpm
@@ -146,12 +178,15 @@ go run ./cmd/server
 | `deployment.yaml` | `replicas: 1`，`strategy: Recreate`，讀寫 `/data/app.db`，探針打 `/healthz` |
 | `service.yaml` | ClusterIP，80 → 8080 |
 | `ingress.yaml` | 選擇性。只在要從叢集外用網域進來時套用 |
-| `secret.example.yaml` | `ADMIN_PASSWORD`、`VIEWER_PASSWORD`、`SESSION_SECRET` 的範例，值是 `change-me` |
+| `secret.example.yaml` | `INITIAL_ADMIN_PASSWORD`、`INITIAL_VIEWER_PASSWORD`、`SESSION_SECRET` 的範例；建議改用下方 `kubectl create secret` 隨機產生 |
 
 `Recreate` 讓舊 Pod 先結束，再起新的。同一時間只有一個行程打開這個 SQLite 檔。PVC 是 `ReadWriteOnce`，跟著這一個 Pod。`fsGroup: 65532` 讓 distroless 的非 root 使用者寫得了 `app.db`。
 
 ```bash
-kubectl apply -f deploy/k8s/secret.example.yaml
+kubectl create secret generic fpm-auth \
+  --from-literal=INITIAL_ADMIN_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=INITIAL_VIEWER_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=SESSION_SECRET="$(openssl rand -base64 48)"
 kubectl apply -f deploy/k8s/pvc.yaml
 kubectl apply -f deploy/k8s/deployment.yaml
 kubectl apply -f deploy/k8s/service.yaml
@@ -159,4 +194,4 @@ kubectl apply -f deploy/k8s/service.yaml
 kubectl apply -f deploy/k8s/ingress.yaml
 ```
 
-套用前把 Secret 裡的 `change-me` 換成真正的值，並把 Deployment 的 `image: fpm:latest` 換成已推上的映像。清單沒有指定 namespace，會落到目前 context 的 namespace。
+Secret 以隨機值建立（取回方式見「初始密碼」）。把 Deployment 的 `image: fpm:latest` 換成已推上的映像。清單沒有指定 namespace，會落到目前 context 的 namespace。

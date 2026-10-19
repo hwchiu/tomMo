@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,15 +25,19 @@ import (
 
 // Config controls process-level settings. Empty strings pick the documented defaults.
 type Config struct {
-	DataDir        string
-	SessionSecret  string
-	AdminUsername  string
+	DataDir       string
+	SessionSecret string
+	AdminUsername string
+	// AdminPassword / ViewerPassword seed the accounts only when they do not exist yet.
+	// Empty means generate a random password and write it to CredentialsFile.
 	AdminPassword  string
 	ViewerUsername string
 	ViewerPassword string
-	BcryptCost     int
-	SeedMode       string
-	Logger         *slog.Logger
+	// LogGeneratedPasswords prints generated passwords to the log (local dev opt-in only).
+	LogGeneratedPasswords bool
+	BcryptCost            int
+	SeedMode              string
+	Logger                *slog.Logger
 }
 
 // Server is the monolith: JSON API plus the embedded static export.
@@ -53,14 +60,8 @@ func New(cfg Config) (*Server, error) {
 	if cfg.AdminUsername == "" {
 		cfg.AdminUsername = "admin"
 	}
-	if cfg.AdminPassword == "" {
-		cfg.AdminPassword = "admin"
-	}
 	if cfg.ViewerUsername == "" {
 		cfg.ViewerUsername = "viewer"
-	}
-	if cfg.ViewerPassword == "" {
-		cfg.ViewerPassword = "viewer"
 	}
 	mode := cfg.SeedMode
 	if mode == "" {
@@ -76,11 +77,12 @@ func New(cfg Config) (*Server, error) {
 		adminPerson = impex.EmptyAdminName
 		viewerPerson = ""
 	}
-	if err := st.EnsureAccounts(store.AccountConfig{
+	generated, err := st.EnsureAccounts(store.AccountConfig{
 		AdminUsername: cfg.AdminUsername, AdminPassword: cfg.AdminPassword, AdminPerson: adminPerson,
 		ViewerUsername: cfg.ViewerUsername, ViewerPassword: cfg.ViewerPassword, ViewerPerson: viewerPerson,
 		BcryptCost: cfg.BcryptCost,
-	}); err != nil {
+	})
+	if err != nil {
 		_ = st.Close()
 		return nil, err
 	}
@@ -96,8 +98,22 @@ func New(cfg Config) (*Server, error) {
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
 	}
-	demo := cfg.AdminUsername == "admin" && cfg.AdminPassword == "admin" &&
-		cfg.ViewerUsername == "viewer" && cfg.ViewerPassword == "viewer"
+	if len(generated) > 0 {
+		path, err := writeCredentialsFile(cfg.DataDir, generated)
+		if err != nil {
+			_ = st.Close()
+			return nil, err
+		}
+		for _, c := range generated {
+			if cfg.LogGeneratedPasswords {
+				logger.Warn("generated initial password (dev opt-in, do not use in production)", "user", c.Username, "password", c.Password)
+			} else {
+				logger.Warn("generated initial password; not logged", "user", c.Username, "file", path)
+			}
+		}
+	}
+	// The hint only ever shows the public demo credentials, and only while they still work.
+	demo := cfg.AdminUsername == "admin" && st.PasswordMatches("admin", "admin")
 	return &Server{store: st, auth: local, local: local, static: sub, log: logger, showDemoHint: demo}, nil
 }
 
@@ -507,4 +523,25 @@ func (s *Server) writeErr(w http.ResponseWriter, err error) {
 	}
 	s.log.Error("request failed", "err", err)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "伺服器錯誤"})
+}
+
+// CredentialsFileName holds passwords generated at bootstrap, mode 0600 under DATA_DIR.
+const CredentialsFileName = "initial-credentials.txt"
+
+func writeCredentialsFile(dir string, creds []store.GeneratedCredential) (string, error) {
+	path := filepath.Join(dir, CredentialsFileName)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if err := f.Chmod(0o600); err != nil {
+		return "", err
+	}
+	for _, c := range creds {
+		if _, err := fmt.Fprintf(f, "%s %s (%s) %s\n", time.Now().UTC().Format(time.RFC3339), c.Username, c.Role, c.Password); err != nil {
+			return "", err
+		}
+	}
+	return path, f.Sync()
 }

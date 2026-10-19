@@ -27,14 +27,32 @@ Go monolith (app at `/`, cookie session, SQLite):
 ```bash
 NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_BASE_PATH= npm run build
 rm -rf web/dist && cp -a out web/dist
-go run ./cmd/server
+DEV_DEFAULT_PASSWORDS=true go run ./cmd/server
 ```
 
-Or `docker build -t fpm .` then `docker run --rm -p 8080:8080 -e ADMIN_PASSWORD=admin -e SESSION_SECRET=dev-session-secret fpm`.
+Or `docker build -t fpm .` then `docker run --rm -p 8080:8080 -e DEV_DEFAULT_PASSWORDS=true -e SESSION_SECRET=dev-session-secret fpm`.
 
 Open [http://localhost:8080/login/](http://localhost:8080/login/).
 
-Default accounts when `SEED_MODE=demo`: `admin` / `admin`（編輯者，林品均）and `viewer` / `viewer`（使用者，陳浩宇）. Override with `ADMIN_PASSWORD`, `VIEWER_PASSWORD`, and `SESSION_SECRET`. `SEED_MODE=none` creates only `admin`, linked to 系統管理員.
+Accounts when `SEED_MODE=demo`: `admin`（編輯者，林品均）and `viewer`（使用者，陳浩宇）. Initial passwords come from `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD` (or `*_FILE` pointing at a mounted secret file) and are used only when the account does not exist yet. If unset, random passwords are generated and written to `$DATA_DIR/initial-credentials.txt` (0600); the log only shows that path. For local dev, `DEV_DEFAULT_PASSWORDS=true` uses `admin` / `admin` and `viewer` / `viewer`; `LOG_INITIAL_PASSWORDS=true` prints generated passwords (dev only).
+
+Kubernetes install with random secrets:
+
+```bash
+kubectl create secret generic fpm-auth \
+  --from-literal=INITIAL_ADMIN_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=INITIAL_VIEWER_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=SESSION_SECRET="$(openssl rand -base64 48)"
+```
+
+Retrieve them later:
+
+```bash
+kubectl get secret fpm-auth -o jsonpath='{.data.INITIAL_ADMIN_PASSWORD}' | base64 -d; echo
+kubectl get secret fpm-auth -o jsonpath='{.data.INITIAL_VIEWER_PASSWORD}' | base64 -d; echo
+```
+
+See [docs/deployment-architecture.md](docs/deployment-architecture.md). `SEED_MODE=none` creates only `admin`, linked to 系統管理員.
 
 編輯者 can create and edit, including 管理. 使用者 is read-only. The mock stores edits in `localStorage`. **重設示範資料** is editor-only, and only when the process was started with `SEED_MODE=demo`.
 

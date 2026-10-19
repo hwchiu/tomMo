@@ -71,3 +71,43 @@ jobs:
           name: playwright-report
           path: playwright-report
           if-no-files-found: ignore
+
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.2"
+      - name: Install kind and kubectl
+        run: |
+          curl -fsSL -o kind "https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64"
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+          curl -fsSL -o kubectl "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kind version
+          kubectl version --client
+      - name: shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck scripts/kind-up.sh scripts/kind-down.sh
+      - name: kind-up
+        env:
+          CLUSTER_NAME: tommo
+          IMAGE_TAG: ci
+          PORT_FORWARD: "1"
+          LOCAL_PORT: "8080"
+        run: bash scripts/kind-up.sh
+      - name: kind-up again
+        env:
+          CLUSTER_NAME: tommo
+          IMAGE_TAG: ci
+          PORT_FORWARD: "1"
+          LOCAL_PORT: "8080"
+        run: bash scripts/kind-up.sh

@@ -75,7 +75,16 @@ func New(cfg Config) (*Server, error) {
 	viewerPerson := impex.DemoViewerName
 	if mode == store.SeedNone {
 		adminPerson = impex.EmptyAdminName
+		// A configured password creates the viewer. An empty password does not
+		// invent a random viewer account on a production database.
 		viewerPerson = ""
+		if cfg.ViewerPassword != "" {
+			viewerPerson = impex.EmptyViewerName
+			if err := st.EnsurePerson("u_viewer", impex.EmptyViewerName, "管理"); err != nil {
+				_ = st.Close()
+				return nil, err
+			}
+		}
 	}
 	generated, err := st.EnsureAccounts(store.AccountConfig{
 		AdminUsername: cfg.AdminUsername, AdminPassword: cfg.AdminPassword, AdminPerson: adminPerson,

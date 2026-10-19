@@ -108,6 +108,20 @@ func TestTemplateApplyIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestLoadEmptyPeople(t *testing.T) {
+	db := LoadEmpty()
+	got := map[string]string{}
+	for _, person := range db.People {
+		got[person.Name] = person.ID
+	}
+	if got[EmptyAdminName] != "u_admin" || got[EmptyViewerName] != "u_viewer" || len(db.People) != 2 {
+		t.Fatalf("empty catalog people %+v", got)
+	}
+	if len(db.Factories) != 0 || len(db.Products) != 0 {
+		t.Fatal("empty catalog has domain rows")
+	}
+}
+
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

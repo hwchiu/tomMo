@@ -34,7 +34,7 @@ type Store struct {
 const (
 	// SeedDemo loads data/demo through the shared importer when the database is empty.
 	SeedDemo = "demo"
-	// SeedNone leaves an empty database with the admin person only.
+	// SeedNone leaves an empty database with the admin and viewer directory rows.
 	SeedNone = "none"
 )
 
@@ -323,6 +323,46 @@ func (s *Store) lookupPerson(name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// EnsurePerson inserts a manual directory row when name is missing.
+// Databases created before the empty-catalog viewer existed still need that row
+// before the viewer account can be created.
+func (s *Store) EnsurePerson(id, name, department string) error {
+	var exists bool
+	if err := s.Read(func(db *domain.Database) error {
+		for _, person := range db.People {
+			if person.Name == name {
+				exists = true
+				break
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return s.Write(func(db *domain.Database) error {
+		for _, person := range db.People {
+			if person.Name == name {
+				return nil
+			}
+		}
+		chosen := id
+		for _, person := range db.People {
+			if person.ID == chosen {
+				chosen = fmt.Sprintf("per_%d", db.Seq)
+				db.Seq++
+				break
+			}
+		}
+		db.People = append(db.People, domain.Person{
+			ID: chosen, Name: name, Department: department, Active: true, Source: "manual",
+		})
+		return nil
+	})
 }
 
 func (s *Store) migrate() error {

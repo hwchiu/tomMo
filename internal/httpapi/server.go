@@ -150,11 +150,7 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 		s.serveAPI(w, r)
 		return
 	}
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	http.FileServer(http.FS(s.static)).ServeHTTP(w, r)
+	s.serveStatic(w, r)
 }
 
 func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {

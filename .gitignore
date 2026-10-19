@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+/coverage.out
+/bin/
+/playwright-report/
+/test-results/
+/blob-report/
+/e2e/.state.json
 
 # next.js
 /.next/

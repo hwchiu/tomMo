@@ -23,9 +23,9 @@ type PersonRow struct {
 }
 
 type MachineTypeRow struct {
-	File, Code, Name string
-	Row              int
-	Active           bool
+	File, Name string
+	Row        int
+	Active     bool
 }
 
 type ProductRow struct {

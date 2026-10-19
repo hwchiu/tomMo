@@ -43,8 +43,8 @@ var specs = map[string]fileSpec{
 		all:      []string{"name", "department", "active", "source", "external_id"},
 	},
 	FileMachineTypes: {
-		required: []string{"code", "name"},
-		all:      []string{"code", "name", "active"},
+		required: []string{"name"},
+		all:      []string{"name", "active"},
 	},
 	FileProducts: {
 		required: []string{"name", "owner", "mode"},

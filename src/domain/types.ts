@@ -247,7 +247,6 @@ export interface ProductFactoryPlan {
 /** Admin-managed machine type. Quantities are planned only. */
 export interface MachineType {
   id: string;
-  code: string;
   name: string;
   order: number;
   active: boolean;

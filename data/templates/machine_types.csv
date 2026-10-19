@@ -1,3 +1,3 @@
-code,name,active
-A,機種A,true
-B,機種B,true
+name,active
+EIA-1,true
+EIA-2,true

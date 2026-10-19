@@ -1,6 +1,10 @@
 package impex
 
-import "fpm/internal/domain"
+import (
+	"strings"
+
+	"fpm/internal/domain"
+)
 
 func (w *world) personID(name string) (string, bool) {
 	for _, person := range w.db.People {
@@ -65,7 +69,7 @@ func (w *world) factoryByID(id string) *domain.Factory {
 
 func (w *world) machineTypeIndex(name string) int {
 	for i := range w.db.MachineTypes {
-		if w.db.MachineTypes[i].Name == name {
+		if strings.EqualFold(w.db.MachineTypes[i].Name, name) {
 			return i
 		}
 	}

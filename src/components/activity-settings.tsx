@@ -59,12 +59,11 @@ export function SettingsView() {
           ))}
         </ul>
         {editor ? <form
-          className="mt-4 grid gap-2 border-t border-line pt-3 md:grid-cols-[1fr_1fr_auto]"
+          className="mt-4 grid gap-2 border-t border-line pt-3 md:grid-cols-[1fr_auto]"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             void api.createMachineType({
-              code: String(form.get("code") ?? ""),
               name: String(form.get("name") ?? ""),
             }).then(() => {
               toast("已新增機種");
@@ -72,8 +71,7 @@ export function SettingsView() {
             }).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "失敗"));
           }}
         >
-          <Field label="代碼"><input name="code" className={controlClass} placeholder="C" /></Field>
-          <Field label="名稱"><input name="name" className={controlClass} placeholder="機種C" /></Field>
+          <Field label="名稱"><input name="name" className={controlClass} placeholder="EIA-5" /></Field>
           <div className="self-end"><Button type="submit">新增機種</Button></div>
         </form> : null}
       </Panel>
@@ -120,7 +118,6 @@ function MachineTypeRow({ item, editor, onError }: { item: MachineType; editor: 
   const [active, setActive] = useState(item.active);
   return (
     <li className="text-sm">
-      <div className="font-mono text-[11px] text-muted">{item.code}</div>
       <input className={`${controlClass} mt-1`} value={name} disabled={!editor} onChange={(event) => setName(event.target.value)} />
       <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={active} disabled={!editor} onChange={(event) => setActive(event.target.checked)} />啟用</label>
       {editor ? <button

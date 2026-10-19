@@ -718,10 +718,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [code, name]
+              required: [name]
               properties:
-                code: { type: string }
-                name: { type: string, example: 機種C }
+                name: { type: string, example: EIA-5 }
       responses:
         "200":
           description: Created

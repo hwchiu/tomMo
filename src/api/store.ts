@@ -1,5 +1,6 @@
 import { addDays, isIsoDate } from "@/domain/dates";
 import { featureOverrides, isFeaturePlanComplete } from "@/domain/features";
+import { machineTypeNameError } from "@/domain/machine-type";
 import { nonNegativeInt } from "@/domain/machines";
 import { compareSemver } from "@/domain/semver";
 import type {
@@ -696,14 +697,14 @@ export function updateEnumeration(db: Database, actorId: string, id: string, inp
   return { id };
 }
 
-export function createMachineType(db: Database, actorId: string, input: { code: string; name: string }) {
+export function createMachineType(db: Database, actorId: string, input: { name: string }) {
   const user = actor(db, actorId);
-  const code = input.code.trim().toUpperCase();
+  const invalid = machineTypeNameError(input.name);
+  if (invalid) throw new ApiError(invalid, 400);
   const name = input.name.trim();
-  if (!code || !name) throw new ApiError("機種代碼與名稱必填", 400);
-  if (db.machineTypes.some((item) => item.code === code)) throw new ApiError("這個機種代碼已存在", 400);
+  if (db.machineTypes.some((item) => item.name.toLowerCase() === name.toLowerCase())) throw new ApiError("這個機種名稱已存在", 400);
   const id = nextId(db, "mt");
-  db.machineTypes.push({ id, code, name, order: db.machineTypes.length + 1, active: true });
+  db.machineTypes.push({ id, name, order: db.machineTypes.length + 1, active: true });
   log(db, actorId, "MACHINE", id, "CREATE", `${user.name}新增機種「${name}」。`);
   persist();
   return { id };
@@ -712,8 +713,10 @@ export function createMachineType(db: Database, actorId: string, input: { code: 
 export function updateMachineType(db: Database, actorId: string, id: string, input: { name: string; active: boolean }) {
   const user = actor(db, actorId);
   const item = must(db.machineTypes, id, "找不到這個機種");
+  const invalid = machineTypeNameError(input.name);
+  if (invalid) throw new ApiError(invalid, 400);
   const name = input.name.trim();
-  if (!name) throw new ApiError("機種名稱必填", 400);
+  if (db.machineTypes.some((other) => other.id !== id && other.name.toLowerCase() === name.toLowerCase())) throw new ApiError("這個機種名稱已存在", 400);
   item.name = name;
   item.active = input.active;
   log(db, actorId, "MACHINE", id, "UPDATE", `${user.name}更新機種「${name}」。`);

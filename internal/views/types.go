@@ -4,7 +4,6 @@ import "fpm/internal/domain"
 
 type MachineLineView struct {
 	MachineTypeID string `json:"machineTypeId"`
-	Code          string `json:"code"`
 	Name          string `json:"name"`
 	Planned       int    `json:"planned"`
 }

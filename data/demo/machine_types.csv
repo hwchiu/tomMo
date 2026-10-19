@@ -1,5 +1,5 @@
-code,name,active
-A,機種A,true
-B,機種B,true
-C,機種C,true
-D,機種D,true
+name,active
+EIA-1,true
+EIA-2,true
+EIA-3,true
+EIA-4,true

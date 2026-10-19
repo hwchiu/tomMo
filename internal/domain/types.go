@@ -205,7 +205,6 @@ type ProductFactoryPlan struct {
 
 type MachineType struct {
 	ID     string `json:"id"`
-	Code   string `json:"code"`
 	Name   string `json:"name"`
 	Order  int    `json:"order"`
 	Active bool   `json:"active"`

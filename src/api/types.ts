@@ -21,7 +21,6 @@ import type { WindowReason, WindowState } from "@/domain/windows";
 
 export interface MachineLineView {
   machineTypeId: string;
-  code: string;
   name: string;
   planned: number;
 }

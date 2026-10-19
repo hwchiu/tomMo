@@ -828,7 +828,6 @@ function machineLines(db: Database, deploymentId: string) {
     .sort((a, b) => a.order - b.order)
     .map((type) => ({
       machineTypeId: type.id,
-      code: type.code,
       name: type.name,
       planned: db.machineQuantities.find((row) => row.deploymentId === deploymentId && row.machineTypeId === type.id)?.planned ?? 0,
     }))
@@ -841,7 +840,6 @@ function factoryRollup(db: Database, factoryId: string) {
     .sort((a, b) => a.order - b.order)
     .map((type) => ({
       machineTypeId: type.id,
-      code: type.code,
       name: type.name,
       planned: deployments.reduce((sum, deployment) => {
         const row = db.machineQuantities.find((item) => item.deploymentId === deployment.id && item.machineTypeId === type.id);

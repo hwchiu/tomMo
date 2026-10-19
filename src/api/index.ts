@@ -105,7 +105,7 @@ export const api = {
     apiRequest<{ id: string }>("/api/v1/enumerations", { method: "POST", body }),
   updateEnumeration: (id: string, body: { label: string; description: string; active: boolean }) =>
     apiRequest<{ id: string }>(`/api/v1/enumerations/${id}`, { method: "PATCH", body }),
-  createMachineType: (body: { code: string; name: string }) =>
+  createMachineType: (body: { name: string }) =>
     apiRequest<{ id: string }>("/api/v1/machine-types", { method: "POST", body }),
   updateMachineType: (id: string, body: { name: string; active: boolean }) =>
     apiRequest<{ id: string }>(`/api/v1/machine-types/${id}`, { method: "PATCH", body }),

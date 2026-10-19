@@ -14,14 +14,37 @@ test("a delayed delivery cell shows its reason", async ({ page }) => {
   await page.locator("aside").getByRole("link", { name: /產品交付狀況/ }).click();
   await expect(page).toHaveURL(/\/product-build\/?$/);
   await expect(page.getByRole("heading", { name: "產品交付狀況" })).toBeVisible();
-  await expect(page.locator("#delay-legend").getByText("施工計畫未提交")).toBeVisible();
-  const cell = page.locator("[data-delay-cell='新竹一廠:開發產品 Developer']");
+  await expect(page.locator("#delay-legend").getByText("施工計畫未提交", { exact: true })).toBeVisible();
+  const cell = page.locator("[data-delay-cell='新竹一廠:開發產品 Developer']").first();
   await cell.scrollIntoViewIfNeeded();
   await expect(cell.getByText("施工計畫未提交")).toBeVisible();
   await expect(cell.getByText("延遲", { exact: true }).first()).toBeVisible();
   await page.getByLabel("延遲理由").selectOption({ label: "施工計畫未提交" });
   await expect(page).toHaveURL(/reason=PLAN_NOT_SUBMITTED/);
   await expect(cell.getByText("施工計畫未提交")).toBeVisible();
+});
+
+test("a month filter keeps factories that have work in October", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await page.goto("/product-build/");
+  await page.getByLabel("時程月份").fill("2026-10");
+  await expect(page).toHaveURL(/from=2026-10-01/);
+  await expect(page).toHaveURL(/to=2026-10-31/);
+  await expect(page.locator("#schedule-range")).toHaveText("時程 2026-10-01 – 2026-10-31");
+  await expect(page.getByRole("link", { name: "新竹一廠" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "新竹二廠" })).toHaveCount(0);
+  await page.locator("aside").getByRole("link", { name: /產品版本管理/ }).click();
+  await expect(page).toHaveURL(/\/product-versions\/?$/);
+  await expect(page.getByRole("heading", { name: "產品版本管理" })).toBeVisible();
+  await page.getByLabel("時程月份").fill("2026-10");
+  await expect(page).toHaveURL(/from=2026-10-01/);
+  await expect(page.locator("tbody").getByText("新竹一廠", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("tbody").getByText("新竹二廠")).toHaveCount(0);
+  await page.goto("/capabilities/?from=2026-10-01&to=2026-10-31");
+  await expect(page).toHaveURL(/\/product-versions\/?/);
+  await expect(page).toHaveURL(/from=2026-10-01/);
+  await expect(page.getByRole("heading", { name: "產品版本管理" })).toBeVisible();
+  await expect(page.locator("#schedule-range")).toHaveText("時程 2026-10-01 – 2026-10-31");
 });
 
 test("rejects a wrong password and hides the demo hint", async ({ page }) => {

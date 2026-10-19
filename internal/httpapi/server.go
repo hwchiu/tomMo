@@ -262,7 +262,9 @@ func (s *Server) dispatch(r *http.Request, path string, principal auth.Principal
 		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildPortfolio(db) })
 	}
 	if method == http.MethodGet && path == "/api/v1/product-build" {
-		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildProductBuild(db) })
+		return s.scheduled(r, func(db *domain.Database, sched domain.Schedule) (any, error) {
+			return views.BuildProductBuild(db, sched)
+		})
 	}
 	if method == http.MethodGet && path == "/api/v1/factories" {
 		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildFactories(db) })
@@ -366,8 +368,10 @@ func (s *Server) dispatch(r *http.Request, path string, principal auth.Principal
 		}
 		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.UpdateProduct(db, actorID, parts[3], body) })
 	}
-	if method == http.MethodGet && path == "/api/v1/capabilities" {
-		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildCapabilities(db) })
+	if method == http.MethodGet && (path == "/api/v1/capabilities" || path == "/api/v1/product-versions") {
+		return s.scheduled(r, func(db *domain.Database, sched domain.Schedule) (any, error) {
+			return views.BuildCapabilities(db, sched)
+		})
 	}
 	if method == http.MethodGet && len(parts) == 4 && parts[2] == "deployments" {
 		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildDeployment(db, parts[3]) })
@@ -447,6 +451,14 @@ func (s *Server) read(ctx context.Context, fn func(*domain.Database) (any, error
 		return ferr
 	})
 	return out, err
+}
+
+func (s *Server) scheduled(r *http.Request, fn func(*domain.Database, domain.Schedule) (any, error)) (any, error) {
+	sched, err := domain.ParseSchedule(r.URL.Query().Get("month"), r.URL.Query().Get("from"), r.URL.Query().Get("to"))
+	if err != nil {
+		return nil, apierr.New(400, err.Error())
+	}
+	return s.read(r.Context(), func(db *domain.Database) (any, error) { return fn(db, sched) })
 }
 
 func (s *Server) write(ctx context.Context, fn func(*domain.Database) (any, error)) (any, error) {

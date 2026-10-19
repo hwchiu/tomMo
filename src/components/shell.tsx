@@ -32,7 +32,7 @@ const NAV = [
   { href: "/factories", label: "工廠", en: "Factory" },
   { href: "/issues", label: "問題", en: "Issue" },
   { href: "/products", label: "產品", en: "Product" },
-  { href: "/capabilities", label: "能力矩陣", en: "Capability" },
+  { href: "/product-versions", label: "產品版本管理", en: "Versions" },
   { href: "/activity", label: "活動", en: "Activity" },
   { href: "/settings", label: "設定", en: "Enums" },
   { href: "/admin", label: "管理", en: "Admin" },

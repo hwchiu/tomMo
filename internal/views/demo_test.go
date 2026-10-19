@@ -40,7 +40,7 @@ func TestDemoViews(t *testing.T) {
 		t.Fatalf("rollup %d total %d", sum, hsc.MachineTotal)
 	}
 
-	build, err := BuildProductBuild(&db)
+	build, err := BuildProductBuild(&db, domain.Schedule{})
 	if err != nil || len(build.Rows) != 12 {
 		t.Fatalf("build %d %v", len(build.Rows), err)
 	}
@@ -116,7 +116,7 @@ func TestDemoViews(t *testing.T) {
 		t.Fatalf("approved plan cannot be approved again %+v %v", compute.Status, err)
 	}
 
-	matrix, err := BuildCapabilities(&db)
+	matrix, err := BuildCapabilities(&db, domain.Schedule{})
 	if err != nil {
 		t.Fatal(err)
 	}

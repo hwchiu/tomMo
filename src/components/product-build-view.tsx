@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { api } from "@/api";
 import type { BuildCell, BuildRow, DelayReasonView } from "@/api/types";
 import { delayCatalog, ownerRoleLabel } from "@/domain/delay";
+import { scheduleLabel } from "@/domain/schedule";
 import { productModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
 import { inFactoryScope } from "@/domain/select";
 import { useApp } from "@/components/shell";
 import { MetaChip, StatusChip } from "@/components/status-chip";
+import { ScheduleFilter } from "@/components/schedule-filter";
 import { AsyncView, EmptyState, PageHeader, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { MachineText } from "@/components/machines";
@@ -22,14 +24,18 @@ export function ProductBuildView({
   technology,
   onlyExceptions,
   reason,
+  from,
+  to,
 }: {
   category: string;
   region: string;
   technology: string;
   onlyExceptions: boolean;
   reason: string;
+  from: string;
+  to: string;
 }) {
-  const state = useLiveQuery("product-build", () => api.productBuild());
+  const state = useLiveQuery(`product-build:${from}:${to}`, () => api.productBuild({ from, to }));
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-[32rem]" />}>
       {(data) => (
@@ -40,6 +46,8 @@ export function ProductBuildView({
           technology={technology}
           onlyExceptions={onlyExceptions}
           reason={reason}
+          from={from}
+          to={to}
         />
       )}
     </AsyncView>
@@ -53,6 +61,8 @@ function Body({
   technology,
   onlyExceptions,
   reason,
+  from,
+  to,
 }: {
   data: Awaited<ReturnType<typeof api.productBuild>>;
   category: string;
@@ -60,6 +70,8 @@ function Body({
   technology: string;
   onlyExceptions: boolean;
   reason: string;
+  from: string;
+  to: string;
 }) {
   const router = useRouter();
   const app = useApp();
@@ -73,7 +85,7 @@ function Body({
     return true;
   });
 
-  function push(next: Partial<{ category: string; region: string; technology: string; exceptions: string; reason: string }>) {
+  function push(next: Partial<{ category: string; region: string; technology: string; exceptions: string; reason: string; from: string; to: string }>) {
     router.replace(
       withQuery("/product-build", {
         category,
@@ -81,6 +93,8 @@ function Body({
         technology,
         exceptions: onlyExceptions ? "1" : "",
         reason: activeReason,
+        from,
+        to,
         ...next,
       }),
     );
@@ -91,9 +105,11 @@ function Body({
       <PageHeader
         kicker="產品交付狀況"
         title="產品交付狀況"
-        description="每一格是一座工廠上的一個產品。延遲是相對基準日已經遲到；待補是資料還沒齊、或時程與第二階段不符，但還沒遲到。格子上列出理由、遲到天數與負責人。各產品平行施工，時程重疊不算衝突。第二階段的名稱仍是產品建立。"
+        description="每一格是一座工廠上的一個產品。延遲是相對基準日已經遲到；待補是資料還沒齊、或時程與第二階段不符，但還沒遲到。格子上列出理由、遲到天數與負責人。各產品平行施工，時程重疊不算衝突。第二階段的名稱仍是產品建立。時程留空會列出全部工廠。"
+        actions={from || to ? <p id="schedule-range" className="text-sm font-medium text-ink">時程 {scheduleLabel(from, to)}</p> : null}
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <ScheduleFilter from={from} to={to} onChange={(nextFrom, nextTo) => push({ from: nextFrom, to: nextTo })} />
         <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={enums.filter((item) => item.set === "factoryCategory")} />
         <Select label="區域" value={region} onChange={(value) => push({ region: value })} options={enums.filter((item) => item.set === "factoryRegion")} />
         <Select label="製程" value={technology} onChange={(value) => push({ technology: value })} options={enums.filter((item) => item.set === "technologyNode")} />
@@ -176,7 +192,7 @@ function Body({
                           cell={cell}
                           factoryName={row.factoryName}
                           productName={data.products.find((product) => product.id === cell.productId)?.name ?? ""}
-                          dimmed={Boolean(activeReason) && !cell.reasons.some((item) => item.code === activeReason)}
+                          dimmed={(Boolean(activeReason) && !cell.reasons.some((item) => item.code === activeReason)) || !cell.inSchedule}
                         />
                       </td>
                     ))}
@@ -212,7 +228,7 @@ function Body({
                         cell={cell}
                         factoryName={row.factoryName}
                         productName={data.products.find((product) => product.id === cell.productId)?.name ?? ""}
-                        dimmed={Boolean(activeReason) && !cell.reasons.some((item) => item.code === activeReason)}
+                        dimmed={(Boolean(activeReason) && !cell.reasons.some((item) => item.code === activeReason)) || !cell.inSchedule}
                       />
                     </div>
                   ))}

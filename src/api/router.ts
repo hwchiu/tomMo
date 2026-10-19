@@ -26,6 +26,7 @@ import {
   updatePerson,
   updateProduct,
 } from "./store";
+import { parseSchedule } from "@/domain/schedule";
 import {
   buildActivity,
   buildBootstrap,
@@ -90,7 +91,7 @@ export function mockRoute<T>({ method, path, body }: Call): T {
   if (method === "POST" && pathname === "/api/v1/people") return createPerson(db, actorId, body as never) as T;
   if (method === "PATCH" && parts[2] === "people" && parts.length === 4) return updatePerson(db, actorId, parts[3], body as never) as T;
   if (method === "GET" && pathname === "/api/v1/portfolio") return buildPortfolio(db) as T;
-  if (method === "GET" && pathname === "/api/v1/product-build") return buildProductBuild(db) as T;
+  if (method === "GET" && pathname === "/api/v1/product-build") return buildProductBuild(db, scheduleOf(url)) as T;
   if (method === "GET" && pathname === "/api/v1/factories") return buildFactories(db) as T;
   if (method === "POST" && pathname === "/api/v1/factories") return createFactory(db, actorId, body as never) as T;
   if (method === "GET" && parts[0] === "api" && parts[2] === "factories" && parts.length === 4) return buildFactory(db, parts[3]) as T;
@@ -138,7 +139,9 @@ export function mockRoute<T>({ method, path, body }: Call): T {
   if (method === "POST" && pathname === "/api/v1/products") return createProduct(db, actorId, body as never) as T;
   if (method === "GET" && parts[2] === "products" && parts.length === 4) return buildProduct(db, parts[3]) as T;
   if (method === "PATCH" && parts[2] === "products" && parts.length === 4) return updateProduct(db, actorId, parts[3], body as never) as T;
-  if (method === "GET" && pathname === "/api/v1/capabilities") return buildCapabilities(db) as T;
+  if (method === "GET" && (pathname === "/api/v1/capabilities" || pathname === "/api/v1/product-versions")) {
+    return buildCapabilities(db, scheduleOf(url)) as T;
+  }
   if (method === "GET" && parts[2] === "deployments" && parts.length === 4) return buildDeployment(db, parts[3]) as T;
   if (method === "PATCH" && parts[2] === "deployments" && parts.length === 4) {
     return updateDeployment(db, actorId, parts[3], body as never) as T;
@@ -176,6 +179,14 @@ export function mockRoute<T>({ method, path, body }: Call): T {
   }
 
   throw new ApiError(`沒有這個 API：${method} ${pathname}`, 404);
+}
+
+function scheduleOf(url: URL) {
+  try {
+    return parseSchedule(url.searchParams.get("month") ?? "", url.searchParams.get("from") ?? "", url.searchParams.get("to") ?? "");
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : "時程格式不正確", 400);
+  }
 }
 
 function pageOf<T>(items: T[], url: URL): { items: T[]; total: number; limit: number; offset: number } {

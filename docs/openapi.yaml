@@ -278,7 +278,16 @@ paths:
         is already past `asOf`, `gap` is missing or mismatched information that
         is not late yet. Factory rows include `lateCount`, `gapCount`, and
         `reasonCounts`.
+        Query `from` and `to` (inclusive `YYYY-MM-DD`) or `month=YYYY-MM` keep
+        factories that have progress in that window. See the README 時程篩選 rule.
+        An empty query returns every factory. `schedule` echoes the applied
+        window, or null. A cell `inSchedule` is false when that product has no
+        construction window, planned date, or open issue of its own in the window.
       operationId: getProductBuild
+      parameters:
+        - $ref: "#/components/parameters/scheduleFrom"
+        - $ref: "#/components/parameters/scheduleTo"
+        - $ref: "#/components/parameters/scheduleMonth"
       responses:
         "200":
           description: Products and one row per factory
@@ -286,9 +295,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [asOf, products, rows]
+                required: [asOf, schedule, products, rows]
                 properties:
                   asOf: { type: string, format: date }
+                  schedule:
+                    nullable: true
+                    allOf: [{ $ref: "#/components/schemas/ScheduleWindow" }]
                   products: { type: array, items: { type: object } }
                   rows:
                     type: array
@@ -602,16 +614,36 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/capabilities:
+  /api/v1/product-versions:
     get:
       tags: [products]
-      summary: Planned on/off feature matrix without requiring versions
+      summary: 產品版本管理 — planned feature matrix
       description: |
         Rows are factory × product. Columns are features. Each cell is the
         planned state: on, off, or unset. VERSIONED products derive the cell
         from the provided version plus feature changes. FEATURE_ONLY products
         use the plan's feature set. There is no version axis.
+        The schedule query matches 產品交付狀況: factories outside the window
+        are omitted, and a row `inSchedule` is false when that product has no
+        activity of its own in the window. `factories` stays the full list.
+      operationId: getProductVersions
+      parameters:
+        - $ref: "#/components/parameters/scheduleFrom"
+        - $ref: "#/components/parameters/scheduleTo"
+        - $ref: "#/components/parameters/scheduleMonth"
+      responses:
+        "200":
+          description: Cells distinguish supported, desired, and actual
+  /api/v1/capabilities:
+    get:
+      tags: [products]
+      summary: Alias of 產品版本管理
+      description: Same payload as `/api/v1/product-versions`.
       operationId: getCapabilities
+      parameters:
+        - $ref: "#/components/parameters/scheduleFrom"
+        - $ref: "#/components/parameters/scheduleTo"
+        - $ref: "#/components/parameters/scheduleMonth"
       responses:
         "200":
           description: Cells distinguish supported, desired, and actual
@@ -844,6 +876,24 @@ components:
       in: path
       required: true
       schema: { type: string }
+    scheduleFrom:
+      name: from
+      in: query
+      required: false
+      schema: { type: string, format: date }
+      description: Inclusive start. Wins over month when set.
+    scheduleTo:
+      name: to
+      in: query
+      required: false
+      schema: { type: string, format: date }
+      description: Inclusive end. A missing side is an open bound.
+    scheduleMonth:
+      name: month
+      in: query
+      required: false
+      schema: { type: string, example: "2026-10" }
+      description: Calendar month used only when from and to are both empty.
   responses:
     Error:
       description: Error
@@ -859,6 +909,12 @@ components:
       type: object
       properties:
         ok: { type: boolean }
+    ScheduleWindow:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
     Id:
       type: object
       required: [id]
@@ -1112,6 +1168,9 @@ components:
         reasons:
           type: array
           items: { $ref: "#/components/schemas/DelayReason" }
+        inSchedule:
+          type: boolean
+          description: False when a schedule filter is set and this product has no activity in the window.
     DelayReason:
       type: object
       required: [code, label, explanation, kind, daysLate, ownerPersonId, ownerRole, ownerName]

@@ -157,6 +157,7 @@ export interface BuildCell {
   ready: boolean;
   flags: ReadinessFlag[];
   reasons: DelayReasonView[];
+  inSchedule: boolean;
 }
 
 export interface BuildRow {
@@ -186,8 +187,14 @@ export interface BuildRow {
   machineRollup: MachineLineView[];
 }
 
+export interface ScheduleWindow {
+  from: string;
+  to: string;
+}
+
 export interface ProductBuild {
   asOf: string;
+  schedule: ScheduleWindow | null;
   products: Array<{
     id: string;
     name: string;
@@ -397,10 +404,12 @@ export interface CapabilityRow {
   versionLabel: string | null;
   cells: CapabilityCell[];
   adHocChanges: AdHocView[];
+  inSchedule: boolean;
 }
 
 export interface CapabilityMatrix {
   asOf: string;
+  schedule: ScheduleWindow | null;
   features: Array<{ id: string; code: string; name: string; productId: string; productName: string }>;
   rows: CapabilityRow[];
   factories: NamedRef[];

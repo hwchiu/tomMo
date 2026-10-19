@@ -155,6 +155,7 @@ type BuildCell struct {
 	Ready              bool                  `json:"ready"`
 	Flags              []string              `json:"flags"`
 	Reasons            []DelayReasonView     `json:"reasons"`
+	InSchedule         bool                  `json:"inSchedule"`
 }
 
 type BuildRow struct {
@@ -178,8 +179,14 @@ type BuildRow struct {
 	MachineRollup   []MachineLineView `json:"machineRollup"`
 }
 
+type ScheduleWindow struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
 type ProductBuild struct {
-	AsOf     string `json:"asOf"`
+	AsOf     string          `json:"asOf"`
+	Schedule *ScheduleWindow `json:"schedule"`
 	Products []struct {
 		ID               string `json:"id"`
 		Name             string `json:"name"`
@@ -424,10 +431,12 @@ type CapabilityRow struct {
 	VersionLabel *string              `json:"versionLabel"`
 	Cells        []CapabilityCellView `json:"cells"`
 	AdHocChanges []AdHocView          `json:"adHocChanges"`
+	InSchedule   bool                 `json:"inSchedule"`
 }
 
 type CapabilityMatrix struct {
-	AsOf     string `json:"asOf"`
+	AsOf     string          `json:"asOf"`
+	Schedule *ScheduleWindow `json:"schedule"`
 	Features []struct {
 		ID          string `json:"id"`
 		Code        string `json:"code"`

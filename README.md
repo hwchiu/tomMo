@@ -171,12 +171,12 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 | Screen | Path | What it is for |
 | --- | --- | --- |
 | 總覽 | `/` | Month-scale timeline of every factory, then exceptions: delivery delay reasons, overdue phases, overdue issues. Filter and group by 類別 / 區域 / 製程. |
-| 產品交付狀況 | `/product-build` | Factory × product grid. Each 延遲 or 待補 cell lists its reasons, days late, and owner. Filter by reason. The route stays `/product-build`. |
+| 產品交付狀況 | `/product-build` | Factory × product grid. Each 延遲 or 待補 cell lists its reasons, days late, and owner. Filter by reason and by 時程. The route stays `/product-build`. |
 | 工廠 | `/factories` | Timeline, PM name and department, machine total, ad-hoc changes, topics, deployments, issues. |
 | 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
 | 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
 | 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
-| 能力矩陣 | `/capabilities` | Factory × product rows, features grouped by product. Grey / green / red against the baseline, adhoc badge, filters. |
+| 產品版本管理 | `/product-versions` | Factory × product rows, features grouped by product. Grey / green / red against the baseline, adhoc badge, filters, and the same 時程 filter. `/capabilities` redirects here. |
 | 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
 | 活動 / 設定 | `/activity`, `/settings` | Change history, and enumerations. 設定 is hidden from 使用者. |
 
@@ -201,6 +201,18 @@ Machine counts are planned quantities per machine type (機種A, 機種B, and an
 - **Construction windows may overlap.** Products build in parallel. A window is flagged only when it is missing, or when it starts before or ends after that factory's Phase 2 dates. There is no overlap conflict.
 
 The window check lives in `src/domain/windows.ts` and is covered by `src/domain/windows.test.ts`. Readiness (`src/domain/readiness.ts`) requires an approved plan and a window inside Phase 2. A versioned product also needs a provided version. A feature-flag product needs a planned state for every feature. An outside window can be submitted and approved; it just does not count as ready.
+
+**時程篩選** is the same control on 產品交付狀況 and 產品版本管理 (`src/domain/schedule.ts` and `internal/domain/schedule.go`). The URL carries `from` and `to` (`YYYY-MM-DD`, inclusive) or `month=YYYY-MM`. An empty range lists every factory. A factory stays when any of these overlaps the range:
+
+- Phase 2 planned dates, and its actual dates when either is set
+- any product construction window (`constructionStart`–`constructionEnd`), which is the expected finish when the end date is set
+- a deployment `plannedDate` (計畫預定日)
+- an open issue (`OPEN`, `IN_PROGRESS`, or `BLOCKED`) whose `dueDate` falls in the range
+- a milestone `dueDate` on any phase of that factory
+
+A single date overlaps when it falls inside the range. A span overlaps when it starts on or before `to` and ends on or after `from`, including either endpoint. A span that ends the day before `from`, or starts the day after `to`, does not overlap. One missing bound is open. `from` later than `to` is rejected. Product cells with no construction window, `plannedDate`, or open issue of their own in the range are dimmed; Phase 2, milestones, and factory-wide issues keep the factory on screen without lighting a cell. The API is `GET /api/v1/product-build` and `GET /api/v1/product-versions` (alias `GET /api/v1/capabilities`).
+
+October 2026 in the demo includes 新竹一廠 (Phase 2 spans the month) and 高雄三廠 (Phase 2 ended in September, but a storage construction window runs into October). 新竹二廠 and 台南二廠 have no Phase 2 dates, construction windows, plan dates, open issues, or milestones in that month.
 
 **產品交付狀況** uses a separate delay taxonomy (`src/domain/delay.ts` and `internal/domain/delay.go`). A factory's stored status (進度正常 / 有風險 / 延遲 / 已完成) is not computed from these reasons. Comparison uses the dataset as-of date. `end < asOf` is late; the as-of day itself is not late. Horizon for an unsubmitted or unapproved plan is 14 days.
 

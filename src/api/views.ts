@@ -4,6 +4,7 @@ import { compareSemver } from "@/domain/semver";
 import { delayCatalog, delayReasons, ownerRoleLabel, type DelayInput, type DelayReason } from "@/domain/delay";
 import { cellReadiness } from "@/domain/readiness";
 import type { AccountRole, AdHocChange, Database, Person } from "@/domain/types";
+import { factoryInSchedule, productInSchedule, type Schedule } from "@/domain/schedule";
 import { evaluateConstructionWindow } from "@/domain/windows";
 import { ApiError } from "./errors";
 import type {
@@ -67,15 +68,22 @@ export function buildPortfolio(db: Database): Portfolio {
   };
 }
 
-export function buildProductBuild(db: Database): ProductBuild {
+export function buildProductBuild(db: Database, schedule: Schedule = { from: "", to: "" }): ProductBuild {
   const products = [...db.products].map((product) => ({
     id: product.id,
     name: product.name,
     primaryOwnerName: nameOf(db, product.primaryOwnerId),
     mode: product.mode,
   }));
-  const rows = db.factories.map((factory) => buildRow(db, factory.id, products.map((product) => product.id)));
-  return { asOf: db.asOf, products, rows };
+  const rows = db.factories.flatMap((factory) => {
+    if (!factoryInSchedule(db, factory.id, schedule)) return [];
+    const row = buildRow(db, factory.id, products.map((product) => product.id));
+    for (const cell of row.cells) {
+      cell.inSchedule = productInSchedule(db, factory.id, cell.productId, schedule);
+    }
+    return [row];
+  });
+  return { asOf: db.asOf, schedule: schedule.from || schedule.to ? schedule : null, products, rows };
 }
 
 export function buildFactory(db: Database, id: string): FactoryDetail {
@@ -285,7 +293,7 @@ export function buildProduct(db: Database, id: string): ProductDetail {
   };
 }
 
-export function buildCapabilities(db: Database): CapabilityMatrix {
+export function buildCapabilities(db: Database, schedule: Schedule = { from: "", to: "" }): CapabilityMatrix {
   const features = db.features.map((feature) => ({
     id: feature.id,
     code: feature.code,
@@ -295,14 +303,16 @@ export function buildCapabilities(db: Database): CapabilityMatrix {
   }));
   return {
     asOf: db.asOf,
+    schedule: schedule.from || schedule.to ? schedule : null,
     features,
-    rows: db.deployments.map((deployment) => {
+    rows: db.deployments.flatMap((deployment) => {
       const product = mustProduct(db, deployment.productId);
       const factory = mustFactory(db, deployment.factoryId);
+      if (!factoryInSchedule(db, factory.id, schedule)) return [];
       const plan = db.plans.find((item) => item.factoryId === factory.id && item.productId === product.id);
       const versionId = product.mode === "VERSIONED" ? plan?.providedVersionId ?? null : null;
       const platformFeatures = db.features.filter((feature) => feature.productId === product.id);
-      return {
+      return [{
         deploymentId: deployment.id,
         factoryId: factory.id,
         factoryName: factory.name,
@@ -326,7 +336,8 @@ export function buildCapabilities(db: Database): CapabilityMatrix {
           return { featureId: feature.id, ...cell, note: override?.description ?? "" };
         }),
         adHocChanges: adHocViews(db, plan?.adHocChanges ?? []),
-      };
+        inSchedule: productInSchedule(db, factory.id, product.id, schedule),
+      }];
     }),
     factories: db.factories.map((factory) => ({ id: factory.id, name: factory.name })),
     products: db.products.map((product) => ({ id: product.id, name: product.name, mode: product.mode })),
@@ -588,6 +599,7 @@ function buildRow(db: Database, factoryId: string, productIds: string[]): BuildR
       ready: readiness.ready,
       flags: readiness.flags,
       reasons: presentReasons(db, cellDelay(db, factory, product, phase2, plan ?? null, deployment ?? null)),
+      inSchedule: true,
     };
   });
   return {

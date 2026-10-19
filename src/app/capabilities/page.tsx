@@ -1,26 +1,22 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { CapabilityView } from "@/components/capability-view";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <CapabilityQuery />
+      <Forward />
     </Suspense>
   );
 }
 
-function CapabilityQuery() {
+function Forward() {
+  const router = useRouter();
   const query = useSearchParams();
-  return (
-    <CapabilityView
-      factoryId={query.get("factory") ?? ""}
-      productId={query.get("product") ?? ""}
-      featureId={query.get("feature") ?? ""}
-      onlyChanges={query.get("changes") === "1"}
-      adhocOnly={query.get("adhoc") === "1"}
-    />
-  );
+  useEffect(() => {
+    const qs = query.toString();
+    router.replace(qs ? `/product-versions?${qs}` : "/product-versions");
+  }, [query, router]);
+  return <p className="text-sm text-muted">前往產品版本管理…</p>;
 }

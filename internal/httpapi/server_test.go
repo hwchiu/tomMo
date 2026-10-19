@@ -274,3 +274,28 @@ func TestPersonPersistsAcrossRestart(t *testing.T) {
 		t.Fatalf("people after restart %d %s", list.Code, list.Body.String())
 	}
 }
+
+func TestScheduleQuery(t *testing.T) {
+	srv := testServer(t)
+	login := do(srv, http.MethodPost, "/api/v1/login", "", map[string]string{"username": "admin", "password": "admin"})
+	cookie := cookieHeader(t, login)
+	bad := do(srv, http.MethodGet, "/api/v1/product-build?month=2026-13", cookie, nil)
+	if bad.Code != 400 || !bytes.Contains(bad.Body.Bytes(), []byte("月份格式須為 YYYY-MM")) {
+		t.Fatalf("bad month %d %s", bad.Code, bad.Body.String())
+	}
+	ok := do(srv, http.MethodGet, "/api/v1/product-versions?from=2026-10-01&to=2026-10-31", cookie, nil)
+	if ok.Code != 200 {
+		t.Fatalf("product versions %d %s", ok.Code, ok.Body.String()[:min(300, ok.Body.Len())])
+	}
+	var matrix views.CapabilityMatrix
+	if err := json.Unmarshal(ok.Body.Bytes(), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, row := range matrix.Rows {
+		seen[row.FactoryName] = true
+	}
+	if !seen["新竹一廠"] || seen["新竹二廠"] {
+		t.Fatalf("rows %v", seen)
+	}
+}

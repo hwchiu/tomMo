@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { api } from "@/api";
 import type { CapabilityTone } from "@/api/types";
 import { productModeLabel } from "@/domain/labels";
+import { scheduleLabel } from "@/domain/schedule";
+import { ScheduleFilter } from "@/components/schedule-filter";
 import { AsyncView, EmptyState, PageHeader, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { withQuery } from "@/lib/search";
@@ -16,14 +18,18 @@ export function CapabilityView({
   featureId,
   onlyChanges,
   adhocOnly,
+  from,
+  to,
 }: {
   factoryId: string;
   productId: string;
   featureId: string;
   onlyChanges: boolean;
   adhocOnly: boolean;
+  from: string;
+  to: string;
 }) {
-  const state = useLiveQuery("capabilities", () => api.capabilities());
+  const state = useLiveQuery(`product-versions:${from}:${to}`, () => api.productVersions({ from, to }));
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-96" />}>
       {(data) => (
@@ -34,6 +40,8 @@ export function CapabilityView({
           featureId={featureId}
           onlyChanges={onlyChanges}
           adhocOnly={adhocOnly}
+          from={from}
+          to={to}
         />
       )}
     </AsyncView>
@@ -47,13 +55,17 @@ function Matrix({
   featureId,
   onlyChanges,
   adhocOnly,
+  from,
+  to,
 }: {
-  data: Awaited<ReturnType<typeof api.capabilities>>;
+  data: Awaited<ReturnType<typeof api.productVersions>>;
   factoryId: string;
   productId: string;
   featureId: string;
   onlyChanges: boolean;
   adhocOnly: boolean;
+  from: string;
+  to: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
@@ -78,12 +90,14 @@ function Matrix({
   }, [data.features, data.products, featureId, onlyChanges, productId, rows]);
 
   function push(next: Record<string, string>) {
-    router.replace(withQuery("/capabilities", {
+    router.replace(withQuery("/product-versions", {
       factory: factoryId,
       product: productId,
       feature: featureId,
       changes: onlyChanges ? "1" : "",
       adhoc: adhocOnly ? "1" : "",
+      from,
+      to,
       ...next,
     }));
   }
@@ -92,11 +106,13 @@ function Matrix({
   return (
     <div>
       <PageHeader
-        kicker="Capability"
-        title="能力矩陣"
-        description="每一列是一座工廠上的一個產品。功能欄依產品分組。灰格是和基準相同，綠色是相對基準新增，紅色是相對基準停用。版本產品的基準是所選版本；純功能開關的基準是產品預設。特殊覆寫會標 adhoc。"
+        kicker="產品版本管理"
+        title="產品版本管理"
+        description="每一列是一座工廠上的一個產品。功能欄依產品分組。灰格是和基準相同，綠色是相對基準新增，紅色是相對基準停用。版本產品的基準是所選版本；純功能開關的基準是產品預設。特殊覆寫會標 adhoc。時程留空會列出全部工廠；沒有落在區間裡的產品列會變淡。"
+        actions={from || to ? <p id="schedule-range" className="text-sm font-medium text-ink">時程 {scheduleLabel(from, to)}</p> : null}
       />
       <div className="mb-3 flex flex-wrap gap-2 text-xs">
+        <ScheduleFilter from={from} to={to} onChange={(nextFrom, nextTo) => push({ from: nextFrom, to: nextTo })} />
         <Pick label="工廠" value={factoryId} onChange={(value) => push({ factory: value })} options={data.factories.map((item) => ({ id: item.id, label: item.name }))} />
         <Pick label="產品" value={productId} onChange={(value) => push({ product: value, feature: "" })} options={data.products.map((item) => ({ id: item.id, label: item.name }))} />
         <Pick label="功能" value={featureId} onChange={(value) => push({ feature: value })} options={data.features.filter((feature) => !productId || feature.productId === productId).map((feature) => ({ id: feature.id, label: feature.name }))} />
@@ -113,7 +129,7 @@ function Matrix({
         <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">{productModeLabel.FEATURE_ONLY}</span>
       </div>
       {rows.length === 0 || columns.length === 0 ? (
-        <EmptyState title="這個篩選沒有格子" body="放寬工廠、產品，或關掉只看異動。" />
+        <EmptyState title="這個篩選沒有格子" body="放寬工廠、產品、時程，或關掉只看異動。" />
       ) : (
         <div className="overflow-auto rounded-xl border border-line bg-panel">
           <table className="w-full min-w-[960px] border-separate border-spacing-0 text-left text-xs">
@@ -135,7 +151,7 @@ function Matrix({
               {rows.map((row) => {
                 const customs = row.adHocChanges.filter((change) => change.kind === "CUSTOM");
                 return (
-                  <tr key={row.deploymentId}>
+                  <tr key={row.deploymentId} className={cn(!row.inSchedule && "opacity-40")} data-in-schedule={row.inSchedule ? "1" : "0"}>
                     <th className="sticky left-0 z-10 border-b border-r border-line bg-white p-2 font-normal">
                       <div className="font-medium">{row.factoryName}</div>
                       <div>{row.productName}</div>

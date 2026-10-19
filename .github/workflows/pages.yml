@@ -49,6 +49,7 @@ jobs:
           test -f "out/factories/$(cat /tmp/fid)/index.html"
           test -f out/product-build/index.html
           test -f out/capabilities/index.html
+          test -f out/product-versions/index.html
           test -f out/issues/index.html
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'

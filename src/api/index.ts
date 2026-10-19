@@ -35,7 +35,8 @@ import type {
 export const api = {
   bootstrap: () => apiRequest<Bootstrap>("/api/v1/bootstrap"),
   portfolio: () => apiRequest<Portfolio>("/api/v1/portfolio"),
-  productBuild: () => apiRequest<ProductBuild>("/api/v1/product-build"),
+  productBuild: (range?: { from?: string; to?: string }) =>
+    apiRequest<ProductBuild>(withApiQuery("/api/v1/product-build", range)),
   factories: () =>
     apiRequest<{ asOf: string; items: FactoryBoardRow[]; people: Bootstrap["people"]; enumerations: Bootstrap["enumerations"] }>("/api/v1/factories"),
   factory: (id: string) => apiRequest<FactoryDetail>(`/api/v1/factories/${id}`),
@@ -90,7 +91,8 @@ export const api = {
   login: (body: { username: string; password: string }) => apiRequest<{ ok: boolean }>("/api/v1/login", { method: "POST", body }),
   loginConfig: () => apiRequest<{ showDemoHint: boolean }>("/api/v1/login-config"),
   logout: () => apiRequest<{ ok: boolean }>("/api/v1/logout", { method: "POST", body: {} }),
-  capabilities: () => apiRequest<CapabilityMatrix>("/api/v1/capabilities"),
+  productVersions: (range?: { from?: string; to?: string }) =>
+    apiRequest<CapabilityMatrix>(withApiQuery("/api/v1/product-versions", range)),
   deployment: (id: string) => apiRequest<DeploymentPage>(`/api/v1/deployments/${id}`),
   updateDeployment: (id: string, body: DeploymentBody) => apiRequest<{ id: string }>(`/api/v1/deployments/${id}`, { method: "PATCH", body }),
   plan: (factoryId: string, productId: string) => apiRequest<PlanPage>(`/api/v1/factories/${factoryId}/products/${productId}/plan`),
@@ -172,6 +174,14 @@ interface ProductBody {
   projectDepartment: string;
   primaryOwnerId: string;
   mode: ProductMode;
+}
+
+function withApiQuery(path: string, range?: { from?: string; to?: string }): string {
+  const params = new URLSearchParams();
+  if (range?.from) params.set("from", range.from);
+  if (range?.to) params.set("to", range.to);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 interface DeploymentBody {

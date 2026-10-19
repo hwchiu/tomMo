@@ -65,8 +65,8 @@ func BuildPortfolio(db *domain.Database) (Portfolio, error) {
 	}, nil
 }
 
-func BuildProductBuild(db *domain.Database) (ProductBuild, error) {
-	out := ProductBuild{AsOf: db.AsOf, Rows: []BuildRow{}}
+func BuildProductBuild(db *domain.Database, sched domain.Schedule) (ProductBuild, error) {
+	out := ProductBuild{AsOf: db.AsOf, Schedule: scheduleWindow(sched), Rows: []BuildRow{}}
 	ids := make([]string, 0, len(db.Products))
 	for _, product := range db.Products {
 		ids = append(ids, product.ID)
@@ -86,13 +86,26 @@ func BuildProductBuild(db *domain.Database) (ProductBuild, error) {
 		}{}
 	}
 	for _, factory := range db.Factories {
+		if !domain.FactoryInSchedule(db, factory.ID, sched) {
+			continue
+		}
 		row, err := buildRow(db, factory.ID, ids)
 		if err != nil {
 			return ProductBuild{}, err
 		}
+		for i := range row.Cells {
+			row.Cells[i].InSchedule = domain.ProductInSchedule(db, factory.ID, row.Cells[i].ProductID, sched)
+		}
 		out.Rows = append(out.Rows, row)
 	}
 	return out, nil
+}
+
+func scheduleWindow(sched domain.Schedule) *ScheduleWindow {
+	if !sched.Active() {
+		return nil
+	}
+	return &ScheduleWindow{From: sched.From, To: sched.To}
 }
 
 func BuildFactory(db *domain.Database, id string) (FactoryDetail, error) {
@@ -369,8 +382,8 @@ func BuildProduct(db *domain.Database, id string) (ProductDetail, error) {
 	return detail, nil
 }
 
-func BuildCapabilities(db *domain.Database) (CapabilityMatrix, error) {
-	out := CapabilityMatrix{AsOf: db.AsOf, Rows: []CapabilityRow{}, Factories: []NamedRef{}}
+func BuildCapabilities(db *domain.Database, sched domain.Schedule) (CapabilityMatrix, error) {
+	out := CapabilityMatrix{AsOf: db.AsOf, Schedule: scheduleWindow(sched), Rows: []CapabilityRow{}, Factories: []NamedRef{}}
 	for _, feature := range db.Features {
 		product, err := mustProduct(db, feature.ProductID)
 		if err != nil {
@@ -402,6 +415,9 @@ func BuildCapabilities(db *domain.Database) (CapabilityMatrix, error) {
 		if err != nil {
 			return CapabilityMatrix{}, err
 		}
+		if !domain.FactoryInSchedule(db, factory.ID, sched) {
+			continue
+		}
 		plan := findPlan(db, factory.ID, product.ID)
 		var versionID *string
 		if product.Mode == "VERSIONED" && plan != nil {
@@ -411,6 +427,7 @@ func BuildCapabilities(db *domain.Database) (CapabilityMatrix, error) {
 			DeploymentID: deployment.ID, FactoryID: factory.ID, FactoryName: factory.Name,
 			ProductID: product.ID, ProductName: product.Name, Mode: product.Mode,
 			VersionLabel: versionName(db, versionID), Cells: []CapabilityCellView{},
+			InSchedule: domain.ProductInSchedule(db, factory.ID, product.ID, sched),
 		}
 		if plan != nil {
 			row.AdHocChanges = adHocViews(db, plan.AdHocChanges)

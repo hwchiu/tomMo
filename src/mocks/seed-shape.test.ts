@@ -13,7 +13,7 @@ describe("demo seed", () => {
     expect(seed.factories).toHaveLength(12);
     expect(seed.people).toHaveLength(25);
     expect(seed.products).toHaveLength(7);
-    expect(seed.machineTypes.map((item) => item.name)).toEqual(["機種A", "機種B", "機種C", "機種D"]);
+    expect(seed.machineTypes.map((item) => item.name)).toEqual(["EIA-1", "EIA-2", "EIA-3", "EIA-4"]);
     expect(seed.products.filter((item) => item.mode === "VERSIONED").length).toBeGreaterThanOrEqual(3);
     expect(seed.products.filter((item) => item.mode === "FEATURE_ONLY").length).toBeGreaterThanOrEqual(4);
     expect(seed.people.some((person) => person.source === "external" && person.externalId === "emp-2048")).toBe(true);

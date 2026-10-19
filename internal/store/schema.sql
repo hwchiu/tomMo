@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS enumerations (
 
 CREATE TABLE IF NOT EXISTS machine_types (
   id TEXT PRIMARY KEY,
-  code TEXT NOT NULL,
   name TEXT NOT NULL,
   ord INTEGER NOT NULL,
   active INTEGER NOT NULL

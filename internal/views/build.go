@@ -1250,7 +1250,7 @@ func machineLines(db *domain.Database, deploymentID string) []MachineLineView {
 			}
 		}
 		if kind.Active || planned > 0 {
-			out = append(out, MachineLineView{MachineTypeID: kind.ID, Code: kind.Code, Name: kind.Name, Planned: planned})
+			out = append(out, MachineLineView{MachineTypeID: kind.ID, Name: kind.Name, Planned: planned})
 		}
 	}
 	return out
@@ -1273,7 +1273,7 @@ func factoryRollup(db *domain.Database, factoryID string) []MachineLineView {
 			}
 		}
 		if planned > 0 || kind.Active {
-			out = append(out, MachineLineView{MachineTypeID: kind.ID, Code: kind.Code, Name: kind.Name, Planned: planned})
+			out = append(out, MachineLineView{MachineTypeID: kind.ID, Name: kind.Name, Planned: planned})
 		}
 	}
 	return out

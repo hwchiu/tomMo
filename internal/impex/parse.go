@@ -1,6 +1,10 @@
 package impex
 
-import "strings"
+import (
+	"strings"
+
+	"fpm/internal/domain"
+)
 
 // ParseFiles parses a directory's CSV texts. Keys are file names such as people.csv.
 func ParseFiles(files map[string]string) (Dataset, Report) {
@@ -113,25 +117,20 @@ func parsePeople(file string, idx map[string]int, rows []rawRow, ds *Dataset) []
 func parseMachineTypes(file string, idx map[string]int, rows []rawRow, ds *Dataset) []RowError {
 	var errs []RowError
 	seenName := map[string]bool{}
-	seenCode := map[string]bool{}
 	for _, raw := range rows {
-		code := cell(raw.cells, idx, "code")
-		name := cell(raw.cells, idx, "name")
-		if code == "" || name == "" {
-			errs = append(errs, rowErr(file, raw.line, "機種代碼與名稱必填"))
+		name, err := domain.NormalizeMachineTypeName(cell(raw.cells, idx, "name"))
+		if err != nil {
+			errs = append(errs, rowErr(file, raw.line, err.Error()))
 			continue
 		}
-		if seenName[name] {
+		key := strings.ToLower(name)
+		if seenName[key] {
 			errs = append(errs, rowErr(file, raw.line, "機種「"+name+"」重複"))
 		}
-		if seenCode[code] {
-			errs = append(errs, rowErr(file, raw.line, "機種代碼「"+code+"」重複"))
-		}
-		seenName[name] = true
-		seenCode[code] = true
+		seenName[key] = true
 		active, errActive := parseBoolCell(file, raw.line, cell(raw.cells, idx, "active"), true)
 		errs = append(errs, errActive...)
-		ds.MachineTypes = append(ds.MachineTypes, MachineTypeRow{File: file, Row: raw.line, Code: code, Name: name, Active: active})
+		ds.MachineTypes = append(ds.MachineTypes, MachineTypeRow{File: file, Row: raw.line, Name: name, Active: active})
 	}
 	return errs
 }

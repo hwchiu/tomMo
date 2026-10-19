@@ -59,7 +59,7 @@ func exportPeople(db *domain.Database) ([][]string, error) {
 func exportMachineTypes(db *domain.Database) ([][]string, error) {
 	rows := make([][]string, 0, len(db.MachineTypes))
 	for _, item := range db.MachineTypes {
-		rows = append(rows, []string{item.Code, item.Name, boolText(item.Active)})
+		rows = append(rows, []string{item.Name, boolText(item.Active)})
 	}
 	return rows, nil
 }

@@ -333,18 +333,82 @@ func (s *Store) migrate() error {
 	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 1`).Scan(&n); err != nil {
 		return err
 	}
+	if n == 0 {
+		tx, err := s.sql.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if err := execScript(tx, schemaSQL); err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
+		if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return s.migrateMachineTypeNames()
+}
+
+// migrateMachineTypeNames drops the legacy code column and renames the demo types.
+func (s *Store) migrateMachineTypeNames() error {
+	var n int
+	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 2`).Scan(&n); err != nil {
+		return err
+	}
 	if n > 0 {
 		return nil
 	}
+	rows, err := s.sql.Query(`PRAGMA table_info(machine_types)`)
+	if err != nil {
+		return err
+	}
+	hasCode := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if name == "code" {
+			hasCode = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	_ = rows.Close()
 	tx, err := s.sql.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err := execScript(tx, schemaSQL); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+	if hasCode {
+		renames := [][2]string{{"機種A", "EIA-1"}, {"機種B", "EIA-2"}, {"機種C", "EIA-3"}, {"機種D", "EIA-4"}}
+		for _, pair := range renames {
+			if _, err := tx.Exec(`UPDATE machine_types SET name = ? WHERE name = ? AND NOT EXISTS (SELECT 1 FROM machine_types existing WHERE lower(existing.name) = lower(?))`, pair[1], pair[0], pair[1]); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(`CREATE TABLE machine_types_v2 (id TEXT PRIMARY KEY, name TEXT NOT NULL, ord INTEGER NOT NULL, active INTEGER NOT NULL)`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO machine_types_v2(id, name, ord, active) SELECT id, name, ord, active FROM machine_types`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DROP TABLE machine_types`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`ALTER TABLE machine_types_v2 RENAME TO machine_types`); err != nil {
+			return err
+		}
 	}
-	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (2, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -380,8 +444,8 @@ func (s *Store) persist(ctx context.Context) error {
 		}
 	}
 	for _, row := range db.MachineTypes {
-		if _, err := tx.Exec(`INSERT INTO machine_types(id, code, name, ord, active) VALUES (?, ?, ?, ?, ?)`,
-			row.ID, row.Code, row.Name, row.Order, bint(row.Active)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO machine_types(id, name, ord, active) VALUES (?, ?, ?, ?)`,
+			row.ID, row.Name, row.Order, bint(row.Active)); err != nil {
 			return err
 		}
 	}
@@ -537,10 +601,10 @@ func (s *Store) load() (domain.Database, error) {
 	}); err != nil {
 		return db, err
 	}
-	if err := query(s.sql, `SELECT id, code, name, ord, active FROM machine_types ORDER BY rowid`, func(rows *sql.Rows) error {
+	if err := query(s.sql, `SELECT id, name, ord, active FROM machine_types ORDER BY rowid`, func(rows *sql.Rows) error {
 		var row domain.MachineType
 		var active int
-		if err := rows.Scan(&row.ID, &row.Code, &row.Name, &row.Order, &active); err != nil {
+		if err := rows.Scan(&row.ID, &row.Name, &row.Order, &active); err != nil {
 			return err
 		}
 		row.Active = active != 0

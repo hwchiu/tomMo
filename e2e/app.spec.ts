@@ -35,7 +35,7 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
   await page.locator("#plans").getByRole("link", { name: "運算產品 Compute" }).click();
   await expect(page).toHaveURL(/\/plans\//);
   await expect(page.getByRole("heading", { name: "計畫機台" })).toBeVisible();
-  const machine = page.getByLabel("機種A");
+  const machine = page.getByLabel("EIA-1");
   await machine.fill("10");
   await expect(page.getByText(/合計 \d+ 台/)).toBeVisible();
   await page.getByLabel("預計施工結束").fill("2026-12-20");
@@ -87,4 +87,17 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
   const denied = await page.request.post("/api/v1/people", { data: { name: "不行", department: "廠務處" } });
   expect(denied.status()).toBe(403);
   expect(await denied.json()).toMatchObject({ message: "使用者只能閱讀" });
+});
+
+test("machine type names are English", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await page.goto("/settings/");
+  const form = page.locator("form").filter({ has: page.getByRole("button", { name: "新增機種" }) });
+  await form.getByLabel("名稱").fill("機種中文");
+  await form.getByRole("button", { name: "新增機種" }).click();
+  await expect(page.getByText("機種名稱只能使用英文、數字與 - _ . 空格")).toBeVisible();
+  await form.getByLabel("名稱").fill("EIA-9");
+  await form.getByRole("button", { name: "新增機種" }).click();
+  await expect(page.getByText("已新增機種")).toBeVisible();
+  await expect(page.locator('input[value="EIA-9"]')).toBeVisible();
 });

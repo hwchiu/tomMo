@@ -147,15 +147,15 @@ func (w *world) machineTypes() {
 		if idx < 0 {
 			id := w.id("mt")
 			w.db.MachineTypes = append(w.db.MachineTypes, domain.MachineType{
-				ID: id, Code: row.Code, Name: row.Name, Order: order, Active: row.Active,
+				ID: id, Name: row.Name, Order: order, Active: row.Active,
 			})
 			w.rep.add(row.File, row.Row, true, false, entMachine, row.Name)
 			continue
 		}
 		item := &w.db.MachineTypes[idx]
-		changed := item.Code != row.Code || item.Active != row.Active || item.Order != order
+		changed := item.Active != row.Active || item.Order != order || item.Name != row.Name
 		if changed {
-			item.Code = row.Code
+			item.Name = row.Name
 			item.Active = row.Active
 			item.Order = order
 		}

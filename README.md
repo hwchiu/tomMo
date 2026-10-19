@@ -188,7 +188,7 @@ Default phases, copied onto each new factory and still editable there:
 
 Seeded products: 運算 Compute and 儲存 Storage are versioned. 資料 Data, 開發 Developer, and 監控 Monitoring are feature-flag only: a factory plan lists each feature as enabled or disabled, and 異動功能 is whatever differs from that feature's default.
 
-Machine counts are planned quantities per machine type (機種A, 機種B, and any type added in 設定). Each factory × product plan stores the breakdown. Screens show the computed total. There is no actual or delivered machine count. A factory page rolls the planned quantities up by type across its products.
+Machine counts are planned quantities per machine type (EIA-1, EIA-2, and any English name added in 設定). Each factory × product plan stores the breakdown. Screens show the computed total. There is no actual or delivered machine count. A factory page rolls the planned quantities up by type across its products.
 
 ## Rules that the screens follow
 

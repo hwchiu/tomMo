@@ -20,7 +20,7 @@ func TestMutationErrors(t *testing.T) {
 	dataProduct := productID(t, base, "資料產品 Data")
 	external := personID(t, base, "馬怡君")
 	version := versionID(t, base, compute, "2.4.0")
-	machine := machineID(t, base, "機種A")
+	machine := machineID(t, base, "EIA-1")
 	start, end := "2026-08-01", "2026-07-01"
 	late := "2026-10-01"
 	early := "2026-07-01"
@@ -159,8 +159,12 @@ func TestMutationErrors(t *testing.T) {
 			_, err := CreateEnumeration(db, actor, EnumerationInput{Set: "factoryCategory", Code: "", Label: ""})
 			return err
 		}},
-		{"machine code", 400, "機種代碼與名稱必填", func(db *domain.Database) error {
+		{"machine name", 400, "機種名稱必填", func(db *domain.Database) error {
 			_, err := CreateMachineType(db, actor, MachineTypeInput{})
+			return err
+		}},
+		{"machine english", 400, domain.MachineTypeNameInvalid, func(db *domain.Database) error {
+			_, err := CreateMachineType(db, actor, MachineTypeInput{Name: "機種Z"})
 			return err
 		}},
 		{"bad plan intent", 400, "請選擇草稿或送出", func(db *domain.Database) error {
@@ -187,7 +191,7 @@ func TestWorkflowPersistsAndAggregates(t *testing.T) {
 		actor = personID(t, db, "林品均")
 		hsc = factoryID(t, db, "新竹一廠")
 		storage = productID(t, db, "儲存產品 Storage")
-		machine = machineID(t, db, "機種A")
+		machine = machineID(t, db, "EIA-1")
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -264,7 +268,7 @@ func TestWorkflowPersistsAndAggregates(t *testing.T) {
 	if err := s.Write(func(db *domain.Database) error {
 		_, saveErr := SavePlan(db, actor, hsc, storage, PlanInput{
 			Intent: "draft", ConstructionStart: &start, ConstructionEnd: &end,
-			Machines: machineRows(machine, 10), Note: "只留機種A",
+			Machines: machineRows(machine, 10), Note: "只留 EIA-1",
 		})
 		return saveErr
 	}); err != nil {
@@ -475,11 +479,11 @@ func TestCatalogMutations(t *testing.T) {
 	if _, err := UpdateEnumeration(db, actor, enum.ID, EnumerationPatch{Label: "實驗室區", Active: true}); err != nil {
 		t.Fatal(err)
 	}
-	kind, err := CreateMachineType(db, actor, MachineTypeInput{Code: "Z", Name: "機種Z"})
+	kind, err := CreateMachineType(db, actor, MachineTypeInput{Name: "EIA-9"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := UpdateMachineType(db, actor, kind.ID, MachineTypePatch{Name: "機種Z改", Active: false}); err != nil {
+	if _, err := UpdateMachineType(db, actor, kind.ID, MachineTypePatch{Name: "EIA-9b", Active: false}); err != nil {
 		t.Fatal(err)
 	}
 	product, err := CreateProduct(db, actor, ProductInput{Name: "測試產品", Mode: "FEATURE_ONLY", PrimaryOwnerID: actor, DevDepartment: "開發", ProjectDepartment: "專案"})

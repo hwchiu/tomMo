@@ -138,7 +138,6 @@ type EnumerationPatch struct {
 }
 
 type MachineTypeInput struct {
-	Code string `json:"code"`
 	Name string `json:"name"`
 }
 
@@ -1046,18 +1045,17 @@ func CreateMachineType(db *domain.Database, actorID string, input MachineTypeInp
 	if err != nil {
 		return idBody{}, err
 	}
-	code := strings.ToUpper(strings.TrimSpace(input.Code))
-	name := strings.TrimSpace(input.Name)
-	if code == "" || name == "" {
-		return idBody{}, apierr.New(400, "機種代碼與名稱必填")
+	name, err := domain.NormalizeMachineTypeName(input.Name)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
 	}
 	for _, item := range db.MachineTypes {
-		if item.Code == code {
-			return idBody{}, apierr.New(400, "這個機種代碼已存在")
+		if strings.EqualFold(item.Name, name) {
+			return idBody{}, apierr.New(400, domain.MachineTypeNameTaken)
 		}
 	}
 	id := nextID(db, "mt")
-	db.MachineTypes = append(db.MachineTypes, domain.MachineType{ID: id, Code: code, Name: name, Order: len(db.MachineTypes) + 1, Active: true})
+	db.MachineTypes = append(db.MachineTypes, domain.MachineType{ID: id, Name: name, Order: len(db.MachineTypes) + 1, Active: true})
 	logAct(db, actorID, "MACHINE", id, "CREATE", fmt.Sprintf("%s新增機種「%s」。", user.Name, name))
 	return idBody{ID: id}, nil
 }
@@ -1077,9 +1075,14 @@ func UpdateMachineType(db *domain.Database, actorID, id string, input MachineTyp
 	if idx < 0 {
 		return idBody{}, apierr.New(404, "找不到這個機種")
 	}
-	name := strings.TrimSpace(input.Name)
-	if name == "" {
-		return idBody{}, apierr.New(400, "機種名稱必填")
+	name, err := domain.NormalizeMachineTypeName(input.Name)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
+	}
+	for _, item := range db.MachineTypes {
+		if item.ID != id && strings.EqualFold(item.Name, name) {
+			return idBody{}, apierr.New(400, domain.MachineTypeNameTaken)
+		}
 	}
 	db.MachineTypes[idx].Name = name
 	db.MachineTypes[idx].Active = input.Active

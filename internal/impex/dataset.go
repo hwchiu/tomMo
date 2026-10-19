@@ -29,8 +29,8 @@ type MachineTypeRow struct {
 }
 
 type ProductRow struct {
-	File, Name, Owner, Mode, Description, DevDepartment, ProjectDepartment string
-	Row                                                                    int
+	File, Name, Owner, Mode, Description, DevDepartment, ProjectDepartment, Audience string
+	Row                                                                              int
 }
 
 type FeatureRow struct {

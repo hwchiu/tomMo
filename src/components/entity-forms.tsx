@@ -56,7 +56,7 @@ export function FactoryForm({ id }: { id?: string }) {
               <Field label="地點"><input name="location" defaultValue={data?.location ?? ""} className={controlClass} /></Field>
               <FixedSelect name="category" label="類別 Category" options={factoryCategories} value={data?.category} />
               <FixedSelect name="region" label="區域 Region" options={factoryRegions} value={data?.region} />
-              <Field label="廠區 PM">
+              <Field label="廠區 TPM">
                 <select name="pmId" className={controlClass} defaultValue={data?.pmId ?? app.actor.id}>
                   {app.people.filter((person) => person.active || person.id === data?.pmId).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
                 </select>
@@ -332,11 +332,11 @@ export function FactoryDirectory() {
     <AsyncView state={state} skeleton={<Skeleton className="h-64" />}>
       {(data) => (
         <div>
-          <PageHeader kicker="Factory" title="工廠" description="每座工廠有自己的階段副本。類別是 Giga 或 Phase，區域是 HQ、JP、AZ、EU。廠名就是這座廠。" actions={<WhenEditor><Link href="/factories/new" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white">新增工廠</Link></WhenEditor>} />
+          <PageHeader kicker="Factory" title="工廠簡介" description="每座工廠有自己的階段副本。類別是 Giga 或 Phase，區域是 HQ、JP、AZ、EU。廠名就是這座廠。" actions={<WhenEditor><Link href="/factories/new" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white">新增工廠</Link></WhenEditor>} />
           {data.items.length === 0 ? <p className="text-sm text-muted">還沒有工廠。</p> : (
             <div className="overflow-x-auto rounded-xl border border-line bg-panel">
               <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="text-xs text-muted"><tr><th className="p-3">工廠</th><th>類別</th><th>區域</th><th>狀態</th><th>目前階段</th><th>PM</th></tr></thead>
+                <thead className="text-xs text-muted"><tr><th className="p-3">工廠</th><th>類別</th><th>區域</th><th>狀態</th><th>目前階段</th><th>TPM</th></tr></thead>
                 <tbody>
                   {data.items.map((factory) => (
                     <tr key={factory.id} className="border-t border-line">

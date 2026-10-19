@@ -62,12 +62,17 @@ func BuildProductBuild(db *domain.Database) (ProductBuild, error) {
 	ids := make([]string, 0, len(db.Products))
 	for _, product := range db.Products {
 		ids = append(ids, product.ID)
+		audience := product.Audience
+		if audience == "" {
+			audience = domain.AudienceExternal
+		}
 		out.Products = append(out.Products, struct {
 			ID               string `json:"id"`
 			Name             string `json:"name"`
 			PrimaryOwnerName string `json:"primaryOwnerName"`
 			Mode             string `json:"mode"`
-		}{ID: product.ID, Name: product.Name, PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode})
+			Audience         string `json:"audience"`
+		}{ID: product.ID, Name: product.Name, PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode, Audience: audience})
 	}
 	if out.Products == nil {
 		out.Products = []struct {
@@ -75,6 +80,7 @@ func BuildProductBuild(db *domain.Database) (ProductBuild, error) {
 			Name             string `json:"name"`
 			PrimaryOwnerName string `json:"primaryOwnerName"`
 			Mode             string `json:"mode"`
+			Audience         string `json:"audience"`
 		}{}
 	}
 	for _, factory := range db.Factories {
@@ -1089,13 +1095,9 @@ func issueItem(db *domain.Database, issue domain.Issue) (IssueListItem, error) {
 			}
 		}
 	}
-	var productName *string
-	if issue.ProductID != nil {
-		product, err := mustProduct(db, *issue.ProductID)
-		if err != nil {
-			return IssueListItem{}, err
-		}
-		productName = &product.Name
+	productName, err := issueProductName(db, issue.ProductID)
+	if err != nil {
+		return IssueListItem{}, err
 	}
 	open := issue.Status == "OPEN" || issue.Status == "IN_PROGRESS" || issue.Status == "BLOCKED"
 	return IssueListItem{
@@ -1105,6 +1107,21 @@ func issueItem(db *domain.Database, issue domain.Issue) (IssueListItem, error) {
 		Severity: issue.Severity, Priority: issue.Priority, Status: issue.Status, DueDate: issue.DueDate,
 		Overdue: open && issue.DueDate != nil && *issue.DueDate < db.AsOf, Resolution: issue.Resolution, UpdatedAt: issue.UpdatedAt,
 	}, nil
+}
+
+func issueProductName(db *domain.Database, id *string) (*string, error) {
+	if id == nil || *id == "" {
+		return nil, nil
+	}
+	if *id == domain.IssueProductOther {
+		name := "其他"
+		return &name, nil
+	}
+	product, err := mustProduct(db, *id)
+	if err != nil {
+		return nil, err
+	}
+	return &product.Name, nil
 }
 
 func productSummary(db *domain.Database, id string) (ProductSummary, error) {
@@ -1132,7 +1149,7 @@ func productSummary(db *domain.Database, id string) (ProductSummary, error) {
 	return ProductSummary{
 		ID: product.ID, Name: product.Name, Description: product.Description, DevDepartment: product.DevDepartment,
 		ProjectDepartment: product.ProjectDepartment, PrimaryOwnerID: product.PrimaryOwnerID,
-		PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode, VersionCount: count,
+		PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode, Audience: product.Audience, VersionCount: count,
 		LatestVersion: latest, OutdatedFactories: outdated,
 	}, nil
 }

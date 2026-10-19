@@ -49,7 +49,7 @@ export const deploymentStatusLabel: Record<DeploymentStatus, string> = {
 export const planStatusLabel: Record<PlanStatus, string> = {
   NOT_SUBMITTED: "未提報",
   SUBMITTED: "已提報",
-  APPROVED: "PM 已核准",
+  APPROVED: "TPM 已核准",
 };
 
 export const changeTypeLabel: Record<ChangeType, string> = {

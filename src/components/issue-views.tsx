@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/api";
 import type { IssueListItem, IssuePage } from "@/api/types";
+import { issueProductOther } from "@/domain/audience";
 import { issueStatusLabel, severityLabel } from "@/domain/labels";
 import type { IssueSeverity, IssueStatus } from "@/domain/types";
 import { useApp, WhenEditor } from "@/components/shell";
@@ -238,6 +239,7 @@ function IssueForm({
           <select name="productId" className={controlClass} defaultValue={initial.productId ?? ""}>
             <option value="">—</option>
             {(products.data?.items ?? []).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+            <option value={issueProductOther}>其他</option>
           </select>
         </Field>
         <Field label="負責人">
@@ -250,9 +252,7 @@ function IssueForm({
             {Object.entries(severityLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </Field>
-        <Field label="優先序">
-          <select name="priority" className={controlClass} defaultValue={initial.priority}>{["P0", "P1", "P2", "P3"].map((item) => <option key={item}>{item}</option>)}</select>
-        </Field>
+        <input type="hidden" name="priority" value={initial.priority} />
         <Field label="狀態">
           <select name="status" className={controlClass} defaultValue={initial.status}>
             {Object.entries(issueStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

@@ -67,7 +67,7 @@ func exportMachineTypes(db *domain.Database) ([][]string, error) {
 func exportProducts(db *domain.Database) ([][]string, error) {
 	rows := make([][]string, 0, len(db.Products))
 	for _, product := range db.Products {
-		rows = append(rows, []string{product.Name, personName(db, product.PrimaryOwnerID), product.Mode, product.Description, product.DevDepartment, product.ProjectDepartment})
+		rows = append(rows, []string{product.Name, personName(db, product.PrimaryOwnerID), product.Mode, product.Description, product.DevDepartment, product.ProjectDepartment, product.Audience})
 	}
 	return rows, nil
 }

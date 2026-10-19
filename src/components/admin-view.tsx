@@ -23,7 +23,7 @@ function PeopleBody({ people, editor }: { people: Person[]; editor: boolean }) {
   return (
     <div>
       <h2 className="mb-1 font-semibold">人員</h2>
-      <p className="mb-3 text-xs text-muted">目錄只有姓名與部門。負責人、廠務 PM 與副責都從這裡挑選。外部目錄同步的人員不能在這裡改。</p>
+      <p className="mb-3 text-xs text-muted">目錄只有姓名與部門。負責人、廠務 TPM 與副責都從這裡挑選。外部目錄同步的人員不能在這裡改。</p>
       {editor ? (
         <Panel className="mb-4 p-4">
           <h2 className="mb-3 font-semibold">新增人員</h2>

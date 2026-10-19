@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/api";
 import type { BuildCell, BuildRow } from "@/api/types";
+import { audienceLabel, productAudiences, type ProductAudience } from "@/domain/audience";
 import { factoryCategories, factoryRegions } from "@/domain/factory-attr";
 import { productModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
 import { inFactoryScope } from "@/domain/select";
@@ -18,17 +19,19 @@ import { useLiveQuery } from "@/lib/use-live-query";
 export function ProductBuildView({
   category,
   region,
+  audience,
   onlyExceptions,
 }: {
   category: string;
   region: string;
+  audience: "" | ProductAudience;
   onlyExceptions: boolean;
 }) {
   const state = useLiveQuery("product-build", () => api.productBuild());
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-[32rem]" />}>
       {(data) => (
-        <Body data={data} category={category} region={region} onlyExceptions={onlyExceptions} />
+        <Body data={data} category={category} region={region} audience={audience} onlyExceptions={onlyExceptions} />
       )}
     </AsyncView>
   );
@@ -38,22 +41,29 @@ function Body({
   data,
   category,
   region,
+  audience,
   onlyExceptions,
 }: {
   data: Awaited<ReturnType<typeof api.productBuild>>;
   category: string;
   region: string;
+  audience: "" | ProductAudience;
   onlyExceptions: boolean;
 }) {
   const router = useRouter();
+  const products = data.products.filter((product) => !audience || product.audience === audience);
   const rows = data.rows.filter((row) => inFactoryScope(row, { category, region }));
-  const visible = onlyExceptions ? rows.filter((row) => row.cells.some((cell) => !cell.ready)) : rows;
+  function cellsOf(row: BuildRow) {
+    return row.cells.filter((cell) => products.some((product) => product.id === cell.productId));
+  }
+  const visible = onlyExceptions ? rows.filter((row) => cellsOf(row).some((cell) => !cell.ready)) : rows;
 
-  function push(next: Partial<{ category: string; region: string; exceptions: string }>) {
+  function push(next: Partial<{ category: string; region: string; audience: string; exceptions: string }>) {
     router.replace(
       withQuery("/product-build", {
         category,
         region,
+        audience,
         exceptions: onlyExceptions ? "1" : "",
         ...next,
       }),
@@ -63,13 +73,14 @@ function Body({
   return (
     <div>
       <PageHeader
-        kicker="Phase 2 · 產品建立"
-        title="工廠 × 產品"
-        description="每一格是一座工廠上的一個產品：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出產品建立區間會先被標出來。各產品平行施工，時程重疊不算衝突。"
+        kicker="交付"
+        title="產品交付狀況"
+        description="每一格是一座工廠上的一個產品：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出階段會先被標出來。對外是交給使用者的產品，對內多半是對外產品的依賴。各產品平行施工，時程重疊不算衝突。"
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={factoryCategories} />
         <Select label="區域" value={region} onChange={(value) => push({ region: value })} options={factoryRegions} />
+        <Select label="可見範圍" value={audience} onChange={(value) => push({ audience: value })} options={productAudiences} />
         <button
           type="button"
           className={cn("h-8 rounded-full px-3", onlyExceptions ? "bg-ink text-white" : "border border-line bg-white")}
@@ -82,7 +93,7 @@ function Body({
       <div className="mb-3 flex flex-wrap gap-2 text-[11px] text-muted">
         <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-800">就緒：已核准、時程在階段內、版本或功能集已規劃</span>
         <span className="rounded bg-amber-50 px-2 py-1 text-amber-900">未提報</span>
-        <span className="rounded bg-rose-50 px-2 py-1 text-rose-800">超出產品建立</span>
+        <span className="rounded bg-rose-50 px-2 py-1 text-rose-800">超出階段</span>
         <span>重疊：允許，不標示</span>
       </div>
       {visible.length === 0 ? (
@@ -95,11 +106,12 @@ function Body({
                 <tr>
                   <th className="sticky left-0 top-0 z-30 min-w-[220px] border-b border-r border-line bg-white p-3 text-xs font-medium text-muted">工廠</th>
                   <th className="sticky top-0 z-20 min-w-[140px] border-b border-line bg-white p-3 text-xs font-medium text-muted">計畫機台合計</th>
-                  {data.products.map((product) => (
+                  {products.map((product) => (
                     <th key={product.id} className="sticky top-0 z-20 min-w-[210px] border-b border-line bg-white p-3">
                       <div className="text-sm font-semibold">{product.name}</div>
+                      <div className="mt-1 inline-flex rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-900">{audienceLabel(product.audience)}</div>
                       {product.mode === "FEATURE_ONLY" ? (
-                        <div className="mt-1 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">{productModeLabel.FEATURE_ONLY}</div>
+                        <div className="mt-1 ml-1 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">{productModeLabel.FEATURE_ONLY}</div>
                       ) : (
                         <div className="text-[11px] font-normal text-muted">{productModeLabel.VERSIONED}</div>
                       )}
@@ -112,13 +124,13 @@ function Body({
                 {visible.map((row) => (
                   <tr key={row.factoryId}>
                     <th className="sticky left-0 z-10 border-b border-r border-line bg-white p-3 align-top font-normal">
-                      <RowHead row={row} />
+                      <RowHead row={row} readyCount={cellsOf(row).filter((cell) => cell.ready).length} total={cellsOf(row).length} />
                     </th>
                     <td className="border-b border-line bg-slate-50 p-3 align-top">
                       <div className="text-2xl font-semibold tabular-nums">{row.machineTotal}</div>
                       <div className="mt-1 text-[11px] text-muted"><MachineText lines={row.machineRollup} /></div>
                     </td>
-                    {row.cells.map((cell) => (
+                    {cellsOf(row).map((cell) => (
                       <td key={cell.productId} className="border-b border-line p-2 align-top">
                         <Cell cell={cell} />
                       </td>
@@ -131,7 +143,7 @@ function Body({
                     <div className="text-2xl font-semibold tabular-nums">{visible.reduce((sum, row) => sum + row.machineTotal, 0)}</div>
                     <div className="mt-1 text-[11px] text-slate-300">各廠計畫機台加總，依目前篩選</div>
                   </td>
-                  {data.products.map((product) => (
+                  {products.map((product) => (
                     <td key={product.id} className="p-3 align-top text-sm">
                       <div className="font-medium">{product.name}</div>
                       <div className="text-lg font-semibold tabular-nums">
@@ -146,11 +158,14 @@ function Body({
           <div className="space-y-3 lg:hidden">
             {visible.map((row) => (
               <article key={row.factoryId} className="rounded-xl border border-line bg-panel p-3">
-                <RowHead row={row} />
+                <RowHead row={row} readyCount={cellsOf(row).filter((cell) => cell.ready).length} total={cellsOf(row).length} />
                 <div className="mt-3 space-y-2">
-                  {row.cells.map((cell) => (
+                  {cellsOf(row).map((cell) => (
                     <div key={cell.productId}>
-                      <div className="mb-1 text-xs font-medium text-muted">{data.products.find((product) => product.id === cell.productId)?.name}</div>
+                      <div className="mb-1 text-xs font-medium text-muted">
+                        {products.find((product) => product.id === cell.productId)?.name}
+                        <span className="ml-1 rounded bg-teal-50 px-1 py-0.5 text-[10px] text-teal-900">{audienceLabel(products.find((product) => product.id === cell.productId)?.audience ?? "")}</span>
+                      </div>
                       <Cell cell={cell} />
                     </div>
                   ))}
@@ -164,7 +179,7 @@ function Body({
   );
 }
 
-function RowHead({ row }: { row: BuildRow }) {
+function RowHead({ row, readyCount, total }: { row: BuildRow; readyCount: number; total: number }) {
   return (
     <div>
       <Link href={`/factories/${row.factoryId}#timeline`} className="font-semibold hover:underline">{row.factoryName}</Link>
@@ -176,13 +191,13 @@ function RowHead({ row }: { row: BuildRow }) {
       <div className="mt-2"><StatusChip kind="factory" value={row.status} /></div>
       {row.phase2 ? (
         <p className="mt-2 text-[11px] text-muted">
-          產品建立 {row.phase2.plannedStart.slice(5)} – {row.phase2.plannedEnd.slice(5)} · <StatusChip kind="phase" value={row.phase2.status} />
+          交付階段 {row.phase2.plannedStart.slice(5)} – {row.phase2.plannedEnd.slice(5)} · <StatusChip kind="phase" value={row.phase2.status} />
         </p>
       ) : null}
       <p className="mt-2 text-lg font-semibold tabular-nums">{row.machineTotal}</p>
       <p className="text-[11px] text-muted">計畫機台合計 · <MachineText lines={row.machineRollup} /></p>
-      <p className={cn("mt-1 text-xs", row.readyCount === row.cells.length ? "text-emerald-800" : "text-amber-900")}>
-        就緒 {row.readyCount}/{row.cells.length}
+      <p className={cn("mt-1 text-xs", readyCount === total ? "text-emerald-800" : "text-amber-900")}>
+        就緒 {readyCount}/{total}
       </p>
     </div>
   );

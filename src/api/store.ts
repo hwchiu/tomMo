@@ -22,10 +22,11 @@ import type {
 import { PRODUCT_MODES } from "@/domain/types";
 import { TOPIC_STATUSES } from "@/domain/types";
 import { buildSeed } from "@/mocks/fixtures";
+import { normalizeAudience } from "@/domain/audience";
 import { factoryCategoryInvalid, factoryRegionInvalid, normalizeFactoryCategory, normalizeFactoryRegion } from "@/domain/factory-attr";
 import { ApiError } from "./errors";
 
-const DB_KEY = "fpm-db-v7";
+const DB_KEY = "fpm-db-v8";
 let memory: Database | null = null;
 
 export function getDb(): Database {
@@ -609,7 +610,7 @@ export function approvePlan(db: Database, actorId: string, factoryId: string, pr
     machines: snapshotMachines(db, plan.deploymentId),
     actorId: user.id,
     createdAt: new Date().toISOString(),
-    note: "PM 核准",
+    note: "TPM 核准",
   });
   const product = must(db.products, productId, "找不到這個產品");
   log(db, actorId, "PLAN", plan.id, "APPROVE", `${user.name}核准${product.name}計畫。`);
@@ -624,12 +625,19 @@ export interface ProductInput {
   projectDepartment: string;
   primaryOwnerId: string;
   mode: ProductMode;
+  audience: "EXTERNAL" | "INTERNAL";
 }
 
 export function createProduct(db: Database, actorId: string, input: ProductInput) {
   const user = actor(db, actorId);
   if (!input.name.trim()) throw new ApiError("產品名稱必填", 400);
   if (!PRODUCT_MODES.includes(input.mode)) throw new ApiError("請選擇版本模式或僅功能開關", 400);
+  let audience: "EXTERNAL" | "INTERNAL";
+  try {
+    audience = normalizeAudience(input.audience ?? "");
+  } catch (caught) {
+    throw new ApiError(caught instanceof Error ? caught.message : "可見範圍只能是對外或對內", 400);
+  }
   requirePerson(db, input.primaryOwnerId);
   const id = nextId(db, "prd");
   db.products.push({
@@ -640,6 +648,7 @@ export function createProduct(db: Database, actorId: string, input: ProductInput
     projectDepartment: input.projectDepartment.trim(),
     primaryOwnerId: input.primaryOwnerId,
     mode: input.mode,
+    audience,
   });
   for (const factory of db.factories) {
     ensureDeployment(db, factory.id, id, factory.pmId);
@@ -660,6 +669,11 @@ export function updateProduct(db: Database, actorId: string, id: string, input: 
   product.projectDepartment = input.projectDepartment.trim();
   product.primaryOwnerId = input.primaryOwnerId;
   if (PRODUCT_MODES.includes(input.mode)) product.mode = input.mode;
+  try {
+    product.audience = normalizeAudience(input.audience ?? product.audience ?? "");
+  } catch (caught) {
+    throw new ApiError(caught instanceof Error ? caught.message : "可見範圍只能是對外或對內", 400);
+  }
   log(db, actorId, "PRODUCT", id, "UPDATE", `${user.name}更新產品「${product.name}」。`);
   persist();
   return { id };

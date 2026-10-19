@@ -125,6 +125,8 @@ export interface Product {
   primaryOwnerId: string;
   /** VERSIONED plans pick a release. FEATURE_ONLY plans set each feature on or off. */
   mode: ProductMode;
+  /** EXTERNAL is 對外. INTERNAL is 對內. */
+  audience: "EXTERNAL" | "INTERNAL";
 }
 
 export interface ProductVersion {

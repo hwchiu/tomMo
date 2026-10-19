@@ -392,7 +392,10 @@ func (s *Store) migrate() error {
 	if err := s.migrateMachineTypeNames(); err != nil {
 		return err
 	}
-	return s.migrateFactoryAttrs()
+	if err := s.migrateFactoryAttrs(); err != nil {
+		return err
+	}
+	return s.migrateProductAudience()
 }
 
 // migrateMachineTypeNames drops the legacy code column and renames the demo types.
@@ -503,6 +506,57 @@ func (s *Store) migrateFactoryAttrs() error {
 		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// migrateProductAudience adds 對外/對內. Existing rows default to 對外.
+// The four demo dependency products are marked 對內 when the column is new.
+func (s *Store) migrateProductAudience() error {
+	var n int
+	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 4`).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	rows, err := s.sql.Query(`PRAGMA table_info(products)`)
+	if err != nil {
+		return err
+	}
+	hasAudience := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if name == "audience" {
+			hasAudience = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	_ = rows.Close()
+	tx, err := s.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if !hasAudience {
+		if _, err := tx.Exec(`ALTER TABLE products ADD COLUMN audience TEXT NOT NULL DEFAULT 'EXTERNAL'`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE products SET audience = 'INTERNAL' WHERE name IN ('開發產品 Developer', '監控產品 Monitoring', '網路產品 Network', '安全產品 Security')`); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (4, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -637,8 +691,8 @@ func (s *Store) persist(ctx context.Context) error {
 		}
 	}
 	for _, row := range db.Products {
-		if _, err := tx.Exec(`INSERT INTO products(id, name, description, dev_department, project_department, primary_owner_id, mode) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			row.ID, row.Name, row.Description, row.DevDepartment, row.ProjectDepartment, row.PrimaryOwnerID, row.Mode); err != nil {
+		if _, err := tx.Exec(`INSERT INTO products(id, name, description, dev_department, project_department, primary_owner_id, mode, audience) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			row.ID, row.Name, row.Description, row.DevDepartment, row.ProjectDepartment, row.PrimaryOwnerID, row.Mode, row.Audience); err != nil {
 			return err
 		}
 	}
@@ -823,9 +877,9 @@ func (s *Store) load() (domain.Database, error) {
 	}); err != nil {
 		return db, err
 	}
-	if err := query(s.sql, `SELECT id, name, description, dev_department, project_department, primary_owner_id, mode FROM products ORDER BY rowid`, func(rows *sql.Rows) error {
+	if err := query(s.sql, `SELECT id, name, description, dev_department, project_department, primary_owner_id, mode, audience FROM products ORDER BY rowid`, func(rows *sql.Rows) error {
 		var row domain.Product
-		if err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.DevDepartment, &row.ProjectDepartment, &row.PrimaryOwnerID, &row.Mode); err != nil {
+		if err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.DevDepartment, &row.ProjectDepartment, &row.PrimaryOwnerID, &row.Mode, &row.Audience); err != nil {
 			return err
 		}
 		db.Products = append(db.Products, row)

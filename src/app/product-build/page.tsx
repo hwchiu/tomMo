@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { audienceFilter } from "@/domain/audience";
 import { ProductBuildView } from "@/components/product-build-view";
 
 export default function Page() {
@@ -18,6 +19,7 @@ function BuildQuery() {
     <ProductBuildView
       category={query.get("category") ?? ""}
       region={query.get("region") ?? ""}
+      audience={audienceFilter(query.get("audience"))}
       onlyExceptions={query.get("exceptions") === "1"}
     />
   );

@@ -1,6 +1,6 @@
 # 廠務協調台
 
-P0 coordination workspace for several factories moving through the same four phases. The screen that matters most is **產品建立 (Phase 2)**: each factory × product cell shows the deployment, the product team's plan, and whether that plan is ready for **開發者進駐**.
+P0 coordination workspace for several factories moving through the same four phases. The screen that matters most is **產品交付狀況** (`/product-build`): each factory × product cell shows the deployment, the product team's plan, and whether that plan is ready for **開發者進駐**.
 
 The GitHub Pages build keeps an in-browser mock. The Go binary in this repo serves the same JSON API from SQLite and embeds that frontend. See [docs/deployment-architecture.md](docs/deployment-architecture.md).
 
@@ -69,7 +69,7 @@ See [docs/deployment-architecture.md](docs/deployment-architecture.md). `SEED_MO
 
 已有資料的資料庫不會被清掉，也不會重灌。`none` 底下按「重設示範資料」會回 `400`「這個環境沒有示範資料可重設」。
 
-工廠類別只有 Giga 與 Phase，區域只有 HQ、JP、AZ、EU。這兩組寫在程式裡，管理頁不能增刪。工廠沒有製程或節點欄位，廠名就是廠。`factories.csv` 必填欄是 `code`、`name`、`category`、`region`、`pm`、`planned_start`、`planned_end`、`status`。舊檔若還有 `technology` 欄，匯入會當成不明欄位而失敗。
+工廠類別只有 Giga 與 Phase，區域只有 HQ、JP、AZ、EU。這兩組寫在程式裡，管理頁不能增刪。工廠沒有製程或節點欄位，廠名就是廠。畫面上的廠區負責人稱 TPM。`factories.csv` 必填欄是 `code`、`name`、`category`、`region`、`pm`、`planned_start`、`planned_end`、`status`。舊檔若還有 `technology` 欄，匯入會當成不明欄位而失敗。`products.csv` 可加 `audience`：`EXTERNAL`（對外）或 `INTERNAL`（對內）。沒填時當成對外。
 
 帳號用姓名對人。`demo` 把 admin 對到林品均、viewer 對到陳浩宇。`none` 把 admin 對到系統管理員；有設定 `INITIAL_VIEWER_PASSWORD` 時也建立 viewer，對到唯讀帳號。viewer 密碼留空時不建立 viewer 帳號，也不會替它產生隨機密碼。
 
@@ -225,11 +225,11 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 | Screen | Path | What it is for |
 | --- | --- | --- |
 | 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, overdue issues. Filter and group by 類別 / 區域. |
-| 產品建立 | `/product-build` | Factory × product grid. Status, version or 純功能開關, owners, per-factory machine total, and a grand total. |
-| 工廠 | `/factories` | Timeline, PM name and department, machine total, ad-hoc changes, topics, deployments, issues. |
+| 產品交付狀況 | `/product-build` | Factory × product grid. Status, version or 純功能開關, owners, per-factory machine total, and a grand total. Filter 對外 / 對內 / 全部. |
+| 工廠簡介 | `/factories` | Timeline, TPM name and department, machine total, ad-hoc changes, topics, deployments, issues. |
 | 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
-| 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
-| 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
+| 問題 | `/issues` | Blockers tied to a factory, phase, or product. Product can be a configured product or 其他. 優先序 is not shown. |
+| 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. Each product is 對外 or 對內. |
 | 管理 | `/admin` | 人員, 產品設定, and 機器設定 (EIA-*). One section at a time. Category, region, and 節點 are not edited here. Hidden from 使用者. `/settings` redirects to `/admin`. |
 
 Default phases, copied onto each new factory and still editable there:

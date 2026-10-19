@@ -152,10 +152,15 @@ func parseProducts(file string, idx map[string]int, rows []rawRow, ds *Dataset) 
 		}
 		seen[name] = true
 		errs = append(errs, oneOf(file, raw.line, mode, []string{"VERSIONED", "FEATURE_ONLY"}, "模式須為 VERSIONED 或 FEATURE_ONLY")...)
+		audience, errAudience := domain.NormalizeAudience(cell(raw.cells, idx, "audience"))
+		if errAudience != nil {
+			errs = append(errs, rowErr(file, raw.line, errAudience.Error()))
+			continue
+		}
 		ds.Products = append(ds.Products, ProductRow{
 			File: file, Row: raw.line, Name: name, Owner: owner, Mode: mode,
 			Description: cell(raw.cells, idx, "description"), DevDepartment: cell(raw.cells, idx, "dev_department"),
-			ProjectDepartment: cell(raw.cells, idx, "project_department"),
+			ProjectDepartment: cell(raw.cells, idx, "project_department"), Audience: audience,
 		})
 	}
 	return errs
@@ -244,7 +249,7 @@ func parseFactories(file string, idx map[string]int, rows []rawRow, ds *Dataset)
 			Description: cell(raw.cells, idx, "description"),
 		}
 		if row.Code == "" || row.Name == "" || rawCategory == "" || rawRegion == "" || row.PM == "" || row.Status == "" {
-			errs = append(errs, rowErr(file, raw.line, "工廠代碼、名稱、類別、區域、PM 與狀態必填"))
+			errs = append(errs, rowErr(file, raw.line, "工廠代碼、名稱、類別、區域、TPM 與狀態必填"))
 			continue
 		}
 		var catErr, regErr error

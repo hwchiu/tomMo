@@ -48,7 +48,7 @@ var specs = map[string]fileSpec{
 	},
 	FileProducts: {
 		required: []string{"name", "owner", "mode"},
-		all:      []string{"name", "owner", "mode", "description", "dev_department", "project_department"},
+		all:      []string{"name", "owner", "mode", "description", "dev_department", "project_department", "audience"},
 	},
 	FileFeatures: {
 		required: []string{"product", "name"},

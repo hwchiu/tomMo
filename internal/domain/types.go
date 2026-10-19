@@ -106,6 +106,8 @@ type Product struct {
 	ProjectDepartment string `json:"projectDepartment"`
 	PrimaryOwnerID    string `json:"primaryOwnerId"`
 	Mode              string `json:"mode"`
+	// Audience is EXTERNAL (對外) or INTERNAL (對內).
+	Audience string `json:"audience"`
 }
 
 type ProductVersion struct {
@@ -281,6 +283,11 @@ func Normalize(db *Database) {
 	db.Issues = nz(db.Issues)
 	db.Topics = nz(db.Topics)
 	db.Activity = nz(db.Activity)
+	for i := range db.Products {
+		if db.Products[i].Audience == "" {
+			db.Products[i].Audience = AudienceExternal
+		}
+	}
 	for i := range db.Phases {
 		db.Phases[i].DependsOnPhaseIds = nz(db.Phases[i].DependsOnPhaseIds)
 	}

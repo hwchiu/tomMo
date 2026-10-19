@@ -90,7 +90,7 @@ function Editor({ data }: { data: Awaited<ReturnType<typeof api.plan>> }) {
         note,
         intent,
       });
-      toast(intent === "submit" ? "計畫已送出，等待 PM 核准" : "草稿已儲存");
+      toast(intent === "submit" ? "計畫已送出，等待 TPM 核准" : "草稿已儲存");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "儲存失敗");
     } finally {
@@ -101,12 +101,12 @@ function Editor({ data }: { data: Awaited<ReturnType<typeof api.plan>> }) {
   return (
     <div>
       <PageHeader
-        kicker={`${data.factoryName} · 產品建立`}
+        kicker={`${data.factoryName} · 產品交付狀況`}
         title={`${data.productName}施工計畫`}
         description={
           featureOnly
-            ? "這個產品沒有版本，只使用功能開關。計畫要為每個功能選擇啟用或關閉。異動功能是相對預設被打開或關掉的項目。PM 核准且時程落在產品建立內，才算這個產品就緒。"
-            : "產品團隊提報將提供的版本、施工時間，以及這座廠的特殊異動（功能覆寫或文字說明）。PM 核准且時程落在產品建立內，才算這個產品就緒。時程超出階段仍可核准。平行施工的重疊不需要處理。"
+            ? "這個產品沒有版本，只使用功能開關。計畫要為每個功能選擇啟用或關閉。異動功能是相對預設被打開或關掉的項目。TPM 核准且時程落在交付階段內，才算這個產品就緒。"
+            : "產品團隊提報將提供的版本、施工時間，以及這座廠的特殊異動（功能覆寫或文字說明）。TPM 核准且時程落在交付階段內，才算這個產品就緒。時程超出階段仍可核准。平行施工的重疊不需要處理。"
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
@@ -252,7 +252,7 @@ function Editor({ data }: { data: Awaited<ReturnType<typeof api.plan>> }) {
                 });
               }}
             >
-              PM 核准
+              TPM 核准
             </Button>
           </div>
           <p className="mt-3 text-xs text-muted">

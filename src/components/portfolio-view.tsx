@@ -99,8 +99,8 @@ function PortfolioBody({
       <PageHeader
         kicker="Portfolio"
         title="組合總覽"
-        description="例外先看。工廠依類別與區域篩選；產品建立的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
-        actions={<TextLink href="/product-build">打開產品建立矩陣</TextLink>}
+        description="例外先看。工廠依類別與區域篩選；產品交付狀況的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
+        actions={<TextLink href="/product-build">打開產品交付狀況</TextLink>}
       />
       <Panel className="mb-4 p-4">
         <h2 className="mb-1 text-lg font-semibold">全廠時程</h2>
@@ -117,7 +117,7 @@ function PortfolioBody({
       </div>
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
         <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/product-build">未提報計畫 {missing}</Link>
-        <Link className="rounded-full bg-rose-50 px-3 py-1 text-rose-800" href="/product-build">超出產品建立 {outside}</Link>
+        <Link className="rounded-full bg-rose-50 px-3 py-1 text-rose-800" href="/product-build">超出階段 {outside}</Link>
         <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/product-build?exceptions=1">未就緒產品 {notReady}</Link>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
@@ -189,7 +189,7 @@ function PortfolioBody({
                         </div>
                       </div>
                       <div className="text-right text-sm">
-                        <div className="text-xs text-muted">廠區 PM</div>
+                        <div className="text-xs text-muted">廠區 TPM</div>
                         <div className="font-medium">{factory.pmName}</div>
                         <div className="text-xs text-muted">{factory.pmDepartment}</div>
                         <div className="mt-1 text-lg font-semibold tabular-nums">{factory.machineTotal} 台</div>
@@ -237,7 +237,7 @@ function PortfolioBody({
           )}
         </Panel>
         <Panel className="p-4">
-          <h2 className="mb-2 font-semibold">需要 PM 核准的計畫</h2>
+          <h2 className="mb-2 font-semibold">需要 TPM 核准的計畫</h2>
           {needing.length === 0 ? <p className="text-sm text-muted">沒有已提報、等待核准的產品計畫。</p> : (
             <ul className="space-y-2 text-sm">
               {needing.map((plan) => (

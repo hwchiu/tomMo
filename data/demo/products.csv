@@ -1,8 +1,8 @@
-name,owner,mode,description,dev_department,project_department
-運算產品 Compute,張承恩,VERSIONED,GPU／CPU 機櫃、液冷與排程。,運算開發處,產品專案一處
-儲存產品 Storage,王雅婷,VERSIONED,熱溫冷分層、快照與跨廠複製。,儲存開發處,產品專案一處
-資料產品 Data,劉子豪,FEATURE_ONLY,訓練資料血緣、特徵庫與批次追溯。只有功能開關，沒有版本。,資料產品處,產品專案二處
-開發產品 Developer,吳佩蓉,FEATURE_ONLY,映像倉庫、沙箱與 IDE 閘道。只有功能開關，沒有版本。,開發者產品處,產品專案二處
-監控產品 Monitoring,鄭凱翔,FEATURE_ONLY,告警路由、遠端診斷與 OEE。只有功能開關，沒有版本。,監控產品處,廠務可靠度處
-網路產品 Network,馬怡君,VERSIONED,廠區骨幹、路由與流量調度。,網路開發處,產品專案一處
-安全產品 Security,宋柏廷,FEATURE_ONLY,弱點掃描、應用防火牆與帳號同步。只有功能開關，沒有版本。,安全產品處,廠務可靠度處
+name,owner,mode,description,dev_department,project_department,audience
+運算產品 Compute,張承恩,VERSIONED,GPU／CPU 機櫃、液冷與排程。,運算開發處,產品專案一處,EXTERNAL
+儲存產品 Storage,王雅婷,VERSIONED,熱溫冷分層、快照與跨廠複製。,儲存開發處,產品專案一處,EXTERNAL
+資料產品 Data,劉子豪,FEATURE_ONLY,訓練資料血緣、特徵庫與批次追溯。只有功能開關，沒有版本。,資料產品處,產品專案二處,EXTERNAL
+開發產品 Developer,吳佩蓉,FEATURE_ONLY,映像倉庫、沙箱與 IDE 閘道。只有功能開關，沒有版本。,開發者產品處,產品專案二處,INTERNAL
+監控產品 Monitoring,鄭凱翔,FEATURE_ONLY,告警路由、遠端診斷與 OEE。只有功能開關，沒有版本。,監控產品處,廠務可靠度處,INTERNAL
+網路產品 Network,馬怡君,VERSIONED,廠區骨幹、路由與流量調度。,網路開發處,產品專案一處,INTERNAL
+安全產品 Security,宋柏廷,FEATURE_ONLY,弱點掃描、應用防火牆與帳號同步。只有功能開關，沒有版本。,安全產品處,廠務可靠度處,INTERNAL

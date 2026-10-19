@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS products (
   dev_department TEXT NOT NULL,
   project_department TEXT NOT NULL,
   primary_owner_id TEXT NOT NULL,
-  mode TEXT NOT NULL
+  mode TEXT NOT NULL,
+  audience TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS product_versions (

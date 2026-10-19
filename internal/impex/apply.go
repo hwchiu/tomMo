@@ -171,20 +171,21 @@ func (w *world) products() {
 			id := w.id("prd")
 			w.db.Products = append(w.db.Products, domain.Product{
 				ID: id, Name: row.Name, Description: row.Description, DevDepartment: row.DevDepartment,
-				ProjectDepartment: row.ProjectDepartment, PrimaryOwnerID: owner, Mode: row.Mode,
+				ProjectDepartment: row.ProjectDepartment, PrimaryOwnerID: owner, Mode: row.Mode, Audience: row.Audience,
 			})
 			w.rep.add(row.File, row.Row, true, false, entProduct, row.Name)
 			w.act("PRODUCT", id, "CREATE", "匯入產品"+row.Name, owner)
 			continue
 		}
 		item := &w.db.Products[idx]
-		changed := item.Description != row.Description || item.DevDepartment != row.DevDepartment || item.ProjectDepartment != row.ProjectDepartment || item.PrimaryOwnerID != owner || item.Mode != row.Mode
+		changed := item.Description != row.Description || item.DevDepartment != row.DevDepartment || item.ProjectDepartment != row.ProjectDepartment || item.PrimaryOwnerID != owner || item.Mode != row.Mode || item.Audience != row.Audience
 		if changed {
 			item.Description = row.Description
 			item.DevDepartment = row.DevDepartment
 			item.ProjectDepartment = row.ProjectDepartment
 			item.PrimaryOwnerID = owner
 			item.Mode = row.Mode
+			item.Audience = row.Audience
 			w.act("PRODUCT", item.ID, "UPDATE", "更新產品"+row.Name, owner)
 		}
 		w.rep.add(row.File, row.Row, false, changed, entProduct, row.Name)

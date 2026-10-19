@@ -826,6 +826,10 @@ components:
       type: string
       enum: [VERSIONED, FEATURE_ONLY]
       description: VERSIONED plans choose a release. FEATURE_ONLY plans set each feature on or off.
+    ProductAudience:
+      type: string
+      enum: [EXTERNAL, INTERNAL]
+      description: EXTERNAL is 對外 (delivered to end users). INTERNAL is 對內 (usually a dependency of an 對外 product). Empty input defaults to EXTERNAL.
     ChangeType:
       type: string
       enum: [ADDED, REMOVED, CHANGED]
@@ -943,7 +947,7 @@ components:
         description: { type: string }
         factoryId: { type: string }
         phaseId: { type: string, nullable: true }
-        productId: { type: string, nullable: true }
+        productId: { type: string, nullable: true, description: A product id, or the literal other for 其他. }
         ownerId: { type: string }
         severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
         priority: { type: string, enum: [P0, P1, P2, P3] }
@@ -961,6 +965,7 @@ components:
         projectDepartment: { type: string }
         primaryOwnerId: { type: string }
         mode: { $ref: "#/components/schemas/ProductMode" }
+        audience: { $ref: "#/components/schemas/ProductAudience" }
     DeploymentWrite:
       type: object
       properties:

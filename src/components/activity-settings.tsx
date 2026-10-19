@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/api";
 import type { ProductSummary } from "@/api/types";
+import { audienceLabel, productAudiences, type ProductAudience } from "@/domain/audience";
 import { productModeLabel } from "@/domain/labels";
 import type { MachineType, Person, ProductMode } from "@/domain/types";
 import { useApp, useEditor } from "@/components/shell";
@@ -74,7 +75,7 @@ function ProductSettings({
   return (
     <Panel className="p-4">
       <h2 className="mb-1 font-semibold">產品設定</h2>
-      <p className="mb-3 text-xs text-muted">新增與修改產品。版本與各廠部署仍在產品頁。這裡沒有刪除。</p>
+      <p className="mb-3 text-xs text-muted">新增與修改產品，並標成對外或對內。版本與各廠部署仍在產品頁。這裡沒有刪除。</p>
       <AsyncView state={state} skeleton={<Skeleton className="h-40" />}>
         {(data) => (
           <ul className="divide-y divide-line">
@@ -106,11 +107,12 @@ function ProductRow({
   const [projectDepartment, setProjectDepartment] = useState(product.projectDepartment);
   const [primaryOwnerId, setPrimaryOwnerId] = useState(product.primaryOwnerId);
   const [mode, setMode] = useState<ProductMode>(product.mode === "FEATURE_ONLY" ? "FEATURE_ONLY" : "VERSIONED");
+  const [audience, setAudience] = useState<ProductAudience>(product.audience === "INTERNAL" ? "INTERNAL" : "EXTERNAL");
   return (
     <li className="py-3 text-sm">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <Link href={`/products/${product.id}`} className="font-medium hover:underline">{product.name}</Link>
-        <span className="text-xs text-muted">{product.mode === "FEATURE_ONLY" ? productModeLabel.FEATURE_ONLY : product.latestVersion ?? "有版本"}</span>
+        <span className="text-xs text-muted">{audienceLabel(product.audience)} · {product.mode === "FEATURE_ONLY" ? productModeLabel.FEATURE_ONLY : product.latestVersion ?? "有版本"}</span>
       </div>
       {editor ? (
         <div className="grid gap-2 md:grid-cols-2">
@@ -124,6 +126,11 @@ function ProductRow({
           </Field>
           <Field label="開發部門"><input className={controlClass} value={devDepartment} onChange={(event) => setDevDepartment(event.target.value)} /></Field>
           <Field label="專案部門"><input className={controlClass} value={projectDepartment} onChange={(event) => setProjectDepartment(event.target.value)} /></Field>
+          <Field label="可見範圍">
+            <select className={controlClass} value={audience} onChange={(event) => setAudience(event.target.value as ProductAudience)}>
+              {productAudiences.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
+            </select>
+          </Field>
           <Field label="版本模式">
             <select className={controlClass} value={mode} onChange={(event) => setMode(event.target.value as ProductMode)}>
               <option value="VERSIONED">有版本</option>
@@ -142,6 +149,7 @@ function ProductRow({
                   projectDepartment,
                   primaryOwnerId,
                   mode,
+                  audience,
                 }).then(() => toast("產品已更新")).catch((caught: unknown) => onError(caught instanceof Error ? caught.message : "失敗"));
               }}
             >
@@ -150,7 +158,7 @@ function ProductRow({
           </div>
         </div>
       ) : (
-        <p className="text-xs text-muted">{product.devDepartment} · {product.projectDepartment} · 主責 {product.primaryOwnerName}</p>
+        <p className="text-xs text-muted">{audienceLabel(product.audience)} · {product.devDepartment} · {product.projectDepartment} · 主責 {product.primaryOwnerName}</p>
       )}
     </li>
   );
@@ -178,6 +186,7 @@ function CreateProductForm({
           projectDepartment: String(form.get("projectDepartment") ?? ""),
           primaryOwnerId: String(form.get("primaryOwnerId") ?? ""),
           mode: String(form.get("mode") ?? "VERSIONED") as ProductMode,
+          audience: String(form.get("audience") ?? "EXTERNAL") as ProductAudience,
         }).then(() => {
           toast("產品已建立");
           event.currentTarget.reset();
@@ -194,6 +203,11 @@ function CreateProductForm({
       </Field>
       <Field label="開發部門"><input name="devDepartment" className={controlClass} /></Field>
       <Field label="專案部門"><input name="projectDepartment" className={controlClass} /></Field>
+      <Field label="可見範圍">
+        <select name="audience" className={controlClass} defaultValue="EXTERNAL">
+          {productAudiences.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
+        </select>
+      </Field>
       <Field label="版本模式">
         <select name="mode" className={controlClass} defaultValue="VERSIONED">
           <option value="VERSIONED">有版本</option>

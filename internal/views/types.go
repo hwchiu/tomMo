@@ -164,6 +164,7 @@ type ProductBuild struct {
 		Name             string `json:"name"`
 		PrimaryOwnerName string `json:"primaryOwnerName"`
 		Mode             string `json:"mode"`
+		Audience         string `json:"audience"`
 	} `json:"products"`
 	Rows []BuildRow `json:"rows"`
 }
@@ -331,6 +332,7 @@ type ProductSummary struct {
 	PrimaryOwnerID    string  `json:"primaryOwnerId"`
 	PrimaryOwnerName  string  `json:"primaryOwnerName"`
 	Mode              string  `json:"mode"`
+	Audience          string  `json:"audience"`
 	VersionCount      int     `json:"versionCount"`
 	LatestVersion     *string `json:"latestVersion"`
 	OutdatedFactories int     `json:"outdatedFactories"`

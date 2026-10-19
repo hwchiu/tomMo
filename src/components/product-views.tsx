@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/api";
+import { audienceLabel, productAudiences, type ProductAudience } from "@/domain/audience";
 import { productModeLabel } from "@/domain/labels";
 import type { ProductMode } from "@/domain/types";
 import { useApp, WhenEditor } from "@/components/shell";
@@ -31,6 +32,7 @@ export function ProductList() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h2 className="text-lg font-semibold">{product.name}</h2>
+                    <span className="mt-1 inline-flex rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-900">{audienceLabel(product.audience)}</span>
                   </div>
                   <span className="text-sm text-muted">{product.mode === "FEATURE_ONLY" ? productModeLabel.FEATURE_ONLY : product.latestVersion ?? "無版本"}</span>
                 </div>
@@ -59,7 +61,7 @@ export function ProductDetailView({ id }: { id: string }) {
             description={data.description}
             actions={<WhenEditor><Link href={`/products/${data.id}/edit`} className="text-sm text-accent">編輯名稱與主責</Link></WhenEditor>}
           />
-          <div className="mb-4 text-sm text-muted">{data.devDepartment} / {data.projectDepartment} · 主責 {data.primaryOwnerName} · {data.mode === "FEATURE_ONLY" ? productModeLabel.FEATURE_ONLY : `最新 ${data.latestVersion ?? "—"}`}</div>
+          <div className="mb-4 text-sm text-muted">{audienceLabel(data.audience)} · {data.devDepartment} / {data.projectDepartment} · 主責 {data.primaryOwnerName} · {data.mode === "FEATURE_ONLY" ? productModeLabel.FEATURE_ONLY : `最新 ${data.latestVersion ?? "—"}`}</div>
           <Panel className="mb-4 p-4">
             {data.mode === "FEATURE_ONLY" ? (
               <>
@@ -146,6 +148,7 @@ export function ProductEditor({ id }: { id?: string }) {
               projectDepartment: String(form.get("projectDepartment") ?? ""),
               primaryOwnerId: String(form.get("primaryOwnerId") ?? ""),
               mode: String(form.get("mode") ?? "VERSIONED") as ProductMode,
+              audience: String(form.get("audience") ?? "EXTERNAL") as ProductAudience,
             };
             const action = id ? api.updateProduct(id, body) : api.createProduct(body);
             void action.then((result) => {
@@ -160,6 +163,11 @@ export function ProductEditor({ id }: { id?: string }) {
           <Field label="主責">
             <select name="primaryOwnerId" className={controlClass} defaultValue={data?.primaryOwnerId ?? app.actor.id}>
               {app.people.filter((person) => person.active || person.id === data?.primaryOwnerId).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
+            </select>
+          </Field>
+          <Field label="可見範圍" hint="對外是交給使用者的產品。對內多半是對外產品會用到的依賴。">
+            <select name="audience" className={controlClass} defaultValue={data?.audience ?? "EXTERNAL"}>
+              {productAudiences.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
             </select>
           </Field>
           <Field label="版本模式" hint="純功能開關的產品沒有版本，各廠計畫只填功能開關。">

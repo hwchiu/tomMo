@@ -121,6 +121,7 @@ type ProductInput struct {
 	ProjectDepartment string `json:"projectDepartment"`
 	PrimaryOwnerID    string `json:"primaryOwnerId"`
 	Mode              string `json:"mode"`
+	Audience          string `json:"audience"`
 }
 
 type MachineTypeInput struct {
@@ -896,7 +897,7 @@ func ApprovePlan(db *domain.Database, actorID, factoryID, productID string) (idB
 		PlannedFeatures:   append([]domain.PlannedFeature(nil), plan.PlannedFeatures...),
 		AdHocChanges:      append([]domain.AdHocChange(nil), plan.AdHocChanges...),
 		ConstructionStart: plan.ConstructionStart, ConstructionEnd: plan.ConstructionEnd,
-		Machines: snapshotMachines(db, plan.DeploymentID), ActorID: user.ID, CreatedAt: nowISO(), Note: "PM 核准",
+		Machines: snapshotMachines(db, plan.DeploymentID), ActorID: user.ID, CreatedAt: nowISO(), Note: "TPM 核准",
 	})
 	pidx := indexProduct(db, productID)
 	if pidx < 0 {
@@ -918,6 +919,10 @@ func CreateProduct(db *domain.Database, actorID string, input ProductInput) (idB
 	if input.Mode != "VERSIONED" && input.Mode != "FEATURE_ONLY" {
 		return idBody{}, apierr.New(400, "請選擇版本模式或僅功能開關")
 	}
+	audience, err := domain.NormalizeAudience(input.Audience)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
+	}
 	if err := requirePerson(db, input.PrimaryOwnerID); err != nil {
 		return idBody{}, err
 	}
@@ -925,7 +930,7 @@ func CreateProduct(db *domain.Database, actorID string, input ProductInput) (idB
 	db.Products = append(db.Products, domain.Product{
 		ID: id, Name: name, Description: strings.TrimSpace(input.Description),
 		DevDepartment: strings.TrimSpace(input.DevDepartment), ProjectDepartment: strings.TrimSpace(input.ProjectDepartment),
-		PrimaryOwnerID: input.PrimaryOwnerID, Mode: input.Mode,
+		PrimaryOwnerID: input.PrimaryOwnerID, Mode: input.Mode, Audience: audience,
 	})
 	for _, factory := range db.Factories {
 		if err := ensureDeployment(db, factory.ID, id, factory.PMID); err != nil {
@@ -961,7 +966,12 @@ func UpdateProduct(db *domain.Database, actorID, id string, input ProductInput) 
 	if err := validateProductMode(input.Mode); err != nil {
 		return idBody{}, err
 	}
+	audience, err := domain.NormalizeAudience(input.Audience)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
+	}
 	product.Mode = input.Mode
+	product.Audience = audience
 	logAct(db, actorID, "PRODUCT", id, "UPDATE", fmt.Sprintf("%s更新產品「%s」。", user.Name, product.Name))
 	return idBody{ID: id}, nil
 }

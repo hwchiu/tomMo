@@ -161,6 +161,7 @@ interface ProductBody {
   projectDepartment: string;
   primaryOwnerId: string;
   mode: ProductMode;
+  audience: "EXTERNAL" | "INTERNAL";
 }
 
 interface DeploymentBody {

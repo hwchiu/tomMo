@@ -1,3 +1,4 @@
+import { issueProductOther } from "@/domain/audience";
 import { factoryCategoryLabel, factoryRegionLabel } from "@/domain/factory-attr";
 import { capabilityCell, isFeaturePlanComplete } from "@/domain/features";
 import { plannedTotal } from "@/domain/machines";
@@ -70,6 +71,7 @@ export function buildProductBuild(db: Database): ProductBuild {
     name: product.name,
     primaryOwnerName: nameOf(db, product.primaryOwnerId),
     mode: product.mode,
+    audience: product.audience === "INTERNAL" ? "INTERNAL" as const : "EXTERNAL" as const,
   }));
   const rows = db.factories.map((factory) => buildRow(db, factory.id, products.map((product) => product.id)));
   return { asOf: db.asOf, products, rows };
@@ -739,7 +741,7 @@ function issueItem(db: Database, issue: Database["issues"][number]): IssueListIt
     phaseId: issue.phaseId,
     phaseName: issue.phaseId ? db.phases.find((phase) => phase.id === issue.phaseId)?.name ?? null : null,
     productId: issue.productId,
-    productName: issue.productId ? mustProduct(db, issue.productId).name : null,
+    productName: issue.productId === issueProductOther ? "其他" : issue.productId ? mustProduct(db, issue.productId).name : null,
     ownerId: issue.ownerId,
     ownerName: nameOf(db, issue.ownerId),
     severity: issue.severity,
@@ -769,6 +771,7 @@ function platformSummary(db: Database, id: string): ProductSummary {
     primaryOwnerId: product.primaryOwnerId,
     primaryOwnerName: nameOf(db, product.primaryOwnerId),
     mode: product.mode,
+    audience: product.audience === "INTERNAL" ? "INTERNAL" as const : "EXTERNAL" as const,
     versionCount: db.versions.filter((version) => version.productId === id).length,
     latestVersion: latest,
     outdatedFactories: outdated,

@@ -171,6 +171,7 @@ export interface ProductBuild {
     name: string;
     primaryOwnerName: string;
     mode: ProductMode;
+    audience: "EXTERNAL" | "INTERNAL";
   }>;
   rows: BuildRow[];
 }
@@ -309,6 +310,7 @@ export interface ProductSummary {
   primaryOwnerId: string;
   primaryOwnerName: string;
   mode: ProductMode;
+  audience: "EXTERNAL" | "INTERNAL";
   versionCount: number;
   latestVersion: string | null;
   outdatedFactories: number;

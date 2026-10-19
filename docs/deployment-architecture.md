@@ -86,7 +86,7 @@ Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-For
 
 都沒設定時，伺服器為這次會建立的帳號產生隨機密碼（192 bits），寫到 `$DATA_DIR/initial-credentials.txt`（權限 0600），log 只記錄檔案路徑，不印密碼。`SEED_MODE=none` 且 viewer 密碼留空時只會產生編輯者的密碼。只有本機開發明確設定 `LOG_INITIAL_PASSWORDS=true` 才會把產生的密碼印到 log。不要在程式裡放固定密碼；本機要固定帳密時，自己設 `INITIAL_ADMIN_PASSWORD` 與 `INITIAL_VIEWER_PASSWORD`。`SESSION_SECRET` 未設定時，每次啟動產生新的金鑰，已發出的 session 在重啟後失效。
 
-登入頁的示範帳號提示只在 `admin` 的密碼仍是公開的 `admin` 時出現，不會顯示 Secret 或產生的密碼。
+伺服器的登入頁不顯示密碼。靜態 GitHub Pages 示範只列出帳號名稱，不把密碼寫進程式。
 
 Kubernetes 安裝時用隨機值建立 Secret：
 

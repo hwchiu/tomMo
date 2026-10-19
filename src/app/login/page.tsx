@@ -62,7 +62,7 @@ export default function LoginPage() {
         </form>
         {showHint ? (
           <p className="mt-4 text-xs leading-5 text-muted">
-            示範帳號：admin / admin（編輯者）、viewer / viewer（使用者）。
+            示範帳號：admin（編輯者）、viewer（使用者）。靜態示範只核對帳號，密碼請自行輸入。
           </p>
         ) : null}
       </div>

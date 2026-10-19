@@ -13,6 +13,11 @@ import (
 	"fpm/internal/domain"
 )
 
+const (
+	maxCSVRows = 5000
+	maxCSVCols = 64
+)
+
 type rawRow struct {
 	line  int
 	cells []string
@@ -42,6 +47,9 @@ func decodeCSV(file, text string) ([]rawRow, []RowError) {
 			}
 			return nil, []RowError{{File: file, Row: line, Message: "CSV 格式不正確"}}
 		}
+		if len(rec) > maxCSVCols {
+			return nil, []RowError{{File: file, Message: "欄位過多"}}
+		}
 		line, _ := reader.FieldPos(0)
 		blank := true
 		for i := range rec {
@@ -54,6 +62,9 @@ func decodeCSV(file, text string) ([]rawRow, []RowError) {
 			continue
 		}
 		rows = append(rows, rawRow{line: line, cells: rec})
+		if len(rows) > maxCSVRows {
+			return nil, []RowError{{File: file, Message: "資料列過多"}}
+		}
 	}
 	if len(rows) == 0 {
 		return nil, []RowError{{File: file, Message: "檔案是空的"}}
@@ -68,12 +79,29 @@ func encodeCSV(headers []string, records [][]string) (string, error) {
 		return "", err
 	}
 	for _, rec := range records {
-		if err := w.Write(rec); err != nil {
+		safe := make([]string, len(rec))
+		for i, value := range rec {
+			safe[i] = neutralizeFormula(value)
+		}
+		if err := w.Write(safe); err != nil {
 			return "", err
 		}
 	}
 	w.Flush()
 	return buf.String(), w.Error()
+}
+
+// neutralizeFormula stops spreadsheet apps from treating an exported cell as a formula.
+func neutralizeFormula(value string) string {
+	if value == "" {
+		return value
+	}
+	switch value[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + value
+	default:
+		return value
+	}
 }
 
 func indexHeaders(file string, header []string, required, allowed []string) (map[string]int, []RowError) {

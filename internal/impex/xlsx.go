@@ -10,6 +10,12 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// workbookLimits cap uncompressed xlsx contents so a small zip cannot expand without bound.
+var workbookLimits = excelize.Options{
+	UnzipSizeLimit:    32 << 20,
+	UnzipXMLSizeLimit: 32 << 20,
+}
+
 // WriteXLSX encodes CSV texts into one workbook, one sheet per file.
 func WriteXLSX(files map[string]string) ([]byte, error) {
 	book := excelize.NewFile()
@@ -57,7 +63,7 @@ func WriteXLSX(files map[string]string) ([]byte, error) {
 
 // XLSXFiles converts known sheets into CSV texts keyed by people.csv and the other file names.
 func XLSXFiles(r io.Reader) (map[string]string, Report) {
-	book, err := excelize.OpenReader(r)
+	book, err := excelize.OpenReader(r, workbookLimits)
 	if err != nil {
 		rep := Report{Errors: []RowError{{Message: "無法讀取 xlsx"}}}
 		rep.normalize()
@@ -78,6 +84,10 @@ func XLSXFiles(r io.Reader) (map[string]string, Report) {
 		grid, err := book.GetRows(sheet)
 		if err != nil {
 			rep.Errors = append(rep.Errors, RowError{File: sheet, Message: "無法讀取工作表"})
+			continue
+		}
+		if len(grid) > maxCSVRows {
+			rep.Errors = append(rep.Errors, RowError{File: sheet, Message: "資料列過多"})
 			continue
 		}
 		text, err := gridCSV(grid)
@@ -105,7 +115,7 @@ func gridCSV(grid [][]string) (string, error) {
 
 // ParseXLSX reads a workbook. Sheet names match the CSV file names without ".csv".
 func ParseXLSX(filename string, r io.Reader) (Dataset, Report) {
-	book, err := excelize.OpenReader(r)
+	book, err := excelize.OpenReader(r, workbookLimits)
 	if err != nil {
 		rep := Report{Errors: []RowError{{File: filename, Message: "無法讀取 xlsx"}}}
 		rep.normalize()
@@ -117,6 +127,11 @@ func ParseXLSX(filename string, r io.Reader) (Dataset, Report) {
 		grid, err := book.GetRows(sheet)
 		if err != nil {
 			rep := Report{Errors: []RowError{{File: filename + ":" + sheet, Message: "無法讀取工作表"}}}
+			rep.normalize()
+			return Dataset{}, rep
+		}
+		if len(grid) > maxCSVRows {
+			rep := Report{Errors: []RowError{{File: filename + ":" + sheet, Message: "資料列過多"}}}
 			rep.normalize()
 			return Dataset{}, rep
 		}

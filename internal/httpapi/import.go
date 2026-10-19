@@ -48,6 +48,16 @@ func (s *Server) serveImport(w http.ResponseWriter, r *http.Request, principal a
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "請求格式不正確"})
 		return
 	}
+	if len(body.Files) > len(impex.FileOrder) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "檔案過多"})
+		return
+	}
+	for _, text := range body.Files {
+		if len(text) > 1<<20 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "檔案過大"})
+			return
+		}
+	}
 	ds, rep := impex.ParseFiles(body.Files)
 	if len(rep.Errors) > 0 {
 		writeJSON(w, http.StatusBadRequest, rep)

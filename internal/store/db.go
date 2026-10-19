@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"fpm/internal/apierr"
 	"fpm/internal/domain"
 	"fpm/internal/impex"
+	"fpm/internal/safeio"
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
@@ -62,7 +62,11 @@ func OpenWith(dataDir, mode string) (*Store, error) {
 	if mode != SeedDemo && mode != SeedNone {
 		return nil, fmt.Errorf("SEED_MODE 必須是 none 或 demo")
 	}
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+	dataDir, err := safeio.UserPath(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := safeio.MkdirAll(dataDir); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dataDir, "app.db")

@@ -18,6 +18,28 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func TestEmptySessionSecretIsNotShared(t *testing.T) {
+	newServer := func() *Server {
+		t.Helper()
+		srv, err := New(Config{
+			DataDir: t.TempDir(), AdminUsername: "admin", AdminPassword: "ephemeral-admin",
+			ViewerUsername: "viewer", ViewerPassword: "ephemeral-viewer", BcryptCost: bcrypt.MinCost,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = srv.Close() })
+		return srv
+	}
+	first := newServer()
+	second := newServer()
+	cookie := login(t, first, "admin", "ephemeral-admin")
+	rec := do(second, http.MethodGet, "/api/v1/portfolio", cookie, nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("cookie from another process secret was accepted: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestGeneratedPasswordsWrittenToFileNotLog(t *testing.T) {
 	dir := t.TempDir()
 	var buf bytes.Buffer

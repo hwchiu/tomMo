@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"fpm/internal/httpapi"
+	"fpm/internal/safeio"
 )
 
 func main() {
@@ -28,16 +29,11 @@ func main() {
 		os.Exit(1)
 	}
 	if truthy(os.Getenv("DEV_DEFAULT_PASSWORDS")) {
-		if adminPassword == "" {
-			adminPassword = "admin"
-		}
-		if viewerPassword == "" {
-			viewerPassword = "viewer"
-		}
+		logger.Warn("DEV_DEFAULT_PASSWORDS is ignored; unset passwords are generated and written to the credentials file")
 	}
 	cfg := httpapi.Config{
 		DataDir:        env("DATA_DIR", "data"),
-		SessionSecret:  env("SESSION_SECRET", "dev-session-secret"),
+		SessionSecret:  os.Getenv("SESSION_SECRET"),
 		AdminUsername:  env("ADMIN_USERNAME", "admin"),
 		AdminPassword:  adminPassword,
 		ViewerUsername: env("VIEWER_USERNAME", "viewer"),
@@ -79,7 +75,7 @@ func initialPassword(name, legacy string) (string, error) {
 		return v, nil
 	}
 	if path := os.Getenv(name + "_FILE"); path != "" {
-		raw, err := os.ReadFile(path)
+		raw, err := safeio.ReadFile(path)
 		if err != nil {
 			return "", fmt.Errorf("read %s_FILE: %w", name, err)
 		}

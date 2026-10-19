@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,8 +11,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +18,7 @@ import (
 	"fpm/internal/auth"
 	"fpm/internal/domain"
 	"fpm/internal/impex"
+	"fpm/internal/safeio"
 	"fpm/internal/store"
 	"fpm/internal/views"
 	"fpm/web"
@@ -55,7 +56,11 @@ func New(cfg Config) (*Server, error) {
 		cfg.DataDir = "data"
 	}
 	if cfg.SessionSecret == "" {
-		cfg.SessionSecret = "dev-session-secret"
+		secret, err := randomSessionSecret()
+		if err != nil {
+			return nil, err
+		}
+		cfg.SessionSecret = secret
 	}
 	if cfg.AdminUsername == "" {
 		cfg.AdminUsername = "admin"
@@ -538,9 +543,16 @@ func (s *Server) writeErr(w http.ResponseWriter, err error) {
 // CredentialsFileName holds passwords generated at bootstrap, mode 0600 under DATA_DIR.
 const CredentialsFileName = "initial-credentials.txt"
 
+func randomSessionSecret() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
 func writeCredentialsFile(dir string, creds []store.GeneratedCredential) (string, error) {
-	path := filepath.Join(dir, CredentialsFileName)
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	f, err := safeio.OpenAppendUnder(dir, CredentialsFileName)
 	if err != nil {
 		return "", err
 	}
@@ -553,5 +565,5 @@ func writeCredentialsFile(dir string, creds []store.GeneratedCredential) (string
 			return "", err
 		}
 	}
-	return path, f.Sync()
+	return f.Name(), f.Sync()
 }

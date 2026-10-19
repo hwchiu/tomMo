@@ -27,14 +27,14 @@ Go monolith (app at `/`, cookie session, SQLite):
 ```bash
 NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_BASE_PATH= npm run build
 rm -rf web/dist && cp -a out web/dist
-DEV_DEFAULT_PASSWORDS=true go run ./cmd/server
+LOG_INITIAL_PASSWORDS=true go run ./cmd/server
 ```
 
-Or `docker build -t fpm .` then `docker run --rm -p 8080:8080 -e DEV_DEFAULT_PASSWORDS=true -e SESSION_SECRET=dev-session-secret fpm`.
+Or `docker build -t fpm .` then `docker run --rm -p 8080:8080 -e INITIAL_ADMIN_PASSWORD -e INITIAL_VIEWER_PASSWORD -e SESSION_SECRET fpm` with those values set in the environment. Do not bake passwords into the image.
 
 Open [http://localhost:8080/login/](http://localhost:8080/login/).
 
-Accounts when `SEED_MODE=demo`: `admin`（編輯者，林品均）and `viewer`（使用者，陳浩宇）. Initial passwords come from `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD` (or `*_FILE` pointing at a mounted secret file) and are used only when the account does not exist yet. If unset, random passwords are generated and written to `$DATA_DIR/initial-credentials.txt` (0600); the log only shows that path. For local dev, `DEV_DEFAULT_PASSWORDS=true` uses `admin` / `admin` and `viewer` / `viewer`; `LOG_INITIAL_PASSWORDS=true` prints generated passwords (dev only).
+Accounts when `SEED_MODE=demo`: `admin`（編輯者，林品均）and `viewer`（使用者，陳浩宇）. Initial passwords come from `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD` (or `*_FILE` pointing at a mounted secret file) and are used only when the account does not exist yet. If unset, random passwords are generated and written to `$DATA_DIR/initial-credentials.txt` (0600); the log only shows that path. `LOG_INITIAL_PASSWORDS=true` prints generated passwords (dev only). `SESSION_SECRET` must be set for sessions to survive a restart; when it is unset the process generates an ephemeral secret.
 
 Kubernetes install with random secrets:
 

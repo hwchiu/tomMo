@@ -3,13 +3,18 @@ package impex
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"fpm/internal/safeio"
 )
 
 // ReadDir loads known CSV files from a directory.
 func ReadDir(dir string) (map[string]string, error) {
-	entries, err := os.ReadDir(dir)
+	cleaned, err := safeio.UserPath(dir)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(cleaned)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +30,7 @@ func ReadDir(dir string) (map[string]string, error) {
 		if !KnownFile(name) {
 			return nil, fmt.Errorf("不支援的檔案 %s", name)
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, name))
+		raw, err := safeio.ReadFileUnder(cleaned, name)
 		if err != nil {
 			return nil, err
 		}
@@ -37,9 +42,13 @@ func ReadDir(dir string) (map[string]string, error) {
 	return out, nil
 }
 
-// WriteDir writes CSV texts into dir, creating it if needed.
+// WriteDir writes CSV texts into dir, creating it at 0750 if needed.
 func WriteDir(dir string, files map[string]string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := safeio.MkdirAll(dir); err != nil {
+		return err
+	}
+	cleaned, err := safeio.UserPath(dir)
+	if err != nil {
 		return err
 	}
 	for _, name := range FileOrder {
@@ -47,7 +56,7 @@ func WriteDir(dir string, files map[string]string) error {
 		if !ok {
 			continue
 		}
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
+		if err := safeio.WriteFileUnder(cleaned, name, []byte(text)); err != nil {
 			return err
 		}
 	}

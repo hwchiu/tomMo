@@ -4,29 +4,26 @@ import { useState } from "react";
 import { api } from "@/api";
 import type { Person } from "@/domain/types";
 import { useEditor } from "@/components/shell";
-import { AsyncView, Button, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
+import { AsyncView, Button, Field, Panel, Skeleton, controlClass } from "@/components/ui";
 import { toast } from "@/lib/toast";
 import { useLiveQuery } from "@/lib/use-live-query";
 
-export function AdminView() {
+export function PeopleDirectory() {
   const state = useLiveQuery("people", () => api.people());
   const editor = useEditor();
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-80" />}>
-      {(data) => <Body people={data.items} editor={editor} />}
+      {(data) => <PeopleBody people={data.items} editor={editor} />}
     </AsyncView>
   );
 }
 
-function Body({ people, editor }: { people: Person[]; editor: boolean }) {
+function PeopleBody({ people, editor }: { people: Person[]; editor: boolean }) {
   const [error, setError] = useState<string | null>(null);
   return (
     <div>
-      <PageHeader
-        kicker="Admin"
-        title="管理介面"
-        description="人員目錄只有姓名與部門。負責人、廠務 PM 與副責都從這裡挑選。外部目錄同步的人員不能在這裡改。"
-      />
+      <h2 className="mb-1 font-semibold">人員</h2>
+      <p className="mb-3 text-xs text-muted">目錄只有姓名與部門。負責人、廠務 TPM 與副責都從這裡挑選。外部目錄同步的人員不能在這裡改。</p>
       {editor ? (
         <Panel className="mb-4 p-4">
           <h2 className="mb-3 font-semibold">新增人員</h2>

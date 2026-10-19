@@ -23,14 +23,14 @@ type PersonRow struct {
 }
 
 type MachineTypeRow struct {
-	File, Code, Name string
-	Row              int
-	Active           bool
+	File, Name string
+	Row        int
+	Active     bool
 }
 
 type ProductRow struct {
-	File, Name, Owner, Mode, Description, DevDepartment, ProjectDepartment string
-	Row                                                                    int
+	File, Name, Owner, Mode, Description, DevDepartment, ProjectDepartment, Audience string
+	Row                                                                              int
 }
 
 type FeatureRow struct {
@@ -46,10 +46,10 @@ type VersionRow struct {
 }
 
 type FactoryRow struct {
-	File, Code, Name, Category, Region, Technology, PM string
-	PlannedStart, PlannedEnd, Status                   string
-	Location, Description, ActualStart, ActualEnd      string
-	Row                                                int
+	File, Code, Name, Category, Region, PM        string
+	PlannedStart, PlannedEnd, Status              string
+	Location, Description, ActualStart, ActualEnd string
+	Row                                           int
 }
 
 type PhaseRow struct {

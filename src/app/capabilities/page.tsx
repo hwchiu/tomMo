@@ -1,26 +1,18 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { CapabilityView } from "@/components/capability-view";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
+/** Old bookmarks. The Go server answers this path with 308 before the file is served. */
 export default function Page() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
   return (
-    <Suspense fallback={null}>
-      <CapabilityQuery />
-    </Suspense>
-  );
-}
-
-function CapabilityQuery() {
-  const query = useSearchParams();
-  return (
-    <CapabilityView
-      factoryId={query.get("factory") ?? ""}
-      productId={query.get("product") ?? ""}
-      featureId={query.get("feature") ?? ""}
-      onlyChanges={query.get("changes") === "1"}
-      adhocOnly={query.get("adhoc") === "1"}
-    />
+    <p className="text-sm text-muted">
+      這個頁面已移除。
+      <a className="ml-1 underline" href="../">回到總覽</a>
+    </p>
   );
 }

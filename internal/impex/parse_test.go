@@ -23,8 +23,8 @@ func TestParseReportsFileAndRow(t *testing.T) {
 	}
 
 	_, rep = ParseFiles(map[string]string{
-		FileFactories: "code,name,category,region,technology,pm,planned_start,planned_end,status\n" +
-			"FAB-HSC,新竹一廠,GIGA,HQ,N3,林品均,2026/06/01,2026-12-31,ON_TRACK\n",
+		FileFactories: "code,name,category,region,pm,planned_start,planned_end,status\n" +
+			"FAB-HSC,新竹一廠,GIGA,HQ,林品均,2026/06/01,2026-12-31,ON_TRACK\n",
 	})
 	if len(rep.Errors) != 1 || rep.Errors[0].File != FileFactories || rep.Errors[0].Row != 2 || !strings.Contains(rep.Errors[0].Message, "YYYY-MM-DD") {
 		t.Fatalf("date %+v", rep.Errors)
@@ -105,6 +105,20 @@ func TestTemplateApplyIsIdempotent(t *testing.T) {
 	rep = Apply(&db, ds, Options{})
 	if len(rep.Errors) > 0 || len(rep.Created) != 0 || len(rep.Updated) != 0 || db.Seq != before {
 		t.Fatalf("second apply created=%d updated=%d seq %d→%d\n%s", len(rep.Created), len(rep.Updated), before, db.Seq, rep.Text(false))
+	}
+}
+
+func TestLoadEmptyPeople(t *testing.T) {
+	db := LoadEmpty()
+	got := map[string]string{}
+	for _, person := range db.People {
+		got[person.Name] = person.ID
+	}
+	if got[EmptyAdminName] != "u_admin" || got[EmptyViewerName] != "u_viewer" || len(db.People) != 2 {
+		t.Fatalf("empty catalog people %+v", got)
+	}
+	if len(db.Factories) != 0 || len(db.Products) != 0 {
+		t.Fatal("empty catalog has domain rows")
 	}
 }
 

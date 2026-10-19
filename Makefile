@@ -1,4 +1,4 @@
-.PHONY: test test-go test-web e2e coverage fixture web-dist
+.PHONY: test test-go test-web test-all test-ci e2e coverage fixture web-dist kind-up kind-down
 
 GO_TEST_PKGS := ./internal/... ./cmd/...
 
@@ -13,6 +13,12 @@ test-web: fixture
 
 test: test-go test-web
 
+test-all:
+	bash scripts/test.sh
+
+test-ci:
+	WITH_BUILD=1 bash scripts/test.sh
+
 coverage:
 	go test -race -coverprofile=coverage.out -covermode=atomic $(GO_TEST_PKGS)
 	go tool cover -func=coverage.out
@@ -26,3 +32,9 @@ e2e: web-dist
 	go build -o bin/fpmctl ./cmd/fpmctl
 	npx playwright install chromium
 	npx playwright test
+
+kind-up:
+	bash scripts/kind-up.sh
+
+kind-down:
+	bash scripts/kind-down.sh

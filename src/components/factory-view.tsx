@@ -22,7 +22,7 @@ export function FactoryView({ id }: { id: string }) {
       {(data) => (
         <div>
           <PageHeader
-            kicker={`${data.code} · ${data.categoryLabel} · ${data.regionLabel} · ${data.technologyLabel}`}
+            kicker={`${data.code} · ${data.categoryLabel} · ${data.regionLabel}`}
             title={data.name}
             description={data.description}
             actions={
@@ -41,7 +41,7 @@ export function FactoryView({ id }: { id: string }) {
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="rounded-lg border border-line bg-white px-3 py-2 text-sm">
-                <div className="text-xs font-medium text-muted">廠區 PM</div>
+                <div className="text-xs font-medium text-muted">廠區 TPM</div>
                 <div className="font-semibold">{data.pmName}</div>
                 <div className="text-muted">{data.pmDepartment}</div>
               </div>

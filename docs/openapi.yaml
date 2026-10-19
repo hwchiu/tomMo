@@ -145,7 +145,7 @@ paths:
   /api/v1/bootstrap:
     get:
       tags: [session]
-      summary: Current user, enumerations, and the demo as-of date
+      summary: Current user, machine types, and the demo as-of date
       operationId: getBootstrap
       responses:
         "200":
@@ -298,7 +298,7 @@ paths:
       operationId: listFactories
       responses:
         "200":
-          description: Factories plus users and enumerations used by the directory
+          description: Factories plus users used by the directory
           content:
             application/json:
               schema:
@@ -718,10 +718,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [code, name]
+              required: [name]
               properties:
-                code: { type: string }
-                name: { type: string, example: 機種C }
+                name: { type: string, example: EIA-5 }
       responses:
         "200":
           description: Created
@@ -747,54 +746,6 @@ paths:
               required: [name, active]
               properties:
                 name: { type: string }
-                active: { type: boolean }
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/enumerations:
-    post:
-      tags: [session]
-      operationId: createEnumeration
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [set, code, label, description]
-              properties:
-                set: { $ref: "#/components/schemas/EnumSet" }
-                code: { type: string }
-                label: { type: string }
-                description: { type: string }
-      responses:
-        "200":
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Id" }
-  /api/v1/enumerations/{enumerationId}:
-    patch:
-      tags: [session]
-      operationId: updateEnumeration
-      parameters:
-        - name: enumerationId
-          in: path
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [label, description, active]
-              properties:
-                label: { type: string }
-                description: { type: string }
                 active: { type: boolean }
       responses:
         "200":
@@ -845,9 +796,14 @@ components:
       required: [id]
       properties:
         id: { type: string }
-    EnumSet:
+    FactoryCategory:
       type: string
-      enum: [factoryCategory, factoryRegion, technologyNode]
+      enum: [GIGA, PHASE]
+      description: Fixed. GIGA displays as Giga, PHASE as Phase.
+    FactoryRegion:
+      type: string
+      enum: [HQ, JP, AZ, EU]
+      description: Fixed region codes. Not edited from settings.
     FactoryStatus:
       type: string
       enum: [ON_TRACK, AT_RISK, DELAYED, COMPLETED]
@@ -870,6 +826,10 @@ components:
       type: string
       enum: [VERSIONED, FEATURE_ONLY]
       description: VERSIONED plans choose a release. FEATURE_ONLY plans set each feature on or off.
+    ProductAudience:
+      type: string
+      enum: [EXTERNAL, INTERNAL]
+      description: EXTERNAL is 對外 (delivered to end users). INTERNAL is 對內 (usually a dependency of an 對外 product). Empty input defaults to EXTERNAL.
     ChangeType:
       type: string
       enum: [ADDED, REMOVED, CHANGED]
@@ -891,7 +851,6 @@ components:
         username: { type: string }
         actor: { $ref: "#/components/schemas/Person" }
         people: { type: array, items: { $ref: "#/components/schemas/Person" } }
-        enumerations: { type: array, items: { type: object } }
     Exception:
       type: object
       properties:
@@ -909,9 +868,8 @@ components:
         code: { type: string }
         name: { type: string }
         status: { $ref: "#/components/schemas/FactoryStatus" }
-        category: { type: string }
-        region: { type: string }
-        technology: { type: string }
+        category: { $ref: "#/components/schemas/FactoryCategory" }
+        region: { $ref: "#/components/schemas/FactoryRegion" }
         missingPlans: { type: integer }
         outsideWindows: { type: integer }
         notReady: { type: integer, description: Products whose plan is not ready for developer onboarding }
@@ -945,15 +903,14 @@ components:
         raisedOn: { type: string, format: date }
     FactoryWrite:
       type: object
-      required: [code, name, location, description, category, region, technology, pmId, plannedStart, status]
+      required: [code, name, location, description, category, region, pmId, plannedStart, status]
       properties:
         code: { type: string }
         name: { type: string }
         location: { type: string }
         description: { type: string }
-        category: { type: string, description: Enumeration code in factoryCategory }
-        region: { type: string, description: Enumeration code in factoryRegion }
-        technology: { type: string, description: Enumeration code in technologyNode }
+        category: { $ref: "#/components/schemas/FactoryCategory" }
+        region: { $ref: "#/components/schemas/FactoryRegion" }
         pmId: { type: string }
         plannedStart: { type: string, format: date }
         status: { $ref: "#/components/schemas/FactoryStatus" }
@@ -990,7 +947,7 @@ components:
         description: { type: string }
         factoryId: { type: string }
         phaseId: { type: string, nullable: true }
-        productId: { type: string, nullable: true }
+        productId: { type: string, nullable: true, description: A product id, or the literal other for 其他. }
         ownerId: { type: string }
         severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
         priority: { type: string, enum: [P0, P1, P2, P3] }
@@ -1008,6 +965,7 @@ components:
         projectDepartment: { type: string }
         primaryOwnerId: { type: string }
         mode: { $ref: "#/components/schemas/ProductMode" }
+        audience: { $ref: "#/components/schemas/ProductAudience" }
     DeploymentWrite:
       type: object
       properties:

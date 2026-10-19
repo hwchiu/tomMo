@@ -31,7 +31,6 @@ type FactoryInput struct {
 	Description  string `json:"description"`
 	Category     string `json:"category"`
 	Region       string `json:"region"`
-	Technology   string `json:"technology"`
 	PMID         string `json:"pmId"`
 	PlannedStart string `json:"plannedStart"`
 	PlannedEnd   string `json:"plannedEnd"`
@@ -122,23 +121,10 @@ type ProductInput struct {
 	ProjectDepartment string `json:"projectDepartment"`
 	PrimaryOwnerID    string `json:"primaryOwnerId"`
 	Mode              string `json:"mode"`
-}
-
-type EnumerationInput struct {
-	Set         string `json:"set"`
-	Code        string `json:"code"`
-	Label       string `json:"label"`
-	Description string `json:"description"`
-}
-
-type EnumerationPatch struct {
-	Label       string `json:"label"`
-	Description string `json:"description"`
-	Active      bool   `json:"active"`
+	Audience          string `json:"audience"`
 }
 
 type MachineTypeInput struct {
-	Code string `json:"code"`
 	Name string `json:"name"`
 }
 
@@ -170,14 +156,13 @@ func CreateFactory(db *domain.Database, actorID string, input FactoryInput) (idB
 			return idBody{}, apierr.New(400, "工廠代碼已存在")
 		}
 	}
-	if err := assertEnum(db, "factoryCategory", input.Category); err != nil {
-		return idBody{}, err
+	category, err := domain.NormalizeFactoryCategory(input.Category)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
 	}
-	if err := assertEnum(db, "factoryRegion", input.Region); err != nil {
-		return idBody{}, err
-	}
-	if err := assertEnum(db, "technologyNode", input.Technology); err != nil {
-		return idBody{}, err
+	region, err := domain.NormalizeFactoryRegion(input.Region)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
 	}
 	if err := requirePerson(db, input.PMID); err != nil {
 		return idBody{}, err
@@ -219,7 +204,7 @@ func CreateFactory(db *domain.Database, actorID string, input FactoryInput) (idB
 	}
 	db.Factories = append(db.Factories, domain.Factory{
 		ID: id, Code: code, Name: name, Location: strings.TrimSpace(input.Location), Description: strings.TrimSpace(input.Description),
-		Category: input.Category, Region: input.Region, Technology: input.Technology, PMID: input.PMID,
+		Category: category, Region: region, PMID: input.PMID,
 		PlannedStart: start, PlannedEnd: end, Status: input.Status,
 	})
 	for _, product := range db.Products {
@@ -243,14 +228,13 @@ func UpdateFactory(db *domain.Database, actorID, id string, input FactoryInput) 
 	if idx < 0 {
 		return idBody{}, apierr.New(404, "找不到這座工廠")
 	}
-	if err := assertEnum(db, "factoryCategory", input.Category); err != nil {
-		return idBody{}, err
+	category, err := domain.NormalizeFactoryCategory(input.Category)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
 	}
-	if err := assertEnum(db, "factoryRegion", input.Region); err != nil {
-		return idBody{}, err
-	}
-	if err := assertEnum(db, "technologyNode", input.Technology); err != nil {
-		return idBody{}, err
+	region, err := domain.NormalizeFactoryRegion(input.Region)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
 	}
 	if err := requirePerson(db, input.PMID); err != nil {
 		return idBody{}, err
@@ -269,9 +253,8 @@ func UpdateFactory(db *domain.Database, actorID, id string, input FactoryInput) 
 	factory.Name = strings.TrimSpace(input.Name)
 	factory.Location = strings.TrimSpace(input.Location)
 	factory.Description = strings.TrimSpace(input.Description)
-	factory.Category = input.Category
-	factory.Region = input.Region
-	factory.Technology = input.Technology
+	factory.Category = category
+	factory.Region = region
 	factory.PMID = input.PMID
 	factory.PlannedStart = start
 	factory.PlannedEnd = end
@@ -914,7 +897,7 @@ func ApprovePlan(db *domain.Database, actorID, factoryID, productID string) (idB
 		PlannedFeatures:   append([]domain.PlannedFeature(nil), plan.PlannedFeatures...),
 		AdHocChanges:      append([]domain.AdHocChange(nil), plan.AdHocChanges...),
 		ConstructionStart: plan.ConstructionStart, ConstructionEnd: plan.ConstructionEnd,
-		Machines: snapshotMachines(db, plan.DeploymentID), ActorID: user.ID, CreatedAt: nowISO(), Note: "PM 核准",
+		Machines: snapshotMachines(db, plan.DeploymentID), ActorID: user.ID, CreatedAt: nowISO(), Note: "TPM 核准",
 	})
 	pidx := indexProduct(db, productID)
 	if pidx < 0 {
@@ -936,6 +919,10 @@ func CreateProduct(db *domain.Database, actorID string, input ProductInput) (idB
 	if input.Mode != "VERSIONED" && input.Mode != "FEATURE_ONLY" {
 		return idBody{}, apierr.New(400, "請選擇版本模式或僅功能開關")
 	}
+	audience, err := domain.NormalizeAudience(input.Audience)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
+	}
 	if err := requirePerson(db, input.PrimaryOwnerID); err != nil {
 		return idBody{}, err
 	}
@@ -943,7 +930,7 @@ func CreateProduct(db *domain.Database, actorID string, input ProductInput) (idB
 	db.Products = append(db.Products, domain.Product{
 		ID: id, Name: name, Description: strings.TrimSpace(input.Description),
 		DevDepartment: strings.TrimSpace(input.DevDepartment), ProjectDepartment: strings.TrimSpace(input.ProjectDepartment),
-		PrimaryOwnerID: input.PrimaryOwnerID, Mode: input.Mode,
+		PrimaryOwnerID: input.PrimaryOwnerID, Mode: input.Mode, Audience: audience,
 	})
 	for _, factory := range db.Factories {
 		if err := ensureDeployment(db, factory.ID, id, factory.PMID); err != nil {
@@ -979,65 +966,13 @@ func UpdateProduct(db *domain.Database, actorID, id string, input ProductInput) 
 	if err := validateProductMode(input.Mode); err != nil {
 		return idBody{}, err
 	}
+	audience, err := domain.NormalizeAudience(input.Audience)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
+	}
 	product.Mode = input.Mode
+	product.Audience = audience
 	logAct(db, actorID, "PRODUCT", id, "UPDATE", fmt.Sprintf("%s更新產品「%s」。", user.Name, product.Name))
-	return idBody{ID: id}, nil
-}
-
-func CreateEnumeration(db *domain.Database, actorID string, input EnumerationInput) (idBody, error) {
-	user, err := actor(db, actorID)
-	if err != nil {
-		return idBody{}, err
-	}
-	code := strings.ToUpper(strings.TrimSpace(input.Code))
-	label := strings.TrimSpace(input.Label)
-	if code == "" || label == "" {
-		return idBody{}, apierr.New(400, "代碼與名稱必填")
-	}
-	if err := validateEnumSet(input.Set); err != nil {
-		return idBody{}, err
-	}
-	order := 1
-	for _, item := range db.Enumerations {
-		if item.Set == input.Set && item.Code == code {
-			return idBody{}, apierr.New(400, "這個代碼已存在")
-		}
-		if item.Set == input.Set {
-			order++
-		}
-	}
-	id := nextID(db, "en")
-	db.Enumerations = append(db.Enumerations, domain.Enumeration{
-		ID: id, Set: input.Set, Code: code, Label: label, Description: strings.TrimSpace(input.Description), Order: order, Active: true,
-	})
-	logAct(db, actorID, "ENUM", id, "CREATE", fmt.Sprintf("%s新增列舉 %s／%s。", user.Name, input.Set, label))
-	return idBody{ID: id}, nil
-}
-
-func UpdateEnumeration(db *domain.Database, actorID, id string, input EnumerationPatch) (idBody, error) {
-	user, err := actor(db, actorID)
-	if err != nil {
-		return idBody{}, err
-	}
-	idx := -1
-	for i := range db.Enumerations {
-		if db.Enumerations[i].ID == id {
-			idx = i
-			break
-		}
-	}
-	if idx < 0 {
-		return idBody{}, apierr.New(404, "找不到這個列舉")
-	}
-	item := &db.Enumerations[idx]
-	label := strings.TrimSpace(input.Label)
-	if label == "" {
-		return idBody{}, apierr.New(400, "代碼與名稱必填")
-	}
-	item.Label = label
-	item.Description = strings.TrimSpace(input.Description)
-	item.Active = input.Active
-	logAct(db, actorID, "ENUM", id, "UPDATE", fmt.Sprintf("%s更新列舉「%s」。", user.Name, item.Label))
 	return idBody{ID: id}, nil
 }
 
@@ -1046,18 +981,17 @@ func CreateMachineType(db *domain.Database, actorID string, input MachineTypeInp
 	if err != nil {
 		return idBody{}, err
 	}
-	code := strings.ToUpper(strings.TrimSpace(input.Code))
-	name := strings.TrimSpace(input.Name)
-	if code == "" || name == "" {
-		return idBody{}, apierr.New(400, "機種代碼與名稱必填")
+	name, err := domain.NormalizeMachineTypeName(input.Name)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
 	}
 	for _, item := range db.MachineTypes {
-		if item.Code == code {
-			return idBody{}, apierr.New(400, "這個機種代碼已存在")
+		if strings.EqualFold(item.Name, name) {
+			return idBody{}, apierr.New(400, domain.MachineTypeNameTaken)
 		}
 	}
 	id := nextID(db, "mt")
-	db.MachineTypes = append(db.MachineTypes, domain.MachineType{ID: id, Code: code, Name: name, Order: len(db.MachineTypes) + 1, Active: true})
+	db.MachineTypes = append(db.MachineTypes, domain.MachineType{ID: id, Name: name, Order: len(db.MachineTypes) + 1, Active: true})
 	logAct(db, actorID, "MACHINE", id, "CREATE", fmt.Sprintf("%s新增機種「%s」。", user.Name, name))
 	return idBody{ID: id}, nil
 }
@@ -1077,9 +1011,14 @@ func UpdateMachineType(db *domain.Database, actorID, id string, input MachineTyp
 	if idx < 0 {
 		return idBody{}, apierr.New(404, "找不到這個機種")
 	}
-	name := strings.TrimSpace(input.Name)
-	if name == "" {
-		return idBody{}, apierr.New(400, "機種名稱必填")
+	name, err := domain.NormalizeMachineTypeName(input.Name)
+	if err != nil {
+		return idBody{}, apierr.New(400, err.Error())
+	}
+	for _, item := range db.MachineTypes {
+		if item.ID != id && strings.EqualFold(item.Name, name) {
+			return idBody{}, apierr.New(400, domain.MachineTypeNameTaken)
+		}
 	}
 	db.MachineTypes[idx].Name = name
 	db.MachineTypes[idx].Active = input.Active
@@ -1397,15 +1336,6 @@ func supports(db *domain.Database, versionID, featureID string) bool {
 		}
 	}
 	return false
-}
-
-func assertEnum(db *domain.Database, set, code string) error {
-	for _, item := range db.Enumerations {
-		if item.Set == set && item.Code == code && item.Active {
-			return nil
-		}
-	}
-	return apierr.New(400, "請選擇有效的列舉值")
 }
 
 func requirePerson(db *domain.Database, id string) error {

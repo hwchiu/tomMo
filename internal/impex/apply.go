@@ -147,15 +147,15 @@ func (w *world) machineTypes() {
 		if idx < 0 {
 			id := w.id("mt")
 			w.db.MachineTypes = append(w.db.MachineTypes, domain.MachineType{
-				ID: id, Code: row.Code, Name: row.Name, Order: order, Active: row.Active,
+				ID: id, Name: row.Name, Order: order, Active: row.Active,
 			})
 			w.rep.add(row.File, row.Row, true, false, entMachine, row.Name)
 			continue
 		}
 		item := &w.db.MachineTypes[idx]
-		changed := item.Code != row.Code || item.Active != row.Active || item.Order != order
+		changed := item.Active != row.Active || item.Order != order || item.Name != row.Name
 		if changed {
-			item.Code = row.Code
+			item.Name = row.Name
 			item.Active = row.Active
 			item.Order = order
 		}
@@ -171,20 +171,21 @@ func (w *world) products() {
 			id := w.id("prd")
 			w.db.Products = append(w.db.Products, domain.Product{
 				ID: id, Name: row.Name, Description: row.Description, DevDepartment: row.DevDepartment,
-				ProjectDepartment: row.ProjectDepartment, PrimaryOwnerID: owner, Mode: row.Mode,
+				ProjectDepartment: row.ProjectDepartment, PrimaryOwnerID: owner, Mode: row.Mode, Audience: row.Audience,
 			})
 			w.rep.add(row.File, row.Row, true, false, entProduct, row.Name)
 			w.act("PRODUCT", id, "CREATE", "匯入產品"+row.Name, owner)
 			continue
 		}
 		item := &w.db.Products[idx]
-		changed := item.Description != row.Description || item.DevDepartment != row.DevDepartment || item.ProjectDepartment != row.ProjectDepartment || item.PrimaryOwnerID != owner || item.Mode != row.Mode
+		changed := item.Description != row.Description || item.DevDepartment != row.DevDepartment || item.ProjectDepartment != row.ProjectDepartment || item.PrimaryOwnerID != owner || item.Mode != row.Mode || item.Audience != row.Audience
 		if changed {
 			item.Description = row.Description
 			item.DevDepartment = row.DevDepartment
 			item.ProjectDepartment = row.ProjectDepartment
 			item.PrimaryOwnerID = owner
 			item.Mode = row.Mode
+			item.Audience = row.Audience
 			w.act("PRODUCT", item.ID, "UPDATE", "更新產品"+row.Name, owner)
 		}
 		w.rep.add(row.File, row.Row, false, changed, entProduct, row.Name)
@@ -304,16 +305,13 @@ func (w *world) ensureVersion(productName, version, released, notes string, from
 
 func (w *world) factories() {
 	for _, row := range w.ds.Factories {
-		w.ensureEnum("factoryCategory", row.Category)
-		w.ensureEnum("factoryRegion", row.Region)
-		w.ensureEnum("technologyNode", row.Technology)
 		pm, _ := w.personID(row.PM)
 		idx := w.factoryIndex(row.Name)
 		if idx < 0 {
 			id := w.id("fac")
 			w.db.Factories = append(w.db.Factories, domain.Factory{
 				ID: id, Code: row.Code, Name: row.Name, Location: row.Location, Description: row.Description,
-				Category: row.Category, Region: row.Region, Technology: row.Technology, PMID: pm,
+				Category: row.Category, Region: row.Region, PMID: pm,
 				PlannedStart: row.PlannedStart, PlannedEnd: row.PlannedEnd, ActualStart: strPtr(row.ActualStart), ActualEnd: strPtr(row.ActualEnd),
 				Status: row.Status,
 			})
@@ -322,14 +320,13 @@ func (w *world) factories() {
 			continue
 		}
 		item := &w.db.Factories[idx]
-		changed := item.Code != row.Code || item.Location != row.Location || item.Description != row.Description || item.Category != row.Category || item.Region != row.Region || item.Technology != row.Technology || item.PMID != pm || item.PlannedStart != row.PlannedStart || item.PlannedEnd != row.PlannedEnd || strVal(item.ActualStart) != row.ActualStart || strVal(item.ActualEnd) != row.ActualEnd || item.Status != row.Status
+		changed := item.Code != row.Code || item.Location != row.Location || item.Description != row.Description || item.Category != row.Category || item.Region != row.Region || item.PMID != pm || item.PlannedStart != row.PlannedStart || item.PlannedEnd != row.PlannedEnd || strVal(item.ActualStart) != row.ActualStart || strVal(item.ActualEnd) != row.ActualEnd || item.Status != row.Status
 		if changed {
 			item.Code = row.Code
 			item.Location = row.Location
 			item.Description = row.Description
 			item.Category = row.Category
 			item.Region = row.Region
-			item.Technology = row.Technology
 			item.PMID = pm
 			item.PlannedStart = row.PlannedStart
 			item.PlannedEnd = row.PlannedEnd
@@ -340,23 +337,6 @@ func (w *world) factories() {
 		}
 		w.rep.add(row.File, row.Row, false, changed, entFactory, row.Name)
 	}
-}
-
-func (w *world) ensureEnum(setName, code string) {
-	for _, item := range w.db.Enumerations {
-		if item.Set == setName && item.Code == code {
-			return
-		}
-	}
-	order := 1
-	for _, item := range w.db.Enumerations {
-		if item.Set == setName && item.Order >= order {
-			order = item.Order + 1
-		}
-	}
-	w.db.Enumerations = append(w.db.Enumerations, domain.Enumeration{
-		ID: w.id("en"), Set: setName, Code: code, Label: code, Order: order, Active: true,
-	})
 }
 
 type phaseResult struct {

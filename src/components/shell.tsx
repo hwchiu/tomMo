@@ -28,13 +28,10 @@ export function WhenEditor({ children }: { children: ReactNode }) {
 
 const NAV = [
   { href: "/", label: "總覽", en: "Portfolio" },
-  { href: "/product-build", label: "產品建立", en: "Phase 2", focus: true },
-  { href: "/factories", label: "工廠", en: "Factory" },
+  { href: "/product-build", label: "產品交付狀況", en: "Delivery", focus: true },
+  { href: "/factories", label: "工廠簡介", en: "Factory" },
   { href: "/issues", label: "問題", en: "Issue" },
   { href: "/products", label: "產品", en: "Product" },
-  { href: "/capabilities", label: "能力矩陣", en: "Capability" },
-  { href: "/activity", label: "活動", en: "Activity" },
-  { href: "/settings", label: "設定", en: "Enums" },
   { href: "/admin", label: "管理", en: "Admin" },
 ];
 
@@ -95,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  const nav = NAV.filter((item) => editor || item.href !== "/settings");
+  const nav = NAV.filter((item) => editor || item.href !== "/admin");
 
   return (
     <AppContext.Provider value={boot.data}>

@@ -1,5 +1,6 @@
 import { addDays, isIsoDate } from "@/domain/dates";
 import { featureOverrides, isFeaturePlanComplete } from "@/domain/features";
+import { machineTypeNameError } from "@/domain/machine-type";
 import { nonNegativeInt } from "@/domain/machines";
 import { compareSemver } from "@/domain/semver";
 import type {
@@ -21,9 +22,11 @@ import type {
 import { PRODUCT_MODES } from "@/domain/types";
 import { TOPIC_STATUSES } from "@/domain/types";
 import { buildSeed } from "@/mocks/fixtures";
+import { normalizeAudience } from "@/domain/audience";
+import { factoryCategoryInvalid, factoryRegionInvalid, normalizeFactoryCategory, normalizeFactoryRegion } from "@/domain/factory-attr";
 import { ApiError } from "./errors";
 
-const DB_KEY = "fpm-db-v6";
+const DB_KEY = "fpm-db-v8";
 let memory: Database | null = null;
 
 export function getDb(): Database {
@@ -112,7 +115,6 @@ export interface FactoryInput {
   description: string;
   category: string;
   region: string;
-  technology: string;
   pmId: string;
   plannedStart: string;
   status: FactoryStatus;
@@ -123,9 +125,8 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
   const code = input.code.trim().toUpperCase();
   if (!code || !input.name.trim()) throw new ApiError("工廠代碼與名稱必填", 400);
   if (db.factories.some((factory) => factory.code === code)) throw new ApiError("工廠代碼已存在", 400);
-  assertEnum(db, "factoryCategory", input.category);
-  assertEnum(db, "factoryRegion", input.region);
-  assertEnum(db, "technologyNode", input.technology);
+  const category = requireCategory(input.category);
+  const region = requireRegion(input.region);
   requirePerson(db, input.pmId);
   const start = requireDate(input.plannedStart, "計畫開始");
   const id = nextId(db, "fac");
@@ -160,9 +161,8 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
     name: input.name.trim(),
     location: input.location.trim(),
     description: input.description.trim(),
-    category: input.category,
-    region: input.region,
-    technology: input.technology,
+    category,
+    region,
     pmId: input.pmId,
     plannedStart: start,
     plannedEnd: end,
@@ -181,17 +181,15 @@ export function createFactory(db: Database, actorId: string, input: FactoryInput
 export function updateFactory(db: Database, actorId: string, id: string, input: FactoryInput & { plannedEnd: string }) {
   const user = actor(db, actorId);
   const factory = must(db.factories, id, "找不到這座工廠");
-  assertEnum(db, "factoryCategory", input.category);
-  assertEnum(db, "factoryRegion", input.region);
-  assertEnum(db, "technologyNode", input.technology);
+  const category = requireCategory(input.category);
+  const region = requireRegion(input.region);
   const previous = factory.status;
   factory.code = input.code.trim().toUpperCase();
   factory.name = input.name.trim();
   factory.location = input.location.trim();
   factory.description = input.description.trim();
-  factory.category = input.category;
-  factory.region = input.region;
-  factory.technology = input.technology;
+  factory.category = category;
+  factory.region = region;
   requirePerson(db, input.pmId);
   factory.pmId = input.pmId;
   factory.plannedStart = requireDate(input.plannedStart, "計畫開始");
@@ -612,7 +610,7 @@ export function approvePlan(db: Database, actorId: string, factoryId: string, pr
     machines: snapshotMachines(db, plan.deploymentId),
     actorId: user.id,
     createdAt: new Date().toISOString(),
-    note: "PM 核准",
+    note: "TPM 核准",
   });
   const product = must(db.products, productId, "找不到這個產品");
   log(db, actorId, "PLAN", plan.id, "APPROVE", `${user.name}核准${product.name}計畫。`);
@@ -627,12 +625,19 @@ export interface ProductInput {
   projectDepartment: string;
   primaryOwnerId: string;
   mode: ProductMode;
+  audience: "EXTERNAL" | "INTERNAL";
 }
 
 export function createProduct(db: Database, actorId: string, input: ProductInput) {
   const user = actor(db, actorId);
   if (!input.name.trim()) throw new ApiError("產品名稱必填", 400);
   if (!PRODUCT_MODES.includes(input.mode)) throw new ApiError("請選擇版本模式或僅功能開關", 400);
+  let audience: "EXTERNAL" | "INTERNAL";
+  try {
+    audience = normalizeAudience(input.audience ?? "");
+  } catch (caught) {
+    throw new ApiError(caught instanceof Error ? caught.message : "可見範圍只能是對外或對內", 400);
+  }
   requirePerson(db, input.primaryOwnerId);
   const id = nextId(db, "prd");
   db.products.push({
@@ -643,6 +648,7 @@ export function createProduct(db: Database, actorId: string, input: ProductInput
     projectDepartment: input.projectDepartment.trim(),
     primaryOwnerId: input.primaryOwnerId,
     mode: input.mode,
+    audience,
   });
   for (const factory of db.factories) {
     ensureDeployment(db, factory.id, id, factory.pmId);
@@ -663,47 +669,24 @@ export function updateProduct(db: Database, actorId: string, id: string, input: 
   product.projectDepartment = input.projectDepartment.trim();
   product.primaryOwnerId = input.primaryOwnerId;
   if (PRODUCT_MODES.includes(input.mode)) product.mode = input.mode;
+  try {
+    product.audience = normalizeAudience(input.audience ?? product.audience ?? "");
+  } catch (caught) {
+    throw new ApiError(caught instanceof Error ? caught.message : "可見範圍只能是對外或對內", 400);
+  }
   log(db, actorId, "PRODUCT", id, "UPDATE", `${user.name}更新產品「${product.name}」。`);
   persist();
   return { id };
 }
 
-export function createEnumeration(
-  db: Database,
-  actorId: string,
-  input: { set: Database["enumerations"][number]["set"]; code: string; label: string; description: string },
-) {
+export function createMachineType(db: Database, actorId: string, input: { name: string }) {
   const user = actor(db, actorId);
-  const code = input.code.trim().toUpperCase();
-  if (!code || !input.label.trim()) throw new ApiError("代碼與名稱必填", 400);
-  if (db.enumerations.some((item) => item.set === input.set && item.code === code)) throw new ApiError("這個代碼已存在", 400);
-  const order = db.enumerations.filter((item) => item.set === input.set).length + 1;
-  const id = nextId(db, "en");
-  db.enumerations.push({ id, set: input.set, code, label: input.label.trim(), description: input.description.trim(), order, active: true });
-  log(db, actorId, "ENUM", id, "CREATE", `${user.name}新增列舉 ${input.set}／${input.label.trim()}。`);
-  persist();
-  return { id };
-}
-
-export function updateEnumeration(db: Database, actorId: string, id: string, input: { label: string; description: string; active: boolean }) {
-  const user = actor(db, actorId);
-  const item = must(db.enumerations, id, "找不到這個列舉");
-  item.label = input.label.trim();
-  item.description = input.description.trim();
-  item.active = input.active;
-  log(db, actorId, "ENUM", id, "UPDATE", `${user.name}更新列舉「${item.label}」。`);
-  persist();
-  return { id };
-}
-
-export function createMachineType(db: Database, actorId: string, input: { code: string; name: string }) {
-  const user = actor(db, actorId);
-  const code = input.code.trim().toUpperCase();
+  const invalid = machineTypeNameError(input.name);
+  if (invalid) throw new ApiError(invalid, 400);
   const name = input.name.trim();
-  if (!code || !name) throw new ApiError("機種代碼與名稱必填", 400);
-  if (db.machineTypes.some((item) => item.code === code)) throw new ApiError("這個機種代碼已存在", 400);
+  if (db.machineTypes.some((item) => item.name.toLowerCase() === name.toLowerCase())) throw new ApiError("這個機種名稱已存在", 400);
   const id = nextId(db, "mt");
-  db.machineTypes.push({ id, code, name, order: db.machineTypes.length + 1, active: true });
+  db.machineTypes.push({ id, name, order: db.machineTypes.length + 1, active: true });
   log(db, actorId, "MACHINE", id, "CREATE", `${user.name}新增機種「${name}」。`);
   persist();
   return { id };
@@ -712,8 +695,10 @@ export function createMachineType(db: Database, actorId: string, input: { code: 
 export function updateMachineType(db: Database, actorId: string, id: string, input: { name: string; active: boolean }) {
   const user = actor(db, actorId);
   const item = must(db.machineTypes, id, "找不到這個機種");
+  const invalid = machineTypeNameError(input.name);
+  if (invalid) throw new ApiError(invalid, 400);
   const name = input.name.trim();
-  if (!name) throw new ApiError("機種名稱必填", 400);
+  if (db.machineTypes.some((other) => other.id !== id && other.name.toLowerCase() === name.toLowerCase())) throw new ApiError("這個機種名稱已存在", 400);
   item.name = name;
   item.active = input.active;
   log(db, actorId, "MACHINE", id, "UPDATE", `${user.name}更新機種「${name}」。`);
@@ -874,9 +859,20 @@ export function updatePerson(db: Database, actorId: string, id: string, input: P
   return { id };
 }
 
-function assertEnum(db: Database, set: Database["enumerations"][number]["set"], code: string) {
-  const found = db.enumerations.find((item) => item.set === set && item.code === code && item.active);
-  if (!found) throw new ApiError("請選擇有效的列舉值", 400);
+function requireCategory(raw: string): string {
+  try {
+    return normalizeFactoryCategory(raw);
+  } catch (caught) {
+    throw new ApiError(caught instanceof Error ? caught.message : factoryCategoryInvalid, 400);
+  }
+}
+
+function requireRegion(raw: string): string {
+  try {
+    return normalizeFactoryRegion(raw);
+  } catch (caught) {
+    throw new ApiError(caught instanceof Error ? caught.message : factoryRegionInvalid, 400);
+  }
 }
 
 function must<T extends { id: string }>(rows: T[], id: string, message: string): T {

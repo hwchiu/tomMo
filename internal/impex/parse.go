@@ -1,6 +1,10 @@
 package impex
 
-import "strings"
+import (
+	"strings"
+
+	"fpm/internal/domain"
+)
 
 // ParseFiles parses a directory's CSV texts. Keys are file names such as people.csv.
 func ParseFiles(files map[string]string) (Dataset, Report) {
@@ -113,25 +117,20 @@ func parsePeople(file string, idx map[string]int, rows []rawRow, ds *Dataset) []
 func parseMachineTypes(file string, idx map[string]int, rows []rawRow, ds *Dataset) []RowError {
 	var errs []RowError
 	seenName := map[string]bool{}
-	seenCode := map[string]bool{}
 	for _, raw := range rows {
-		code := cell(raw.cells, idx, "code")
-		name := cell(raw.cells, idx, "name")
-		if code == "" || name == "" {
-			errs = append(errs, rowErr(file, raw.line, "機種代碼與名稱必填"))
+		name, err := domain.NormalizeMachineTypeName(cell(raw.cells, idx, "name"))
+		if err != nil {
+			errs = append(errs, rowErr(file, raw.line, err.Error()))
 			continue
 		}
-		if seenName[name] {
+		key := strings.ToLower(name)
+		if seenName[key] {
 			errs = append(errs, rowErr(file, raw.line, "機種「"+name+"」重複"))
 		}
-		if seenCode[code] {
-			errs = append(errs, rowErr(file, raw.line, "機種代碼「"+code+"」重複"))
-		}
-		seenName[name] = true
-		seenCode[code] = true
+		seenName[key] = true
 		active, errActive := parseBoolCell(file, raw.line, cell(raw.cells, idx, "active"), true)
 		errs = append(errs, errActive...)
-		ds.MachineTypes = append(ds.MachineTypes, MachineTypeRow{File: file, Row: raw.line, Code: code, Name: name, Active: active})
+		ds.MachineTypes = append(ds.MachineTypes, MachineTypeRow{File: file, Row: raw.line, Name: name, Active: active})
 	}
 	return errs
 }
@@ -153,10 +152,15 @@ func parseProducts(file string, idx map[string]int, rows []rawRow, ds *Dataset) 
 		}
 		seen[name] = true
 		errs = append(errs, oneOf(file, raw.line, mode, []string{"VERSIONED", "FEATURE_ONLY"}, "模式須為 VERSIONED 或 FEATURE_ONLY")...)
+		audience, errAudience := domain.NormalizeAudience(cell(raw.cells, idx, "audience"))
+		if errAudience != nil {
+			errs = append(errs, rowErr(file, raw.line, errAudience.Error()))
+			continue
+		}
 		ds.Products = append(ds.Products, ProductRow{
 			File: file, Row: raw.line, Name: name, Owner: owner, Mode: mode,
 			Description: cell(raw.cells, idx, "description"), DevDepartment: cell(raw.cells, idx, "dev_department"),
-			ProjectDepartment: cell(raw.cells, idx, "project_department"),
+			ProjectDepartment: cell(raw.cells, idx, "project_department"), Audience: audience,
 		})
 	}
 	return errs
@@ -235,17 +239,27 @@ func parseFactories(file string, idx map[string]int, rows []rawRow, ds *Dataset)
 	seenName := map[string]bool{}
 	seenCode := map[string]bool{}
 	for _, raw := range rows {
+		rawCategory := cell(raw.cells, idx, "category")
+		rawRegion := cell(raw.cells, idx, "region")
 		row := FactoryRow{
 			File: file, Row: raw.line,
 			Code: cell(raw.cells, idx, "code"), Name: cell(raw.cells, idx, "name"),
-			Category: cell(raw.cells, idx, "category"), Region: cell(raw.cells, idx, "region"),
-			Technology: cell(raw.cells, idx, "technology"), PM: cell(raw.cells, idx, "pm"),
+			PM:     cell(raw.cells, idx, "pm"),
 			Status: cell(raw.cells, idx, "status"), Location: cell(raw.cells, idx, "location"),
 			Description: cell(raw.cells, idx, "description"),
 		}
-		if row.Code == "" || row.Name == "" || row.Category == "" || row.Region == "" || row.Technology == "" || row.PM == "" || row.Status == "" {
-			errs = append(errs, rowErr(file, raw.line, "工廠代碼、名稱、類別、區域、製程、PM 與狀態必填"))
+		if row.Code == "" || row.Name == "" || rawCategory == "" || rawRegion == "" || row.PM == "" || row.Status == "" {
+			errs = append(errs, rowErr(file, raw.line, "工廠代碼、名稱、類別、區域、TPM 與狀態必填"))
 			continue
+		}
+		var catErr, regErr error
+		row.Category, catErr = domain.NormalizeFactoryCategory(rawCategory)
+		row.Region, regErr = domain.NormalizeFactoryRegion(rawRegion)
+		if catErr != nil {
+			errs = append(errs, rowErr(file, raw.line, catErr.Error()))
+		}
+		if regErr != nil {
+			errs = append(errs, rowErr(file, raw.line, regErr.Error()))
 		}
 		if seenName[row.Name] {
 			errs = append(errs, rowErr(file, raw.line, "工廠「"+row.Name+"」重複"))

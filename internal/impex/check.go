@@ -42,11 +42,6 @@ func check(db *domain.Database, ds Dataset) Report {
 	}
 	for _, row := range ds.MachineTypes {
 		types[row.Name] = true
-		for _, existing := range db.MachineTypes {
-			if existing.Code == row.Code && existing.Name != row.Name {
-				rep.Errors = append(rep.Errors, rowErr(row.File, row.Row, "代碼與既有機種「"+existing.Name+"」衝突"))
-			}
-		}
 	}
 	features := map[string]map[string]bool{}
 	addFeature := func(product, name string) {

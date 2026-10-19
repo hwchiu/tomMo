@@ -18,7 +18,6 @@ function PortfolioQuery() {
     <PortfolioView
       category={query.get("category") ?? ""}
       region={query.get("region") ?? ""}
-      technology={query.get("technology") ?? ""}
       status={query.get("status") ?? ""}
       group={query.get("group") ?? ""}
     />

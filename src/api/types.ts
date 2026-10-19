@@ -2,7 +2,6 @@ import type { ReadinessFlag } from "@/domain/readiness";
 import type {
   Activity,
   DeploymentStatus,
-  Enumeration,
   FactoryStatus,
   IssueSeverity,
   IssueStatus,
@@ -21,7 +20,6 @@ import type { WindowReason, WindowState } from "@/domain/windows";
 
 export interface MachineLineView {
   machineTypeId: string;
-  code: string;
   name: string;
   planned: number;
 }
@@ -72,8 +70,6 @@ export interface FactoryBoardRow {
   categoryLabel: string;
   region: string;
   regionLabel: string;
-  technology: string;
-  technologyLabel: string;
   pmId: string;
   pmName: string;
   pmDepartment: string;
@@ -154,8 +150,6 @@ export interface BuildRow {
   categoryLabel: string;
   region: string;
   regionLabel: string;
-  technology: string;
-  technologyLabel: string;
   status: FactoryStatus;
   phase2: {
     id: string;
@@ -177,6 +171,7 @@ export interface ProductBuild {
     name: string;
     primaryOwnerName: string;
     mode: ProductMode;
+    audience: "EXTERNAL" | "INTERNAL";
   }>;
   rows: BuildRow[];
 }
@@ -202,8 +197,6 @@ export interface FactoryDetail {
   categoryLabel: string;
   region: string;
   regionLabel: string;
-  technology: string;
-  technologyLabel: string;
   pmId: string;
   pmName: string;
   pmDepartment: string;
@@ -317,6 +310,7 @@ export interface ProductSummary {
   primaryOwnerId: string;
   primaryOwnerName: string;
   mode: ProductMode;
+  audience: "EXTERNAL" | "INTERNAL";
   versionCount: number;
   latestVersion: string | null;
   outdatedFactories: number;
@@ -468,13 +462,11 @@ export interface Bootstrap {
   username: string;
   actor: Person;
   people: Person[];
-  enumerations: Enumeration[];
   machineTypes: MachineType[];
   phaseTemplates: Array<{ id: string; name: string; order: number; defaultDurationDays: number }>;
 }
 
 export interface FactoryFormOptions {
   people: Person[];
-  enumerations: Enumeration[];
   templates: Bootstrap["phaseTemplates"];
 }

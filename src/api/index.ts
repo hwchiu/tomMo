@@ -1,6 +1,5 @@
 import type {
   DeploymentStatus,
-  Enumeration,
   FactoryStatus,
   FeatureChange,
   IssueSeverity,
@@ -17,9 +16,7 @@ export { useMock };
 import { invalidate } from "./live";
 import { setActorId, setFault, type FaultMode } from "./session";
 import type {
-  ActivityItem,
   Bootstrap,
-  CapabilityMatrix,
   DeploymentPage,
   FactoryBoardRow,
   FactoryDetail,
@@ -37,7 +34,7 @@ export const api = {
   portfolio: () => apiRequest<Portfolio>("/api/v1/portfolio"),
   productBuild: () => apiRequest<ProductBuild>("/api/v1/product-build"),
   factories: () =>
-    apiRequest<{ asOf: string; items: FactoryBoardRow[]; people: Bootstrap["people"]; enumerations: Bootstrap["enumerations"] }>("/api/v1/factories"),
+    apiRequest<{ asOf: string; items: FactoryBoardRow[]; people: Bootstrap["people"] }>("/api/v1/factories"),
   factory: (id: string) => apiRequest<FactoryDetail>(`/api/v1/factories/${id}`),
   createFactory: (body: {
     code: string;
@@ -46,7 +43,6 @@ export const api = {
     description: string;
     category: string;
     region: string;
-    technology: string;
     pmId: string;
     plannedStart: string;
     status: FactoryStatus;
@@ -58,7 +54,6 @@ export const api = {
     description: string;
     category: string;
     region: string;
-    technology: string;
     pmId: string;
     plannedStart: string;
     plannedEnd: string;
@@ -90,7 +85,6 @@ export const api = {
   login: (body: { username: string; password: string }) => apiRequest<{ ok: boolean }>("/api/v1/login", { method: "POST", body }),
   loginConfig: () => apiRequest<{ showDemoHint: boolean }>("/api/v1/login-config"),
   logout: () => apiRequest<{ ok: boolean }>("/api/v1/logout", { method: "POST", body: {} }),
-  capabilities: () => apiRequest<CapabilityMatrix>("/api/v1/capabilities"),
   deployment: (id: string) => apiRequest<DeploymentPage>(`/api/v1/deployments/${id}`),
   updateDeployment: (id: string, body: DeploymentBody) => apiRequest<{ id: string }>(`/api/v1/deployments/${id}`, { method: "PATCH", body }),
   plan: (factoryId: string, productId: string) => apiRequest<PlanPage>(`/api/v1/factories/${factoryId}/products/${productId}/plan`),
@@ -100,12 +94,7 @@ export const api = {
     apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/products/${productId}/plan/approve`, { method: "POST" }),
   featureDiff: (from: string | null, to: string) =>
     apiRequest<{ changes: FeatureChange[] }>(`/api/v1/feature-diff?from=${encodeURIComponent(from ?? "")}&to=${encodeURIComponent(to)}`),
-  activity: () => apiRequest<{ asOf: string; items: ActivityItem[] }>("/api/v1/activity"),
-  createEnumeration: (body: { set: Enumeration["set"]; code: string; label: string; description: string }) =>
-    apiRequest<{ id: string }>("/api/v1/enumerations", { method: "POST", body }),
-  updateEnumeration: (id: string, body: { label: string; description: string; active: boolean }) =>
-    apiRequest<{ id: string }>(`/api/v1/enumerations/${id}`, { method: "PATCH", body }),
-  createMachineType: (body: { code: string; name: string }) =>
+  createMachineType: (body: { name: string }) =>
     apiRequest<{ id: string }>("/api/v1/machine-types", { method: "POST", body }),
   updateMachineType: (id: string, body: { name: string; active: boolean }) =>
     apiRequest<{ id: string }>(`/api/v1/machine-types/${id}`, { method: "PATCH", body }),
@@ -172,6 +161,7 @@ interface ProductBody {
   projectDepartment: string;
   primaryOwnerId: string;
   mode: ProductMode;
+  audience: "EXTERNAL" | "INTERNAL";
 }
 
 interface DeploymentBody {

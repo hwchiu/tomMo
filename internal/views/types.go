@@ -4,7 +4,6 @@ import "fpm/internal/domain"
 
 type MachineLineView struct {
 	MachineTypeID string `json:"machineTypeId"`
-	Code          string `json:"code"`
 	Name          string `json:"name"`
 	Planned       int    `json:"planned"`
 }
@@ -55,8 +54,6 @@ type FactoryBoardRow struct {
 	CategoryLabel      string            `json:"categoryLabel"`
 	Region             string            `json:"region"`
 	RegionLabel        string            `json:"regionLabel"`
-	Technology         string            `json:"technology"`
-	TechnologyLabel    string            `json:"technologyLabel"`
 	PMID               string            `json:"pmId"`
 	PMName             string            `json:"pmName"`
 	PMDepartment       string            `json:"pmDepartment"`
@@ -145,21 +142,19 @@ type BuildCell struct {
 }
 
 type BuildRow struct {
-	FactoryID       string            `json:"factoryId"`
-	FactoryName     string            `json:"factoryName"`
-	FactoryCode     string            `json:"factoryCode"`
-	Category        string            `json:"category"`
-	CategoryLabel   string            `json:"categoryLabel"`
-	Region          string            `json:"region"`
-	RegionLabel     string            `json:"regionLabel"`
-	Technology      string            `json:"technology"`
-	TechnologyLabel string            `json:"technologyLabel"`
-	Status          string            `json:"status"`
-	Phase2          *Phase2           `json:"phase2"`
-	Cells           []BuildCell       `json:"cells"`
-	ReadyCount      int               `json:"readyCount"`
-	MachineTotal    int               `json:"machineTotal"`
-	MachineRollup   []MachineLineView `json:"machineRollup"`
+	FactoryID     string            `json:"factoryId"`
+	FactoryName   string            `json:"factoryName"`
+	FactoryCode   string            `json:"factoryCode"`
+	Category      string            `json:"category"`
+	CategoryLabel string            `json:"categoryLabel"`
+	Region        string            `json:"region"`
+	RegionLabel   string            `json:"regionLabel"`
+	Status        string            `json:"status"`
+	Phase2        *Phase2           `json:"phase2"`
+	Cells         []BuildCell       `json:"cells"`
+	ReadyCount    int               `json:"readyCount"`
+	MachineTotal  int               `json:"machineTotal"`
+	MachineRollup []MachineLineView `json:"machineRollup"`
 }
 
 type ProductBuild struct {
@@ -169,6 +164,7 @@ type ProductBuild struct {
 		Name             string `json:"name"`
 		PrimaryOwnerName string `json:"primaryOwnerName"`
 		Mode             string `json:"mode"`
+		Audience         string `json:"audience"`
 	} `json:"products"`
 	Rows []BuildRow `json:"rows"`
 }
@@ -193,35 +189,33 @@ type AdHocView struct {
 }
 
 type FactoryDetail struct {
-	AsOf            string              `json:"asOf"`
-	ID              string              `json:"id"`
-	Code            string              `json:"code"`
-	Name            string              `json:"name"`
-	Location        string              `json:"location"`
-	Description     string              `json:"description"`
-	Status          string              `json:"status"`
-	Category        string              `json:"category"`
-	CategoryLabel   string              `json:"categoryLabel"`
-	Region          string              `json:"region"`
-	RegionLabel     string              `json:"regionLabel"`
-	Technology      string              `json:"technology"`
-	TechnologyLabel string              `json:"technologyLabel"`
-	PMID            string              `json:"pmId"`
-	PMName          string              `json:"pmName"`
-	PMDepartment    string              `json:"pmDepartment"`
-	MachineTotal    int                 `json:"machineTotal"`
-	PlannedStart    string              `json:"plannedStart"`
-	PlannedEnd      string              `json:"plannedEnd"`
-	ActualStart     *string             `json:"actualStart"`
-	ActualEnd       *string             `json:"actualEnd"`
-	Phases          []FactoryPhase      `json:"phases"`
-	Windows         []TimelineWindow    `json:"windows"`
-	Plans           []FactoryPlanCard   `json:"plans"`
-	Deployments     []FactoryDeployment `json:"deployments"`
-	Issues          []IssueListItem     `json:"issues"`
-	Topics          []FactoryTopic      `json:"topics"`
-	Activity        []ActivityItem      `json:"activity"`
-	MachineRollup   []MachineLineView   `json:"machineRollup"`
+	AsOf          string              `json:"asOf"`
+	ID            string              `json:"id"`
+	Code          string              `json:"code"`
+	Name          string              `json:"name"`
+	Location      string              `json:"location"`
+	Description   string              `json:"description"`
+	Status        string              `json:"status"`
+	Category      string              `json:"category"`
+	CategoryLabel string              `json:"categoryLabel"`
+	Region        string              `json:"region"`
+	RegionLabel   string              `json:"regionLabel"`
+	PMID          string              `json:"pmId"`
+	PMName        string              `json:"pmName"`
+	PMDepartment  string              `json:"pmDepartment"`
+	MachineTotal  int                 `json:"machineTotal"`
+	PlannedStart  string              `json:"plannedStart"`
+	PlannedEnd    string              `json:"plannedEnd"`
+	ActualStart   *string             `json:"actualStart"`
+	ActualEnd     *string             `json:"actualEnd"`
+	Phases        []FactoryPhase      `json:"phases"`
+	Windows       []TimelineWindow    `json:"windows"`
+	Plans         []FactoryPlanCard   `json:"plans"`
+	Deployments   []FactoryDeployment `json:"deployments"`
+	Issues        []IssueListItem     `json:"issues"`
+	Topics        []FactoryTopic      `json:"topics"`
+	Activity      []ActivityItem      `json:"activity"`
+	MachineRollup []MachineLineView   `json:"machineRollup"`
 }
 
 type FactoryPhase struct {
@@ -338,6 +332,7 @@ type ProductSummary struct {
 	PrimaryOwnerID    string  `json:"primaryOwnerId"`
 	PrimaryOwnerName  string  `json:"primaryOwnerName"`
 	Mode              string  `json:"mode"`
+	Audience          string  `json:"audience"`
 	VersionCount      int     `json:"versionCount"`
 	LatestVersion     *string `json:"latestVersion"`
 	OutdatedFactories int     `json:"outdatedFactories"`
@@ -544,16 +539,14 @@ type Bootstrap struct {
 	Username       string                `json:"username"`
 	Actor          domain.Person         `json:"actor"`
 	People         []domain.Person       `json:"people"`
-	Enumerations   []domain.Enumeration  `json:"enumerations"`
 	MachineTypes   []domain.MachineType  `json:"machineTypes"`
 	PhaseTemplates []PhaseTemplateOption `json:"phaseTemplates"`
 }
 
 type FactoryList struct {
-	AsOf         string               `json:"asOf"`
-	Items        []FactoryBoardRow    `json:"items"`
-	People       []domain.Person      `json:"people"`
-	Enumerations []domain.Enumeration `json:"enumerations"`
+	AsOf   string            `json:"asOf"`
+	Items  []FactoryBoardRow `json:"items"`
+	People []domain.Person   `json:"people"`
 }
 
 type ActivityList struct {

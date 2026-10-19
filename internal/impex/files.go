@@ -43,12 +43,12 @@ var specs = map[string]fileSpec{
 		all:      []string{"name", "department", "active", "source", "external_id"},
 	},
 	FileMachineTypes: {
-		required: []string{"code", "name"},
-		all:      []string{"code", "name", "active"},
+		required: []string{"name"},
+		all:      []string{"name", "active"},
 	},
 	FileProducts: {
 		required: []string{"name", "owner", "mode"},
-		all:      []string{"name", "owner", "mode", "description", "dev_department", "project_department"},
+		all:      []string{"name", "owner", "mode", "description", "dev_department", "project_department", "audience"},
 	},
 	FileFeatures: {
 		required: []string{"product", "name"},
@@ -59,8 +59,8 @@ var specs = map[string]fileSpec{
 		all:      []string{"product", "version", "released_at", "notes"},
 	},
 	FileFactories: {
-		required: []string{"code", "name", "category", "region", "technology", "pm", "planned_start", "planned_end", "status"},
-		all:      []string{"code", "name", "category", "region", "technology", "pm", "planned_start", "planned_end", "status", "location", "description", "actual_start", "actual_end"},
+		required: []string{"code", "name", "category", "region", "pm", "planned_start", "planned_end", "status"},
+		all:      []string{"code", "name", "category", "region", "pm", "planned_start", "planned_end", "status", "location", "description", "actual_start", "actual_end"},
 	},
 	FilePhases: {
 		required: []string{"factory", "name", "owner", "planned_start", "planned_end", "status"},

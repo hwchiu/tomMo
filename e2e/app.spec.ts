@@ -27,7 +27,7 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
   const factoryLink = page.getByRole("link", { name: "新竹一廠", exact: true });
   await expect(factoryLink).toBeVisible();
   await factoryLink.click();
-  await expect(page.getByText("廠區 PM")).toBeVisible();
+  await expect(page.getByText("廠區 TPM")).toBeVisible();
   await expect(page.getByText("林品均").first()).toBeVisible();
   await expect(page.getByText("計畫機台合計")).toBeVisible();
   await expect(page.getByText("高壓電契約容量不足").first()).toBeVisible();
@@ -35,7 +35,7 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
   await page.locator("#plans").getByRole("link", { name: "運算產品 Compute" }).click();
   await expect(page).toHaveURL(/\/plans\//);
   await expect(page.getByRole("heading", { name: "計畫機台" })).toBeVisible();
-  const machine = page.getByLabel("機種A");
+  const machine = page.getByLabel("EIA-1");
   await machine.fill("10");
   await expect(page.getByText(/合計 \d+ 台/)).toBeVisible();
   await page.getByLabel("預計施工結束").fill("2026-12-20");
@@ -87,4 +87,36 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
   const denied = await page.request.post("/api/v1/people", { data: { name: "不行", department: "廠務處" } });
   expect(denied.status()).toBe(403);
   expect(await denied.json()).toMatchObject({ message: "使用者只能閱讀" });
+});
+
+test("delivery status filters 對外 and issues omit priority", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await page.locator("aside").getByRole("link", { name: "產品交付狀況" }).click();
+  await expect(page.getByRole("heading", { name: "產品交付狀況" })).toBeVisible();
+  await expect(page.getByText("運算產品 Compute").first()).toBeVisible();
+  await expect(page.getByText("開發產品 Developer").first()).toBeVisible();
+  await page.getByLabel("可見範圍").selectOption("EXTERNAL");
+  await expect(page.getByText("運算產品 Compute").first()).toBeVisible();
+  await expect(page.getByText("開發產品 Developer")).toHaveCount(0);
+  await page.getByLabel("可見範圍").selectOption("INTERNAL");
+  await expect(page.getByText("開發產品 Developer").first()).toBeVisible();
+  await expect(page.getByText("運算產品 Compute")).toHaveCount(0);
+
+  await page.goto("/issues/new/");
+  await expect(page.getByLabel("優先序")).toHaveCount(0);
+  await expect(page.getByLabel("產品").locator("option", { hasText: "其他" })).toHaveCount(1);
+});
+
+test("machine type names are English", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await page.goto("/admin/?section=machines");
+  await expect(page.getByRole("heading", { name: "機器設定" })).toBeVisible();
+  const form = page.locator("form").filter({ has: page.getByRole("button", { name: "新增機種" }) });
+  await form.getByLabel("名稱").fill("機種中文");
+  await form.getByRole("button", { name: "新增機種" }).click();
+  await expect(page.getByText("機種名稱只能使用英文、數字與 - _ . 空格")).toBeVisible();
+  await form.getByLabel("名稱").fill("EIA-9");
+  await form.getByRole("button", { name: "新增機種" }).click();
+  await expect(page.getByText("已新增機種")).toBeVisible();
+  await expect(page.locator('input[value="EIA-9"]')).toBeVisible();
 });

@@ -75,7 +75,16 @@ func New(cfg Config) (*Server, error) {
 	viewerPerson := impex.DemoViewerName
 	if mode == store.SeedNone {
 		adminPerson = impex.EmptyAdminName
+		// A configured password creates the viewer. An empty password does not
+		// invent a random viewer account on a production database.
 		viewerPerson = ""
+		if cfg.ViewerPassword != "" {
+			viewerPerson = impex.EmptyViewerName
+			if err := st.EnsurePerson("u_viewer", impex.EmptyViewerName, "管理"); err != nil {
+				_ = st.Close()
+				return nil, err
+			}
+		}
 	}
 	generated, err := st.EnsureAccounts(store.AccountConfig{
 		AdminUsername: cfg.AdminUsername, AdminPassword: cfg.AdminPassword, AdminPerson: adminPerson,
@@ -150,7 +159,26 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 		s.serveAPI(w, r)
 		return
 	}
+	if legacyPageRedirect(w, r) {
+		return
+	}
 	s.serveStatic(w, r)
+}
+
+// legacyPageRedirect sends removed screens home, and the old settings URL to
+// 管理. Static hosts still ship a client redirect; this is the response the
+// monolith returns.
+func legacyPageRedirect(w http.ResponseWriter, r *http.Request) bool {
+	switch strings.TrimRight(r.URL.Path, "/") {
+	case "/capabilities", "/activity":
+		http.Redirect(w, r, "/", http.StatusPermanentRedirect)
+		return true
+	case "/settings":
+		http.Redirect(w, r, "/admin", http.StatusPermanentRedirect)
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
@@ -401,13 +429,6 @@ func (s *Server) dispatch(r *http.Request, path string, principal auth.Principal
 	if method == http.MethodGet && path == "/api/v1/activity" {
 		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildActivity(db, listQuery(r)), nil })
 	}
-	if method == http.MethodPost && path == "/api/v1/enumerations" {
-		var body store.EnumerationInput
-		if err := decode(r, &body); err != nil {
-			return nil, apierr.New(400, "請求格式不正確")
-		}
-		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.CreateEnumeration(db, actorID, body) })
-	}
 	if method == http.MethodPost && path == "/api/v1/machine-types" {
 		var body store.MachineTypeInput
 		if err := decode(r, &body); err != nil {
@@ -421,13 +442,6 @@ func (s *Server) dispatch(r *http.Request, path string, principal auth.Principal
 			return nil, apierr.New(400, "請求格式不正確")
 		}
 		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.UpdateMachineType(db, actorID, parts[3], body) })
-	}
-	if method == http.MethodPatch && len(parts) == 4 && parts[2] == "enumerations" {
-		var body store.EnumerationPatch
-		if err := decode(r, &body); err != nil {
-			return nil, apierr.New(400, "請求格式不正確")
-		}
-		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.UpdateEnumeration(db, actorID, parts[3], body) })
 	}
 	if method == http.MethodGet && len(parts) >= 3 && parts[2] == "feature-diff" {
 		return s.read(r.Context(), func(db *domain.Database) (any, error) {

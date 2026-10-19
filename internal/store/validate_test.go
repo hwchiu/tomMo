@@ -20,7 +20,6 @@ func TestValidateWriteInputs(t *testing.T) {
 	assertAPI(t, validatePlanIntent("approve"), 400, "請選擇草稿或送出")
 	assertAPI(t, validateMilestoneName("   "), 400, "請填里程碑名稱")
 	assertAPI(t, validateProductMode("CUSTOM"), 400, "請選擇版本模式或僅功能開關")
-	assertAPI(t, validateEnumSet("other"), 400, "列舉分類不正確")
 	assertAPI(t, validatePhaseLink("BLOCKED"), 400, "階段關聯不正確")
 	if validateIssue(IssueInput{Title: "標題", Severity: "HIGH", Priority: "P0", Status: "BLOCKED"}) != nil {
 		t.Fatal("valid issue rejected")

@@ -1,3 +1,5 @@
+import { issueProductOther } from "@/domain/audience";
+import { factoryCategoryLabel, factoryRegionLabel } from "@/domain/factory-attr";
 import { capabilityCell, isFeaturePlanComplete } from "@/domain/features";
 import { plannedTotal } from "@/domain/machines";
 import { compareSemver } from "@/domain/semver";
@@ -33,7 +35,6 @@ export function buildBootstrap(db: Database, actorId: string, auth: { role: Acco
     username: auth.username,
     actor: mustPerson(db, actorId),
     people: db.people,
-    enumerations: [...db.enumerations].sort((a, b) => a.set.localeCompare(b.set) || a.order - b.order),
     machineTypes: [...db.machineTypes].sort((a, b) => a.order - b.order),
     phaseTemplates: [...db.phaseTemplates]
       .sort((a, b) => a.order - b.order)
@@ -70,6 +71,7 @@ export function buildProductBuild(db: Database): ProductBuild {
     name: product.name,
     primaryOwnerName: nameOf(db, product.primaryOwnerId),
     mode: product.mode,
+    audience: product.audience === "INTERNAL" ? "INTERNAL" as const : "EXTERNAL" as const,
   }));
   const rows = db.factories.map((factory) => buildRow(db, factory.id, products.map((product) => product.id)));
   return { asOf: db.asOf, products, rows };
@@ -91,11 +93,9 @@ export function buildFactory(db: Database, id: string): FactoryDetail {
     description: factory.description,
     status: factory.status,
     category: factory.category,
-    categoryLabel: enumLabel(db, "factoryCategory", factory.category),
+    categoryLabel: factoryCategoryLabel(factory.category),
     region: factory.region,
-    regionLabel: enumLabel(db, "factoryRegion", factory.region),
-    technology: factory.technology,
-    technologyLabel: enumLabel(db, "technologyNode", factory.technology),
+    regionLabel: factoryRegionLabel(factory.region),
     pmId: factory.pmId,
     pmName: nameOf(db, factory.pmId),
     pmDepartment: departmentOf(db, factory.pmId),
@@ -464,7 +464,7 @@ export function buildActivity(db: Database): { asOf: string; items: ActivityItem
 }
 
 export function buildFactories(db: Database) {
-  return { asOf: db.asOf, items: db.factories.map((factory) => boardRow(db, factory.id)), people: db.people, enumerations: db.enumerations };
+  return { asOf: db.asOf, items: db.factories.map((factory) => boardRow(db, factory.id)), people: db.people };
 }
 
 function boardRow(db: Database, factoryId: string): FactoryBoardRow {
@@ -493,11 +493,9 @@ function boardRow(db: Database, factoryId: string): FactoryBoardRow {
     location: factory.location,
     status: factory.status,
     category: factory.category,
-    categoryLabel: enumLabel(db, "factoryCategory", factory.category),
+    categoryLabel: factoryCategoryLabel(factory.category),
     region: factory.region,
-    regionLabel: enumLabel(db, "factoryRegion", factory.region),
-    technology: factory.technology,
-    technologyLabel: enumLabel(db, "technologyNode", factory.technology),
+    regionLabel: factoryRegionLabel(factory.region),
     pmId: factory.pmId,
     pmName: nameOf(db, factory.pmId),
     pmDepartment: departmentOf(db, factory.pmId),
@@ -591,11 +589,9 @@ function buildRow(db: Database, factoryId: string, productIds: string[]): BuildR
     factoryName: factory.name,
     factoryCode: factory.code,
     category: factory.category,
-    categoryLabel: enumLabel(db, "factoryCategory", factory.category),
+    categoryLabel: factoryCategoryLabel(factory.category),
     region: factory.region,
-    regionLabel: enumLabel(db, "factoryRegion", factory.region),
-    technology: factory.technology,
-    technologyLabel: enumLabel(db, "technologyNode", factory.technology),
+    regionLabel: factoryRegionLabel(factory.region),
     status: factory.status,
     phase2: phase2
       ? { id: phase2.id, name: phase2.name, status: phase2.status, plannedStart: phase2.plannedStart, plannedEnd: phase2.plannedEnd }
@@ -745,7 +741,7 @@ function issueItem(db: Database, issue: Database["issues"][number]): IssueListIt
     phaseId: issue.phaseId,
     phaseName: issue.phaseId ? db.phases.find((phase) => phase.id === issue.phaseId)?.name ?? null : null,
     productId: issue.productId,
-    productName: issue.productId ? mustProduct(db, issue.productId).name : null,
+    productName: issue.productId === issueProductOther ? "其他" : issue.productId ? mustProduct(db, issue.productId).name : null,
     ownerId: issue.ownerId,
     ownerName: nameOf(db, issue.ownerId),
     severity: issue.severity,
@@ -775,6 +771,7 @@ function platformSummary(db: Database, id: string): ProductSummary {
     primaryOwnerId: product.primaryOwnerId,
     primaryOwnerName: nameOf(db, product.primaryOwnerId),
     mode: product.mode,
+    audience: product.audience === "INTERNAL" ? "INTERNAL" as const : "EXTERNAL" as const,
     versionCount: db.versions.filter((version) => version.productId === id).length,
     latestVersion: latest,
     outdatedFactories: outdated,
@@ -828,7 +825,6 @@ function machineLines(db: Database, deploymentId: string) {
     .sort((a, b) => a.order - b.order)
     .map((type) => ({
       machineTypeId: type.id,
-      code: type.code,
       name: type.name,
       planned: db.machineQuantities.find((row) => row.deploymentId === deploymentId && row.machineTypeId === type.id)?.planned ?? 0,
     }))
@@ -841,7 +837,6 @@ function factoryRollup(db: Database, factoryId: string) {
     .sort((a, b) => a.order - b.order)
     .map((type) => ({
       machineTypeId: type.id,
-      code: type.code,
       name: type.name,
       planned: deployments.reduce((sum, deployment) => {
         const row = db.machineQuantities.find((item) => item.deploymentId === deployment.id && item.machineTypeId === type.id);
@@ -849,10 +844,6 @@ function factoryRollup(db: Database, factoryId: string) {
       }, 0),
     }))
     .filter((line) => line.planned > 0 || db.machineTypes.find((type) => type.id === line.machineTypeId)?.active);
-}
-
-function enumLabel(db: Database, set: Database["enumerations"][number]["set"], code: string): string {
-  return db.enumerations.find((item) => item.set === set && item.code === code)?.label ?? code;
 }
 
 function nameOf(db: Database, id: string): string {

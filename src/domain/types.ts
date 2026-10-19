@@ -27,9 +27,6 @@ export type ChangeType = (typeof CHANGE_TYPES)[number];
 export const PHASE_LINK_RELATIONS = ["INTRODUCED", "UPGRADED", "ACCEPTED"] as const;
 export type PhaseLinkRelation = (typeof PHASE_LINK_RELATIONS)[number];
 
-export const ENUM_SETS = ["factoryCategory", "factoryRegion", "technologyNode"] as const;
-export type EnumSet = (typeof ENUM_SETS)[number];
-
 export const ACCOUNT_ROLES = ["editor", "viewer"] as const;
 export type AccountRole = (typeof ACCOUNT_ROLES)[number];
 
@@ -38,16 +35,6 @@ export type PersonSource = (typeof PERSON_SOURCES)[number];
 
 export const REVISION_ACTIONS = ["DRAFT", "SUBMIT", "APPROVE"] as const;
 export type RevisionAction = (typeof REVISION_ACTIONS)[number];
-
-export interface Enumeration {
-  id: string;
-  set: EnumSet;
-  code: string;
-  label: string;
-  description: string;
-  order: number;
-  active: boolean;
-}
 
 /** Directory record. Login accounts are separate and point at a person. */
 export interface Person {
@@ -79,7 +66,6 @@ export interface Factory {
   description: string;
   category: string;
   region: string;
-  technology: string;
   /** Factory PM, a person id from the directory. */
   pmId: string;
   plannedStart: string;
@@ -139,6 +125,8 @@ export interface Product {
   primaryOwnerId: string;
   /** VERSIONED plans pick a release. FEATURE_ONLY plans set each feature on or off. */
   mode: ProductMode;
+  /** EXTERNAL is 對外. INTERNAL is 對內. */
+  audience: "EXTERNAL" | "INTERNAL";
 }
 
 export interface ProductVersion {
@@ -247,7 +235,6 @@ export interface ProductFactoryPlan {
 /** Admin-managed machine type. Quantities are planned only. */
 export interface MachineType {
   id: string;
-  code: string;
   name: string;
   order: number;
   active: boolean;
@@ -327,7 +314,6 @@ export interface Activity {
 export interface Database {
   seq: number;
   asOf: string;
-  enumerations: Enumeration[];
   machineTypes: MachineType[];
   people: Person[];
   phaseTemplates: PhaseTemplate[];

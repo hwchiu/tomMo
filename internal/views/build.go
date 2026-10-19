@@ -17,13 +17,6 @@ func BuildBootstrap(db *domain.Database, actorID string, role, username string) 
 	if err != nil {
 		return Bootstrap{}, err
 	}
-	enums := append([]domain.Enumeration(nil), db.Enumerations...)
-	sort.SliceStable(enums, func(i, j int) bool {
-		if enums[i].Set != enums[j].Set {
-			return enums[i].Set < enums[j].Set
-		}
-		return enums[i].Order < enums[j].Order
-	})
 	types := append([]domain.MachineType(nil), db.MachineTypes...)
 	sort.SliceStable(types, func(i, j int) bool { return types[i].Order < types[j].Order })
 	templates := append([]domain.PhaseTemplate(nil), db.PhaseTemplates...)
@@ -34,7 +27,7 @@ func BuildBootstrap(db *domain.Database, actorID string, role, username string) 
 	}
 	return Bootstrap{
 		AsOf: db.AsOf, Role: role, Username: username, Actor: person,
-		People: clonePeople(db.People), Enumerations: enums, MachineTypes: types, PhaseTemplates: opts,
+		People: clonePeople(db.People), MachineTypes: types, PhaseTemplates: opts,
 	}, nil
 }
 
@@ -69,12 +62,17 @@ func BuildProductBuild(db *domain.Database) (ProductBuild, error) {
 	ids := make([]string, 0, len(db.Products))
 	for _, product := range db.Products {
 		ids = append(ids, product.ID)
+		audience := product.Audience
+		if audience == "" {
+			audience = domain.AudienceExternal
+		}
 		out.Products = append(out.Products, struct {
 			ID               string `json:"id"`
 			Name             string `json:"name"`
 			PrimaryOwnerName string `json:"primaryOwnerName"`
 			Mode             string `json:"mode"`
-		}{ID: product.ID, Name: product.Name, PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode})
+			Audience         string `json:"audience"`
+		}{ID: product.ID, Name: product.Name, PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode, Audience: audience})
 	}
 	if out.Products == nil {
 		out.Products = []struct {
@@ -82,6 +80,7 @@ func BuildProductBuild(db *domain.Database) (ProductBuild, error) {
 			Name             string `json:"name"`
 			PrimaryOwnerName string `json:"primaryOwnerName"`
 			Mode             string `json:"mode"`
+			Audience         string `json:"audience"`
 		}{}
 	}
 	for _, factory := range db.Factories {
@@ -109,9 +108,8 @@ func BuildFactory(db *domain.Database, id string) (FactoryDetail, error) {
 	detail := FactoryDetail{
 		AsOf: db.AsOf, ID: factory.ID, Code: factory.Code, Name: factory.Name, Location: factory.Location,
 		Description: factory.Description, Status: factory.Status, Category: factory.Category,
-		CategoryLabel: enumLabel(db, "factoryCategory", factory.Category), Region: factory.Region,
-		RegionLabel: enumLabel(db, "factoryRegion", factory.Region), Technology: factory.Technology,
-		TechnologyLabel: enumLabel(db, "technologyNode", factory.Technology), PMID: factory.PMID,
+		CategoryLabel: domain.FactoryCategoryLabel(factory.Category), Region: factory.Region,
+		RegionLabel: domain.FactoryRegionLabel(factory.Region), PMID: factory.PMID,
 		PMName: nameOf(db, factory.PMID), PMDepartment: departmentOf(db, factory.PMID),
 		MachineTotal: totalOf(factoryRollup(db, id)), MachineRollup: factoryRollup(db, id),
 		PlannedStart: factory.PlannedStart, PlannedEnd: factory.PlannedEnd, ActualStart: factory.ActualStart, ActualEnd: factory.ActualEnd,
@@ -699,7 +697,7 @@ func BuildActivity(db *domain.Database, query ListQuery) ActivityList {
 }
 
 func BuildFactories(db *domain.Database) (FactoryList, error) {
-	out := FactoryList{AsOf: db.AsOf, Items: []FactoryBoardRow{}, People: clonePeople(db.People), Enumerations: append([]domain.Enumeration(nil), db.Enumerations...)}
+	out := FactoryList{AsOf: db.AsOf, Items: []FactoryBoardRow{}, People: clonePeople(db.People)}
 	for _, factory := range db.Factories {
 		row, err := boardRow(db, factory.ID)
 		if err != nil {
@@ -769,9 +767,8 @@ func boardRow(db *domain.Database, factoryID string) (FactoryBoardRow, error) {
 	}
 	row := FactoryBoardRow{
 		ID: factory.ID, Code: factory.Code, Name: factory.Name, Location: factory.Location, Status: factory.Status,
-		Category: factory.Category, CategoryLabel: enumLabel(db, "factoryCategory", factory.Category),
-		Region: factory.Region, RegionLabel: enumLabel(db, "factoryRegion", factory.Region),
-		Technology: factory.Technology, TechnologyLabel: enumLabel(db, "technologyNode", factory.Technology),
+		Category: factory.Category, CategoryLabel: domain.FactoryCategoryLabel(factory.Category),
+		Region: factory.Region, RegionLabel: domain.FactoryRegionLabel(factory.Region),
 		PMID: factory.PMID, PMName: nameOf(db, factory.PMID), PMDepartment: departmentOf(db, factory.PMID),
 		MachineTotal: totalOf(factoryRollup(db, factoryID)), MachineRollup: factoryRollup(db, factoryID),
 		CurrentPhaseName: "—", CurrentPhaseStatus: "NOT_STARTED", CurrentOwnerName: "—",
@@ -844,9 +841,8 @@ func buildRow(db *domain.Database, factoryID string, productIDs []string) (Build
 	}
 	row := BuildRow{
 		FactoryID: factoryID, FactoryName: factory.Name, FactoryCode: factory.Code,
-		Category: factory.Category, CategoryLabel: enumLabel(db, "factoryCategory", factory.Category),
-		Region: factory.Region, RegionLabel: enumLabel(db, "factoryRegion", factory.Region),
-		Technology: factory.Technology, TechnologyLabel: enumLabel(db, "technologyNode", factory.Technology),
+		Category: factory.Category, CategoryLabel: domain.FactoryCategoryLabel(factory.Category),
+		Region: factory.Region, RegionLabel: domain.FactoryRegionLabel(factory.Region),
 		Status: factory.Status, Cells: []BuildCell{}, MachineRollup: factoryRollup(db, factoryID),
 		MachineTotal: totalOf(factoryRollup(db, factoryID)),
 	}
@@ -1099,13 +1095,9 @@ func issueItem(db *domain.Database, issue domain.Issue) (IssueListItem, error) {
 			}
 		}
 	}
-	var productName *string
-	if issue.ProductID != nil {
-		product, err := mustProduct(db, *issue.ProductID)
-		if err != nil {
-			return IssueListItem{}, err
-		}
-		productName = &product.Name
+	productName, err := issueProductName(db, issue.ProductID)
+	if err != nil {
+		return IssueListItem{}, err
 	}
 	open := issue.Status == "OPEN" || issue.Status == "IN_PROGRESS" || issue.Status == "BLOCKED"
 	return IssueListItem{
@@ -1115,6 +1107,21 @@ func issueItem(db *domain.Database, issue domain.Issue) (IssueListItem, error) {
 		Severity: issue.Severity, Priority: issue.Priority, Status: issue.Status, DueDate: issue.DueDate,
 		Overdue: open && issue.DueDate != nil && *issue.DueDate < db.AsOf, Resolution: issue.Resolution, UpdatedAt: issue.UpdatedAt,
 	}, nil
+}
+
+func issueProductName(db *domain.Database, id *string) (*string, error) {
+	if id == nil || *id == "" {
+		return nil, nil
+	}
+	if *id == domain.IssueProductOther {
+		name := "其他"
+		return &name, nil
+	}
+	product, err := mustProduct(db, *id)
+	if err != nil {
+		return nil, err
+	}
+	return &product.Name, nil
 }
 
 func productSummary(db *domain.Database, id string) (ProductSummary, error) {
@@ -1142,7 +1149,7 @@ func productSummary(db *domain.Database, id string) (ProductSummary, error) {
 	return ProductSummary{
 		ID: product.ID, Name: product.Name, Description: product.Description, DevDepartment: product.DevDepartment,
 		ProjectDepartment: product.ProjectDepartment, PrimaryOwnerID: product.PrimaryOwnerID,
-		PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode, VersionCount: count,
+		PrimaryOwnerName: nameOf(db, product.PrimaryOwnerID), Mode: product.Mode, Audience: product.Audience, VersionCount: count,
 		LatestVersion: latest, OutdatedFactories: outdated,
 	}, nil
 }
@@ -1250,7 +1257,7 @@ func machineLines(db *domain.Database, deploymentID string) []MachineLineView {
 			}
 		}
 		if kind.Active || planned > 0 {
-			out = append(out, MachineLineView{MachineTypeID: kind.ID, Code: kind.Code, Name: kind.Name, Planned: planned})
+			out = append(out, MachineLineView{MachineTypeID: kind.ID, Name: kind.Name, Planned: planned})
 		}
 	}
 	return out
@@ -1273,7 +1280,7 @@ func factoryRollup(db *domain.Database, factoryID string) []MachineLineView {
 			}
 		}
 		if planned > 0 || kind.Active {
-			out = append(out, MachineLineView{MachineTypeID: kind.ID, Code: kind.Code, Name: kind.Name, Planned: planned})
+			out = append(out, MachineLineView{MachineTypeID: kind.ID, Name: kind.Name, Planned: planned})
 		}
 	}
 	return out
@@ -1285,15 +1292,6 @@ func totalOf(lines []MachineLineView) int {
 		raw = append(raw, domain.PlannedLine{Planned: float64(line.Planned)})
 	}
 	return domain.PlannedTotal(raw)
-}
-
-func enumLabel(db *domain.Database, set, code string) string {
-	for _, item := range db.Enumerations {
-		if item.Set == set && item.Code == code {
-			return item.Label
-		}
-	}
-	return code
 }
 
 func nameOf(db *domain.Database, id string) string {

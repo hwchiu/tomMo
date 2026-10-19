@@ -7,7 +7,7 @@ import (
 )
 
 // ExportDatabase writes the domain model as CSV texts keyed by file name.
-// Enumerations, phase templates, activity, and plan revisions stay in the importer.
+// Phase templates, activity, and plan revisions stay in the importer.
 func ExportDatabase(db *domain.Database) (map[string]string, error) {
 	files := map[string]string{}
 	steps := []struct {
@@ -59,7 +59,7 @@ func exportPeople(db *domain.Database) ([][]string, error) {
 func exportMachineTypes(db *domain.Database) ([][]string, error) {
 	rows := make([][]string, 0, len(db.MachineTypes))
 	for _, item := range db.MachineTypes {
-		rows = append(rows, []string{item.Code, item.Name, boolText(item.Active)})
+		rows = append(rows, []string{item.Name, boolText(item.Active)})
 	}
 	return rows, nil
 }
@@ -67,7 +67,7 @@ func exportMachineTypes(db *domain.Database) ([][]string, error) {
 func exportProducts(db *domain.Database) ([][]string, error) {
 	rows := make([][]string, 0, len(db.Products))
 	for _, product := range db.Products {
-		rows = append(rows, []string{product.Name, personName(db, product.PrimaryOwnerID), product.Mode, product.Description, product.DevDepartment, product.ProjectDepartment})
+		rows = append(rows, []string{product.Name, personName(db, product.PrimaryOwnerID), product.Mode, product.Description, product.DevDepartment, product.ProjectDepartment, product.Audience})
 	}
 	return rows, nil
 }
@@ -105,7 +105,7 @@ func exportFactories(db *domain.Database) ([][]string, error) {
 	rows := make([][]string, 0, len(db.Factories))
 	for _, factory := range db.Factories {
 		rows = append(rows, []string{
-			factory.Code, factory.Name, factory.Category, factory.Region, factory.Technology, personName(db, factory.PMID),
+			factory.Code, factory.Name, factory.Category, factory.Region, personName(db, factory.PMID),
 			factory.PlannedStart, factory.PlannedEnd, factory.Status, factory.Location, factory.Description,
 			strVal(factory.ActualStart), strVal(factory.ActualEnd),
 		})

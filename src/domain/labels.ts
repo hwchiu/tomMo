@@ -49,7 +49,7 @@ export const deploymentStatusLabel: Record<DeploymentStatus, string> = {
 export const planStatusLabel: Record<PlanStatus, string> = {
   NOT_SUBMITTED: "未提報",
   SUBMITTED: "已提報",
-  APPROVED: "PM 已核准",
+  APPROVED: "TPM 已核准",
 };
 
 export const changeTypeLabel: Record<ChangeType, string> = {
@@ -115,12 +115,6 @@ export const readinessFlagLabel: Record<ReadinessFlag, string> = {
   VERSION_MISSING: "尚未選擇版本",
   FEATURE_UNPLANNED: "功能集未規劃完整",
 };
-
-export const enumSetLabel = {
-  factoryCategory: "廠別 Category",
-  factoryRegion: "區域 Region",
-  technologyNode: "製程節點",
-} as const;
 
 export function isOpenIssue(status: IssueStatus): boolean {
   return status === "OPEN" || status === "IN_PROGRESS" || status === "BLOCKED";

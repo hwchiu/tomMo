@@ -15,24 +15,18 @@ const (
 	DemoAdminName = "林品均"
 	// DemoViewerName is the viewer's person when SEED_MODE=demo.
 	DemoViewerName = "陳浩宇"
-	// EmptyAdminName is the only person created when SEED_MODE=none.
+	// EmptyAdminName is the editor's person when SEED_MODE=none.
 	EmptyAdminName = "系統管理員"
+	// EmptyViewerName is the viewer's person when SEED_MODE=none and a viewer password is configured.
+	EmptyViewerName = "唯讀帳號"
 )
 
-// Baseline is the catalog every database starts from: enumerations and phase templates.
-// It does not include factories, products, or people.
+// Baseline is the catalog every database starts from: the four phase templates.
+// Category and region are fixed in code. It does not include factories, products, or people.
 func Baseline() domain.Database {
 	db := domain.Database{
 		Seq:  1000,
 		AsOf: DemoAsOf,
-		Enumerations: []domain.Enumeration{
-			{ID: "en_giga", Set: "factoryCategory", Code: "GIGA", Label: "Giga", Description: "超大型廠，一次進駐多個產品", Order: 1, Active: true},
-			{ID: "en_phase", Set: "factoryCategory", Code: "PHASE", Label: "Phase", Description: "分期廠，產品分波進駐", Order: 2, Active: true},
-			{ID: "en_hq", Set: "factoryRegion", Code: "HQ", Label: "總部 HQ", Description: "總部廠區", Order: 1, Active: true},
-			{ID: "en_os", Set: "factoryRegion", Code: "OVERSEA", Label: "海外 Oversea", Description: "海外廠區", Order: 2, Active: true},
-			{ID: "en_n3", Set: "technologyNode", Code: "N3", Label: "N3", Description: "N3 製程節點", Order: 1, Active: true},
-			{ID: "en_n2", Set: "technologyNode", Code: "N2", Label: "N2", Description: "N2 製程節點", Order: 2, Active: true},
-		},
 		PhaseTemplates: []domain.PhaseTemplate{
 			{ID: "tpl_1", Code: "HW", Name: "硬體導入 Hardware Onboarding", Description: "廠房、電力、機櫃與網路硬體到位", Order: 1, DefaultDurationDays: 100},
 			{ID: "tpl_2", Code: "PLT", Name: "產品建立 Product Build", Description: "各產品進廠、施工、部署到可交給開發者", Order: 2, DefaultDurationDays: 150},
@@ -44,14 +38,16 @@ func Baseline() domain.Database {
 	return db
 }
 
-// LoadEmpty is an empty production database: the catalog plus one admin person.
+// LoadEmpty is an empty production database: the catalog plus the admin and viewer people.
+// The viewer account itself is created only when a password is configured.
 func LoadEmpty() domain.Database {
 	db := Baseline()
 	db.AsOf = time.Now().UTC().Format("2006-01-02")
 	db.Seq = 1000
-	db.People = []domain.Person{{
-		ID: "u_admin", Name: EmptyAdminName, Department: "管理", Active: true, Source: "manual",
-	}}
+	db.People = []domain.Person{
+		{ID: "u_admin", Name: EmptyAdminName, Department: "管理", Active: true, Source: "manual"},
+		{ID: "u_viewer", Name: EmptyViewerName, Department: "管理", Active: true, Source: "manual"},
+	}
 	domain.Normalize(&db)
 	return db
 }

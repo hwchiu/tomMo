@@ -6,7 +6,6 @@ package domain
 type Database struct {
 	Seq               int                    `json:"seq"`
 	AsOf              string                 `json:"asOf"`
-	Enumerations      []Enumeration          `json:"enumerations"`
 	MachineTypes      []MachineType          `json:"machineTypes"`
 	People            []Person               `json:"people"`
 	PhaseTemplates    []PhaseTemplate        `json:"phaseTemplates"`
@@ -26,16 +25,6 @@ type Database struct {
 	Issues            []Issue                `json:"issues"`
 	Topics            []DiscussionTopic      `json:"topics"`
 	Activity          []Activity             `json:"activity"`
-}
-
-type Enumeration struct {
-	ID          string `json:"id"`
-	Set         string `json:"set"`
-	Code        string `json:"code"`
-	Label       string `json:"label"`
-	Description string `json:"description"`
-	Order       int    `json:"order"`
-	Active      bool   `json:"active"`
 }
 
 type Person struct {
@@ -64,7 +53,6 @@ type Factory struct {
 	Description  string  `json:"description"`
 	Category     string  `json:"category"`
 	Region       string  `json:"region"`
-	Technology   string  `json:"technology"`
 	PMID         string  `json:"pmId"`
 	PlannedStart string  `json:"plannedStart"`
 	PlannedEnd   string  `json:"plannedEnd"`
@@ -118,6 +106,8 @@ type Product struct {
 	ProjectDepartment string `json:"projectDepartment"`
 	PrimaryOwnerID    string `json:"primaryOwnerId"`
 	Mode              string `json:"mode"`
+	// Audience is EXTERNAL (對外) or INTERNAL (對內).
+	Audience string `json:"audience"`
 }
 
 type ProductVersion struct {
@@ -205,7 +195,6 @@ type ProductFactoryPlan struct {
 
 type MachineType struct {
 	ID     string `json:"id"`
-	Code   string `json:"code"`
 	Name   string `json:"name"`
 	Order  int    `json:"order"`
 	Active bool   `json:"active"`
@@ -275,7 +264,6 @@ type FeatureChange struct {
 
 // Normalize replaces nil slices with empty slices so JSON responses stay arrays.
 func Normalize(db *Database) {
-	db.Enumerations = nz(db.Enumerations)
 	db.MachineTypes = nz(db.MachineTypes)
 	db.People = nz(db.People)
 	db.PhaseTemplates = nz(db.PhaseTemplates)
@@ -295,6 +283,11 @@ func Normalize(db *Database) {
 	db.Issues = nz(db.Issues)
 	db.Topics = nz(db.Topics)
 	db.Activity = nz(db.Activity)
+	for i := range db.Products {
+		if db.Products[i].Audience == "" {
+			db.Products[i].Audience = AudienceExternal
+		}
+	}
 	for i := range db.Phases {
 		db.Phases[i].DependsOnPhaseIds = nz(db.Phases[i].DependsOnPhaseIds)
 	}

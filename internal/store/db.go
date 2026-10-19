@@ -34,7 +34,7 @@ type Store struct {
 const (
 	// SeedDemo loads data/demo through the shared importer when the database is empty.
 	SeedDemo = "demo"
-	// SeedNone leaves an empty database with the admin person only.
+	// SeedNone leaves an empty database with the admin and viewer directory rows.
 	SeedNone = "none"
 )
 
@@ -325,6 +325,46 @@ func (s *Store) lookupPerson(name string) (string, bool) {
 	return "", false
 }
 
+// EnsurePerson inserts a manual directory row when name is missing.
+// Databases created before the empty-catalog viewer existed still need that row
+// before the viewer account can be created.
+func (s *Store) EnsurePerson(id, name, department string) error {
+	var exists bool
+	if err := s.Read(func(db *domain.Database) error {
+		for _, person := range db.People {
+			if person.Name == name {
+				exists = true
+				break
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return s.Write(func(db *domain.Database) error {
+		for _, person := range db.People {
+			if person.Name == name {
+				return nil
+			}
+		}
+		chosen := id
+		for _, person := range db.People {
+			if person.ID == chosen {
+				chosen = fmt.Sprintf("per_%d", db.Seq)
+				db.Seq++
+				break
+			}
+		}
+		db.People = append(db.People, domain.Person{
+			ID: chosen, Name: name, Department: department, Active: true, Source: "manual",
+		})
+		return nil
+	})
+}
+
 func (s *Store) migrate() error {
 	if _, err := s.sql.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
 		return err
@@ -333,21 +373,258 @@ func (s *Store) migrate() error {
 	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 1`).Scan(&n); err != nil {
 		return err
 	}
+	if n == 0 {
+		tx, err := s.sql.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if err := execScript(tx, schemaSQL); err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
+		if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	if err := s.migrateMachineTypeNames(); err != nil {
+		return err
+	}
+	if err := s.migrateFactoryAttrs(); err != nil {
+		return err
+	}
+	return s.migrateProductAudience()
+}
+
+// migrateMachineTypeNames drops the legacy code column and renames the demo types.
+func (s *Store) migrateMachineTypeNames() error {
+	var n int
+	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 2`).Scan(&n); err != nil {
+		return err
+	}
 	if n > 0 {
 		return nil
 	}
+	rows, err := s.sql.Query(`PRAGMA table_info(machine_types)`)
+	if err != nil {
+		return err
+	}
+	hasCode := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if name == "code" {
+			hasCode = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	_ = rows.Close()
 	tx, err := s.sql.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err := execScript(tx, schemaSQL); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+	if hasCode {
+		renames := [][2]string{{"機種A", "EIA-1"}, {"機種B", "EIA-2"}, {"機種C", "EIA-3"}, {"機種D", "EIA-4"}}
+		for _, pair := range renames {
+			if _, err := tx.Exec(`UPDATE machine_types SET name = ? WHERE name = ? AND NOT EXISTS (SELECT 1 FROM machine_types existing WHERE lower(existing.name) = lower(?))`, pair[1], pair[0], pair[1]); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(`CREATE TABLE machine_types_v2 (id TEXT PRIMARY KEY, name TEXT NOT NULL, ord INTEGER NOT NULL, active INTEGER NOT NULL)`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO machine_types_v2(id, name, ord, active) SELECT id, name, ord, active FROM machine_types`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DROP TABLE machine_types`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`ALTER TABLE machine_types_v2 RENAME TO machine_types`); err != nil {
+			return err
+		}
 	}
-	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (2, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// migrateFactoryAttrs drops the technology column and the editable enumerations table.
+// OVERSEA rows are remapped from the factory name and location.
+func (s *Store) migrateFactoryAttrs() error {
+	var n int
+	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 3`).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	rows, err := s.sql.Query(`PRAGMA table_info(factories)`)
+	if err != nil {
+		return err
+	}
+	hasTechnology := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if name == "technology" {
+			hasTechnology = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	_ = rows.Close()
+	tx, err := s.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if hasTechnology {
+		if err := rebuildFactoriesWithoutTechnology(tx); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS enumerations`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// migrateProductAudience adds 對外/對內. Existing rows default to 對外.
+// The four demo dependency products are marked 對內 when the column is new.
+func (s *Store) migrateProductAudience() error {
+	var n int
+	if err := s.sql.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 4`).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	rows, err := s.sql.Query(`PRAGMA table_info(products)`)
+	if err != nil {
+		return err
+	}
+	hasAudience := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if name == "audience" {
+			hasAudience = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	_ = rows.Close()
+	tx, err := s.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if !hasAudience {
+		if _, err := tx.Exec(`ALTER TABLE products ADD COLUMN audience TEXT NOT NULL DEFAULT 'EXTERNAL'`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE products SET audience = 'INTERNAL' WHERE name IN ('開發產品 Developer', '監控產品 Monitoring', '網路產品 Network', '安全產品 Security')`); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (4, ?)`, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func rebuildFactoriesWithoutTechnology(tx *sql.Tx) error {
+	type legacyFactory struct {
+		id, code, name, location, description, category, region, pm, plannedStart, plannedEnd, status string
+		actualStart, actualEnd                                                                        sql.NullString
+	}
+	rows, err := tx.Query(`SELECT id, code, name, location, description, category, region, pm_id, planned_start, planned_end, actual_start, actual_end, status FROM factories`)
+	if err != nil {
+		return err
+	}
+	var items []legacyFactory
+	for rows.Next() {
+		var item legacyFactory
+		if err := rows.Scan(&item.id, &item.code, &item.name, &item.location, &item.description, &item.category, &item.region, &item.pm, &item.plannedStart, &item.plannedEnd, &item.actualStart, &item.actualEnd, &item.status); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	_ = rows.Close()
+	if _, err := tx.Exec(`CREATE TABLE factories_v3 (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL,
+  region TEXT NOT NULL,
+  pm_id TEXT NOT NULL,
+  planned_start TEXT NOT NULL,
+  planned_end TEXT NOT NULL,
+  actual_start TEXT,
+  actual_end TEXT,
+  status TEXT NOT NULL
+)`); err != nil {
+		return err
+	}
+	for _, item := range items {
+		category, err := domain.NormalizeFactoryCategory(item.category)
+		if err != nil {
+			category = "GIGA"
+		}
+		region := item.region
+		if strings.EqualFold(strings.TrimSpace(region), "OVERSEA") {
+			region = domain.LegacyOverseaRegion(item.name, item.location)
+		} else if normalized, err := domain.NormalizeFactoryRegion(region); err == nil {
+			region = normalized
+		} else {
+			region = "HQ"
+		}
+		if _, err := tx.Exec(`INSERT INTO factories_v3(id, code, name, location, description, category, region, pm_id, planned_start, planned_end, actual_start, actual_end, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			item.id, item.code, item.name, item.location, item.description, category, region, item.pm, item.plannedStart, item.plannedEnd, item.actualStart, item.actualEnd, item.status); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`DROP TABLE factories`); err != nil {
+		return err
+	}
+	_, err = tx.Exec(`ALTER TABLE factories_v3 RENAME TO factories`)
+	return err
 }
 
 func (s *Store) persist(ctx context.Context) error {
@@ -362,7 +639,7 @@ func (s *Store) persist(ctx context.Context) error {
 	for _, table := range []string{
 		"activity", "topics", "issues", "plan_revisions", "plans", "feature_configs", "phase_links",
 		"machine_quantities", "deployments", "version_features", "features", "product_versions", "products",
-		"milestones", "phases", "factories", "phase_templates", "people", "machine_types", "enumerations", "meta",
+		"milestones", "phases", "factories", "phase_templates", "people", "machine_types", "meta",
 	} {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 			return err
@@ -373,15 +650,9 @@ func (s *Store) persist(ctx context.Context) error {
 	if _, err := tx.Exec(`INSERT INTO meta(seq, as_of) VALUES (?, ?)`, db.Seq, db.AsOf); err != nil {
 		return err
 	}
-	for _, row := range db.Enumerations {
-		if _, err := tx.Exec(`INSERT INTO enumerations(id, set_name, code, label, description, ord, active) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			row.ID, row.Set, row.Code, row.Label, row.Description, row.Order, bint(row.Active)); err != nil {
-			return err
-		}
-	}
 	for _, row := range db.MachineTypes {
-		if _, err := tx.Exec(`INSERT INTO machine_types(id, code, name, ord, active) VALUES (?, ?, ?, ?, ?)`,
-			row.ID, row.Code, row.Name, row.Order, bint(row.Active)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO machine_types(id, name, ord, active) VALUES (?, ?, ?, ?)`,
+			row.ID, row.Name, row.Order, bint(row.Active)); err != nil {
 			return err
 		}
 	}
@@ -398,8 +669,8 @@ func (s *Store) persist(ctx context.Context) error {
 		}
 	}
 	for _, row := range db.Factories {
-		if _, err := tx.Exec(`INSERT INTO factories(id, code, name, location, description, category, region, technology, pm_id, planned_start, planned_end, actual_start, actual_end, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			row.ID, row.Code, row.Name, row.Location, row.Description, row.Category, row.Region, row.Technology, row.PMID, row.PlannedStart, row.PlannedEnd, ns(row.ActualStart), ns(row.ActualEnd), row.Status); err != nil {
+		if _, err := tx.Exec(`INSERT INTO factories(id, code, name, location, description, category, region, pm_id, planned_start, planned_end, actual_start, actual_end, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			row.ID, row.Code, row.Name, row.Location, row.Description, row.Category, row.Region, row.PMID, row.PlannedStart, row.PlannedEnd, ns(row.ActualStart), ns(row.ActualEnd), row.Status); err != nil {
 			return err
 		}
 	}
@@ -420,8 +691,8 @@ func (s *Store) persist(ctx context.Context) error {
 		}
 	}
 	for _, row := range db.Products {
-		if _, err := tx.Exec(`INSERT INTO products(id, name, description, dev_department, project_department, primary_owner_id, mode) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			row.ID, row.Name, row.Description, row.DevDepartment, row.ProjectDepartment, row.PrimaryOwnerID, row.Mode); err != nil {
+		if _, err := tx.Exec(`INSERT INTO products(id, name, description, dev_department, project_department, primary_owner_id, mode, audience) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			row.ID, row.Name, row.Description, row.DevDepartment, row.ProjectDepartment, row.PrimaryOwnerID, row.Mode, row.Audience); err != nil {
 			return err
 		}
 	}
@@ -525,22 +796,10 @@ func (s *Store) load() (domain.Database, error) {
 	if err := s.sql.QueryRow(`SELECT seq, as_of FROM meta LIMIT 1`).Scan(&db.Seq, &db.AsOf); err != nil {
 		return db, err
 	}
-	if err := query(s.sql, `SELECT id, set_name, code, label, description, ord, active FROM enumerations ORDER BY rowid`, func(rows *sql.Rows) error {
-		var row domain.Enumeration
-		var active int
-		if err := rows.Scan(&row.ID, &row.Set, &row.Code, &row.Label, &row.Description, &row.Order, &active); err != nil {
-			return err
-		}
-		row.Active = active != 0
-		db.Enumerations = append(db.Enumerations, row)
-		return nil
-	}); err != nil {
-		return db, err
-	}
-	if err := query(s.sql, `SELECT id, code, name, ord, active FROM machine_types ORDER BY rowid`, func(rows *sql.Rows) error {
+	if err := query(s.sql, `SELECT id, name, ord, active FROM machine_types ORDER BY rowid`, func(rows *sql.Rows) error {
 		var row domain.MachineType
 		var active int
-		if err := rows.Scan(&row.ID, &row.Code, &row.Name, &row.Order, &active); err != nil {
+		if err := rows.Scan(&row.ID, &row.Name, &row.Order, &active); err != nil {
 			return err
 		}
 		row.Active = active != 0
@@ -573,10 +832,10 @@ func (s *Store) load() (domain.Database, error) {
 	}); err != nil {
 		return db, err
 	}
-	if err := query(s.sql, `SELECT id, code, name, location, description, category, region, technology, pm_id, planned_start, planned_end, actual_start, actual_end, status FROM factories ORDER BY rowid`, func(rows *sql.Rows) error {
+	if err := query(s.sql, `SELECT id, code, name, location, description, category, region, pm_id, planned_start, planned_end, actual_start, actual_end, status FROM factories ORDER BY rowid`, func(rows *sql.Rows) error {
 		var row domain.Factory
 		var actualStart, actualEnd sql.NullString
-		if err := rows.Scan(&row.ID, &row.Code, &row.Name, &row.Location, &row.Description, &row.Category, &row.Region, &row.Technology, &row.PMID, &row.PlannedStart, &row.PlannedEnd, &actualStart, &actualEnd, &row.Status); err != nil {
+		if err := rows.Scan(&row.ID, &row.Code, &row.Name, &row.Location, &row.Description, &row.Category, &row.Region, &row.PMID, &row.PlannedStart, &row.PlannedEnd, &actualStart, &actualEnd, &row.Status); err != nil {
 			return err
 		}
 		row.ActualStart = strPtr(actualStart)
@@ -618,9 +877,9 @@ func (s *Store) load() (domain.Database, error) {
 	}); err != nil {
 		return db, err
 	}
-	if err := query(s.sql, `SELECT id, name, description, dev_department, project_department, primary_owner_id, mode FROM products ORDER BY rowid`, func(rows *sql.Rows) error {
+	if err := query(s.sql, `SELECT id, name, description, dev_department, project_department, primary_owner_id, mode, audience FROM products ORDER BY rowid`, func(rows *sql.Rows) error {
 		var row domain.Product
-		if err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.DevDepartment, &row.ProjectDepartment, &row.PrimaryOwnerID, &row.Mode); err != nil {
+		if err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.DevDepartment, &row.ProjectDepartment, &row.PrimaryOwnerID, &row.Mode, &row.Audience); err != nil {
 			return err
 		}
 		db.Products = append(db.Products, row)

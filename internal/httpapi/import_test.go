@@ -37,9 +37,10 @@ func testServerMode(t *testing.T, mode string) *Server {
 func TestEmptyModeHasNoDemo(t *testing.T) {
 	srv := testServerMode(t, store.SeedNone)
 	admin := login(t, srv, "admin", "admin")
-	viewer := do(srv, http.MethodPost, "/api/v1/login", "", map[string]string{"username": "viewer", "password": "viewer"})
-	if viewer.Code != http.StatusUnauthorized {
-		t.Fatalf("viewer login %d %s", viewer.Code, viewer.Body.String())
+	viewer := login(t, srv, "viewer", "viewer")
+	forbidden := do(srv, http.MethodPost, "/api/v1/people", viewer, map[string]string{"name": "不行", "department": "廠務處"})
+	if forbidden.Code != http.StatusForbidden {
+		t.Fatalf("viewer write %d %s", forbidden.Code, forbidden.Body.String())
 	}
 	list := do(srv, http.MethodGet, "/api/v1/factories", admin, nil)
 	var factories views.FactoryList
@@ -50,7 +51,7 @@ func TestEmptyModeHasNoDemo(t *testing.T) {
 		t.Fatalf("empty factories %+v", factories.Items)
 	}
 	boot := do(srv, http.MethodGet, "/api/v1/bootstrap", admin, nil)
-	if !bytes.Contains(boot.Body.Bytes(), []byte("系統管理員")) {
+	if !bytes.Contains(boot.Body.Bytes(), []byte("系統管理員")) || !bytes.Contains(boot.Body.Bytes(), []byte(impex.EmptyViewerName)) {
 		t.Fatalf("bootstrap %s", boot.Body.String())
 	}
 	reset := do(srv, http.MethodPost, "/api/v1/session/reset", admin, map[string]bool{})

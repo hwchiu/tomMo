@@ -13,14 +13,25 @@ describe("demo seed", () => {
     expect(seed.factories).toHaveLength(12);
     expect(seed.people).toHaveLength(25);
     expect(seed.products).toHaveLength(7);
-    expect(seed.machineTypes.map((item) => item.name)).toEqual(["機種A", "機種B", "機種C", "機種D"]);
+    expect(seed.machineTypes.map((item) => item.name)).toEqual(["EIA-1", "EIA-2", "EIA-3", "EIA-4"]);
     expect(seed.products.filter((item) => item.mode === "VERSIONED").length).toBeGreaterThanOrEqual(3);
     expect(seed.products.filter((item) => item.mode === "FEATURE_ONLY").length).toBeGreaterThanOrEqual(4);
+    expect(seed.products.filter((item) => item.audience === "EXTERNAL").map((item) => item.name)).toEqual([
+      "運算產品 Compute",
+      "儲存產品 Storage",
+      "資料產品 Data",
+    ]);
+    expect(seed.products.filter((item) => item.audience === "INTERNAL").map((item) => item.name)).toEqual([
+      "開發產品 Developer",
+      "監控產品 Monitoring",
+      "網路產品 Network",
+      "安全產品 Security",
+    ]);
     expect(seed.people.some((person) => person.source === "external" && person.externalId === "emp-2048")).toBe(true);
     expect(new Set(seed.factories.map((factory) => factory.status))).toEqual(new Set(["ON_TRACK", "AT_RISK", "DELAYED", "COMPLETED"]));
     expect(new Set(seed.factories.map((factory) => factory.category))).toEqual(new Set(["GIGA", "PHASE"]));
-    expect(new Set(seed.factories.map((factory) => factory.region))).toEqual(new Set(["HQ", "OVERSEA"]));
-    expect(new Set(seed.factories.map((factory) => factory.technology))).toEqual(new Set(["N3", "N2"]));
+    expect(new Set(seed.factories.map((factory) => factory.region))).toEqual(new Set(["HQ", "JP", "AZ", "EU"]));
+    expect(seed.factories.find((factory) => factory.name === "新加坡一廠")?.region).toBe("EU");
   });
 
   it("gives every factory products, topics, and machine totals", () => {

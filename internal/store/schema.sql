@@ -8,19 +8,8 @@ CREATE TABLE IF NOT EXISTS meta (
   as_of TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS enumerations (
-  id TEXT PRIMARY KEY,
-  set_name TEXT NOT NULL,
-  code TEXT NOT NULL,
-  label TEXT NOT NULL,
-  description TEXT NOT NULL,
-  ord INTEGER NOT NULL,
-  active INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS machine_types (
   id TEXT PRIMARY KEY,
-  code TEXT NOT NULL,
   name TEXT NOT NULL,
   ord INTEGER NOT NULL,
   active INTEGER NOT NULL
@@ -52,7 +41,6 @@ CREATE TABLE IF NOT EXISTS factories (
   description TEXT NOT NULL,
   category TEXT NOT NULL,
   region TEXT NOT NULL,
-  technology TEXT NOT NULL,
   pm_id TEXT NOT NULL,
   planned_start TEXT NOT NULL,
   planned_end TEXT NOT NULL,
@@ -95,7 +83,8 @@ CREATE TABLE IF NOT EXISTS products (
   dev_department TEXT NOT NULL,
   project_department TEXT NOT NULL,
   primary_owner_id TEXT NOT NULL,
-  mode TEXT NOT NULL
+  mode TEXT NOT NULL,
+  audience TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS product_versions (

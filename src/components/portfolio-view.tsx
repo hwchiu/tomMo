@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/api";
 import type { FactoryBoardRow } from "@/api/types";
+import { factoryCategories, factoryRegions } from "@/domain/factory-attr";
 import { inFactoryScope, type GroupKey } from "@/domain/select";
-import { useApp } from "@/components/shell";
 import { MetaChip, StatusChip } from "@/components/status-chip";
 import { PortfolioTimeline } from "@/components/timeline";
 import { AsyncView, EmptyState, PageHeader, Panel, Skeleton, TextLink } from "@/components/ui";
@@ -17,13 +17,11 @@ import { useLiveQuery } from "@/lib/use-live-query";
 export function PortfolioView({
   category,
   region,
-  technology,
   status,
   group,
 }: {
   category: string;
   region: string;
-  technology: string;
   status: string;
   group: string;
 }) {
@@ -35,7 +33,6 @@ export function PortfolioView({
           data={data}
           category={category}
           region={region}
-          technology={technology}
           status={status}
           group={(group || "none") as GroupKey}
         />
@@ -48,36 +45,29 @@ function PortfolioBody({
   data,
   category,
   region,
-  technology,
   status,
   group,
 }: {
   data: Awaited<ReturnType<typeof api.portfolio>>;
   category: string;
   region: string;
-  technology: string;
   status: string;
   group: GroupKey;
 }) {
   const router = useRouter();
-  const app = useApp();
   const [expanded, setExpanded] = useState(false);
-  const scope = { category, region, technology };
+  const groupKey: GroupKey = group === "category" || group === "region" ? group : "none";
+  const scope = { category, region };
   const scoped = data.factories.filter((factory) => inFactoryScope(factory, scope));
   const visible = scoped.filter((factory) => inFactoryScope(factory, { status }));
-  const enums = app?.enumerations.filter((item) => item.active) ?? [];
-  const categories = enums.filter((item) => item.set === "factoryCategory");
-  const regions = enums.filter((item) => item.set === "factoryRegion");
-  const nodes = enums.filter((item) => item.set === "technologyNode");
 
-  function push(next: Partial<{ category: string; region: string; technology: string; status: string; group: string }>) {
+  function push(next: Partial<{ category: string; region: string; status: string; group: string }>) {
     router.replace(
       withQuery("/", {
         category,
         region,
-        technology,
         status,
-        group,
+        group: groupKey,
         ...next,
       }),
     );
@@ -92,8 +82,8 @@ function PortfolioBody({
   const groups = (() => {
     const map = new Map<string, { label: string; items: FactoryBoardRow[] }>();
     for (const factory of visible) {
-      const key = group === "category" ? factory.category : group === "region" ? factory.region : group === "technology" ? factory.technology : "all";
-      const label = group === "category" ? factory.categoryLabel : group === "region" ? factory.regionLabel : group === "technology" ? factory.technologyLabel : "全部工廠";
+      const key = groupKey === "category" ? factory.category : groupKey === "region" ? factory.region : "all";
+      const label = groupKey === "category" ? factory.categoryLabel : groupKey === "region" ? factory.regionLabel : "全部工廠";
       const bucket = map.get(key) ?? { label, items: [] };
       bucket.items.push(factory);
       map.set(key, bucket);
@@ -109,7 +99,7 @@ function PortfolioBody({
       <PageHeader
         kicker="Portfolio"
         title="組合總覽"
-        description="例外先看。工廠依類別、區域、製程節點篩選；產品建立的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
+        description="例外先看。工廠依類別與區域篩選；產品建立的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
         actions={<TextLink href="/product-build">打開產品建立矩陣</TextLink>}
       />
       <Panel className="mb-4 p-4">
@@ -120,7 +110,7 @@ function PortfolioBody({
         <PortfolioTimeline asOf={data.asOf} factories={data.factories} />
       </Panel>
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="工廠總數" value={scoped.length} hint="套用類別／區域／節點" pressed={!status} onClick={() => push({ status: "" })} />
+        <Stat label="工廠總數" value={scoped.length} hint="套用類別／區域" pressed={!status} onClick={() => push({ status: "" })} />
         <Stat label="進度正常" value={scoped.filter((factory) => factory.status === "ON_TRACK").length} pressed={status === "ON_TRACK"} onClick={() => push({ status: status === "ON_TRACK" ? "" : "ON_TRACK" })} />
         <Stat label="有風險" value={scoped.filter((factory) => factory.status === "AT_RISK").length} pressed={status === "AT_RISK"} onClick={() => push({ status: status === "AT_RISK" ? "" : "AT_RISK" })} />
         <Stat label="延遲" value={scoped.filter((factory) => factory.status === "DELAYED").length} pressed={status === "DELAYED"} onClick={() => push({ status: status === "DELAYED" ? "" : "DELAYED" })} tone="danger" />
@@ -131,19 +121,17 @@ function PortfolioBody({
         <Link className="rounded-full bg-amber-50 px-3 py-1 text-amber-900" href="/product-build?exceptions=1">未就緒產品 {notReady}</Link>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <FilterSelect label="類別" value={category} onChange={(value) => push({ category: value })} options={categories.map((item) => ({ value: item.code, label: item.label }))} />
-        <FilterSelect label="區域" value={region} onChange={(value) => push({ region: value })} options={regions.map((item) => ({ value: item.code, label: item.label }))} />
-        <FilterSelect label="製程" value={technology} onChange={(value) => push({ technology: value })} options={nodes.map((item) => ({ value: item.code, label: item.label }))} />
+        <FilterSelect label="類別" value={category} onChange={(value) => push({ category: value })} options={factoryCategories.map((item) => ({ value: item.code, label: item.label }))} />
+        <FilterSelect label="區域" value={region} onChange={(value) => push({ region: value })} options={factoryRegions.map((item) => ({ value: item.code, label: item.label }))} />
         <FilterSelect
           label="分組"
-          value={group}
+          value={groupKey}
           allowEmpty={false}
           onChange={(value) => push({ group: value })}
           options={[
             { value: "none", label: "不分組" },
             { value: "category", label: "依類別" },
             { value: "region", label: "依區域" },
-            { value: "technology", label: "依製程" },
           ]}
         />
       </div>
@@ -178,7 +166,7 @@ function PortfolioBody({
         ) : null}
       </Panel>
       {visible.length === 0 ? (
-        <EmptyState title="沒有符合的工廠" body="調整類別、區域、製程或狀態。列舉可以在設定裡增減。" action={<Link href="/" className="text-sm text-accent">清除篩選</Link>} />
+        <EmptyState title="沒有符合的工廠" body="調整類別、區域或狀態。" action={<Link href="/" className="text-sm text-accent">清除篩選</Link>} />
       ) : (
         <div className="space-y-6">
           {groups.map((bucket) => (
@@ -197,7 +185,6 @@ function PortfolioBody({
                         <div className="mt-1 flex flex-wrap gap-1">
                           <MetaChip>{factory.categoryLabel}</MetaChip>
                           <MetaChip>{factory.regionLabel}</MetaChip>
-                          <MetaChip>{factory.technologyLabel}</MetaChip>
                           <MetaChip>{factory.location}</MetaChip>
                         </div>
                       </div>

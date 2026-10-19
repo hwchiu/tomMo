@@ -58,10 +58,6 @@ func validateProductMode(mode string) error {
 	return oneOf(mode, "請選擇版本模式或僅功能開關", "VERSIONED", "FEATURE_ONLY")
 }
 
-func validateEnumSet(set string) error {
-	return oneOf(set, "列舉分類不正確", "factoryCategory", "factoryRegion", "technologyNode")
-}
-
 func validatePhaseLink(relation string) error {
 	return oneOf(relation, "階段關聯不正確", "INTRODUCED", "UPGRADED", "ACCEPTED")
 }

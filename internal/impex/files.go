@@ -59,8 +59,8 @@ var specs = map[string]fileSpec{
 		all:      []string{"product", "version", "released_at", "notes"},
 	},
 	FileFactories: {
-		required: []string{"code", "name", "category", "region", "technology", "pm", "planned_start", "planned_end", "status"},
-		all:      []string{"code", "name", "category", "region", "technology", "pm", "planned_start", "planned_end", "status", "location", "description", "actual_start", "actual_end"},
+		required: []string{"code", "name", "category", "region", "pm", "planned_start", "planned_end", "status"},
+		all:      []string{"code", "name", "category", "region", "pm", "planned_start", "planned_end", "status", "location", "description", "actual_start", "actual_end"},
 	},
 	FilePhases: {
 		required: []string{"factory", "name", "owner", "planned_start", "planned_end", "status"},

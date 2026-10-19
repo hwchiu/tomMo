@@ -7,7 +7,7 @@ import (
 )
 
 // ExportDatabase writes the domain model as CSV texts keyed by file name.
-// Enumerations, phase templates, activity, and plan revisions stay in the importer.
+// Phase templates, activity, and plan revisions stay in the importer.
 func ExportDatabase(db *domain.Database) (map[string]string, error) {
 	files := map[string]string{}
 	steps := []struct {
@@ -105,7 +105,7 @@ func exportFactories(db *domain.Database) ([][]string, error) {
 	rows := make([][]string, 0, len(db.Factories))
 	for _, factory := range db.Factories {
 		rows = append(rows, []string{
-			factory.Code, factory.Name, factory.Category, factory.Region, factory.Technology, personName(db, factory.PMID),
+			factory.Code, factory.Name, factory.Category, factory.Region, personName(db, factory.PMID),
 			factory.PlannedStart, factory.PlannedEnd, factory.Status, factory.Location, factory.Description,
 			strVal(factory.ActualStart), strVal(factory.ActualEnd),
 		})

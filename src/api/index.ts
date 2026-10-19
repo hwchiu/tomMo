@@ -1,6 +1,5 @@
 import type {
   DeploymentStatus,
-  Enumeration,
   FactoryStatus,
   FeatureChange,
   IssueSeverity,
@@ -35,7 +34,7 @@ export const api = {
   portfolio: () => apiRequest<Portfolio>("/api/v1/portfolio"),
   productBuild: () => apiRequest<ProductBuild>("/api/v1/product-build"),
   factories: () =>
-    apiRequest<{ asOf: string; items: FactoryBoardRow[]; people: Bootstrap["people"]; enumerations: Bootstrap["enumerations"] }>("/api/v1/factories"),
+    apiRequest<{ asOf: string; items: FactoryBoardRow[]; people: Bootstrap["people"] }>("/api/v1/factories"),
   factory: (id: string) => apiRequest<FactoryDetail>(`/api/v1/factories/${id}`),
   createFactory: (body: {
     code: string;
@@ -44,7 +43,6 @@ export const api = {
     description: string;
     category: string;
     region: string;
-    technology: string;
     pmId: string;
     plannedStart: string;
     status: FactoryStatus;
@@ -56,7 +54,6 @@ export const api = {
     description: string;
     category: string;
     region: string;
-    technology: string;
     pmId: string;
     plannedStart: string;
     plannedEnd: string;
@@ -97,10 +94,6 @@ export const api = {
     apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/products/${productId}/plan/approve`, { method: "POST" }),
   featureDiff: (from: string | null, to: string) =>
     apiRequest<{ changes: FeatureChange[] }>(`/api/v1/feature-diff?from=${encodeURIComponent(from ?? "")}&to=${encodeURIComponent(to)}`),
-  createEnumeration: (body: { set: Enumeration["set"]; code: string; label: string; description: string }) =>
-    apiRequest<{ id: string }>("/api/v1/enumerations", { method: "POST", body }),
-  updateEnumeration: (id: string, body: { label: string; description: string; active: boolean }) =>
-    apiRequest<{ id: string }>(`/api/v1/enumerations/${id}`, { method: "PATCH", body }),
   createMachineType: (body: { name: string }) =>
     apiRequest<{ id: string }>("/api/v1/machine-types", { method: "POST", body }),
   updateMachineType: (id: string, body: { name: string; active: boolean }) =>

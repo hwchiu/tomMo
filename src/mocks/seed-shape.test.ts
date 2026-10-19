@@ -19,8 +19,8 @@ describe("demo seed", () => {
     expect(seed.people.some((person) => person.source === "external" && person.externalId === "emp-2048")).toBe(true);
     expect(new Set(seed.factories.map((factory) => factory.status))).toEqual(new Set(["ON_TRACK", "AT_RISK", "DELAYED", "COMPLETED"]));
     expect(new Set(seed.factories.map((factory) => factory.category))).toEqual(new Set(["GIGA", "PHASE"]));
-    expect(new Set(seed.factories.map((factory) => factory.region))).toEqual(new Set(["HQ", "OVERSEA"]));
-    expect(new Set(seed.factories.map((factory) => factory.technology))).toEqual(new Set(["N3", "N2"]));
+    expect(new Set(seed.factories.map((factory) => factory.region))).toEqual(new Set(["HQ", "JP", "AZ", "EU"]));
+    expect(seed.factories.find((factory) => factory.name === "新加坡一廠")?.region).toBe("EU");
   });
 
   it("gives every factory products, topics, and machine totals", () => {

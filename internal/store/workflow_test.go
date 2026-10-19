@@ -62,10 +62,17 @@ func TestMutationErrors(t *testing.T) {
 			_, err := CreateFactory(db, actor, input)
 			return err
 		}},
-		{"bad enum", 400, "請選擇有效的列舉值", func(db *domain.Database) error {
+		{"bad category", 400, domain.FactoryCategoryInvalid, func(db *domain.Database) error {
 			input := sampleFactory("FAB-NEW")
 			input.PMID = actor
 			input.Category = "NOPE"
+			_, err := CreateFactory(db, actor, input)
+			return err
+		}},
+		{"bad region", 400, domain.FactoryRegionInvalid, func(db *domain.Database) error {
+			input := sampleFactory("FAB-NEW")
+			input.PMID = actor
+			input.Region = "OVERSEA"
 			_, err := CreateFactory(db, actor, input)
 			return err
 		}},
@@ -153,10 +160,6 @@ func TestMutationErrors(t *testing.T) {
 		}},
 		{"phase name", 400, "請填階段名稱", func(db *domain.Database) error {
 			_, err := CreatePhase(db, actor, hsc, PhaseInput{Name: " ", Status: "NOT_STARTED", OwnerID: actor, PlannedStart: "2026-12-01", PlannedEnd: "2026-12-15"})
-			return err
-		}},
-		{"enum code", 400, "代碼與名稱必填", func(db *domain.Database) error {
-			_, err := CreateEnumeration(db, actor, EnumerationInput{Set: "factoryCategory", Code: "", Label: ""})
 			return err
 		}},
 		{"machine name", 400, "機種名稱必填", func(db *domain.Database) error {
@@ -472,13 +475,6 @@ func TestCatalogMutations(t *testing.T) {
 	if _, err := UpdateDeployment(db, actor, deployment, DeploymentInput{Status: "IN_PROGRESS", SecondaryOwnerID: actor, Notes: "備註"}); err != nil {
 		t.Fatal(err)
 	}
-	enum, err := CreateEnumeration(db, actor, EnumerationInput{Set: "factoryRegion", Code: "LAB", Label: "實驗室"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := UpdateEnumeration(db, actor, enum.ID, EnumerationPatch{Label: "實驗室區", Active: true}); err != nil {
-		t.Fatal(err)
-	}
 	kind, err := CreateMachineType(db, actor, MachineTypeInput{Name: "EIA-9"})
 	if err != nil {
 		t.Fatal(err)
@@ -621,7 +617,7 @@ func machineID(t *testing.T, db *domain.Database, name string) string {
 
 func sampleFactory(code string) FactoryInput {
 	return FactoryInput{
-		Code: code, Name: "新廠", Location: "測試", Category: "GIGA", Region: "HQ", Technology: "N3",
+		Code: code, Name: "新廠", Location: "測試", Category: "GIGA", Region: "HQ",
 		PlannedStart: "2026-03-01", Status: "ON_TRACK",
 	}
 }

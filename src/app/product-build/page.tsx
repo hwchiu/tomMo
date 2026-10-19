@@ -18,7 +18,6 @@ function BuildQuery() {
     <ProductBuildView
       category={query.get("category") ?? ""}
       region={query.get("region") ?? ""}
-      technology={query.get("technology") ?? ""}
       onlyExceptions={query.get("exceptions") === "1"}
     />
   );

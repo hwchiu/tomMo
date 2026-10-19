@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/api";
 import type { FactoryDetail } from "@/api/types";
+import { factoryCategories, factoryRegions } from "@/domain/factory-attr";
 import { factoryStatusLabel, phaseStatusLabel, relationLabel } from "@/domain/labels";
 import type { DeploymentStatus, FactoryStatus, PhaseLinkRelation, PhaseStatus } from "@/domain/types";
 import { deploymentStatusLabel } from "@/domain/labels";
@@ -38,7 +39,6 @@ export function FactoryForm({ id }: { id?: string }) {
                   description: String(form.get("description") ?? ""),
                   category: String(form.get("category") ?? ""),
                   region: String(form.get("region") ?? ""),
-                  technology: String(form.get("technology") ?? ""),
                   pmId: String(form.get("pmId") ?? ""),
                   plannedStart: String(form.get("plannedStart") ?? ""),
                   plannedEnd: String(form.get("plannedEnd") ?? data?.plannedEnd ?? ""),
@@ -54,9 +54,8 @@ export function FactoryForm({ id }: { id?: string }) {
               <Field label="代碼"><input name="code" defaultValue={data?.code ?? ""} className={controlClass} required /></Field>
               <Field label="名稱"><input name="name" defaultValue={data?.name ?? ""} className={controlClass} required /></Field>
               <Field label="地點"><input name="location" defaultValue={data?.location ?? ""} className={controlClass} /></Field>
-              <EnumSelect name="category" label="類別 Category" set="factoryCategory" value={data?.category} />
-              <EnumSelect name="region" label="區域 Region" set="factoryRegion" value={data?.region} />
-              <EnumSelect name="technology" label="製程節點" set="technologyNode" value={data?.technology} />
+              <FixedSelect name="category" label="類別 Category" options={factoryCategories} value={data?.category} />
+              <FixedSelect name="region" label="區域 Region" options={factoryRegions} value={data?.region} />
               <Field label="廠區 PM">
                 <select name="pmId" className={controlClass} defaultValue={data?.pmId ?? app.actor.id}>
                   {app.people.filter((person) => person.active || person.id === data?.pmId).map((person) => <option key={person.id} value={person.id}>{person.name} · {person.department}</option>)}
@@ -82,13 +81,11 @@ export function FactoryForm({ id }: { id?: string }) {
   );
 }
 
-function EnumSelect({ name, label, set, value }: { name: string; label: string; set: "factoryCategory" | "factoryRegion" | "technologyNode"; value?: string }) {
-  const app = useApp();
-  const options = app?.enumerations.filter((item) => item.set === set && item.active) ?? [];
+function FixedSelect({ name, label, options, value }: { name: string; label: string; options: ReadonlyArray<{ code: string; label: string }>; value?: string }) {
   return (
     <Field label={label}>
       <select name={name} className={controlClass} defaultValue={value ?? options[0]?.code}>
-        {options.map((item) => <option key={item.id} value={item.code}>{item.label}</option>)}
+        {options.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
       </select>
     </Field>
   );
@@ -335,18 +332,17 @@ export function FactoryDirectory() {
     <AsyncView state={state} skeleton={<Skeleton className="h-64" />}>
       {(data) => (
         <div>
-          <PageHeader kicker="Factory" title="工廠" description="每座工廠有自己的階段副本。類別、區域與製程來自可設定的列舉。" actions={<WhenEditor><Link href="/factories/new" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white">新增工廠</Link></WhenEditor>} />
+          <PageHeader kicker="Factory" title="工廠" description="每座工廠有自己的階段副本。類別是 Giga 或 Phase，區域是 HQ、JP、AZ、EU。廠名就是這座廠。" actions={<WhenEditor><Link href="/factories/new" className="inline-flex h-9 items-center rounded-md bg-accent px-3 text-sm text-white">新增工廠</Link></WhenEditor>} />
           {data.items.length === 0 ? <p className="text-sm text-muted">還沒有工廠。</p> : (
             <div className="overflow-x-auto rounded-xl border border-line bg-panel">
               <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="text-xs text-muted"><tr><th className="p-3">工廠</th><th>類別</th><th>區域</th><th>製程</th><th>狀態</th><th>目前階段</th><th>PM</th></tr></thead>
+                <thead className="text-xs text-muted"><tr><th className="p-3">工廠</th><th>類別</th><th>區域</th><th>狀態</th><th>目前階段</th><th>PM</th></tr></thead>
                 <tbody>
                   {data.items.map((factory) => (
                     <tr key={factory.id} className="border-t border-line">
                       <td className="p-3"><Link className="font-medium hover:underline" href={`/factories/${factory.id}`}>{factory.name}</Link><div className="font-mono text-[11px] text-muted">{factory.code}</div></td>
                       <td>{factory.categoryLabel}</td>
                       <td>{factory.regionLabel}</td>
-                      <td>{factory.technologyLabel}</td>
                       <td>{factory.status}</td>
                       <td>{factory.currentPhaseOrder}. {factory.currentPhaseName}</td>
                       <td>{factory.pmName}</td>

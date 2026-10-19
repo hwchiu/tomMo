@@ -116,12 +116,6 @@ export const readinessFlagLabel: Record<ReadinessFlag, string> = {
   FEATURE_UNPLANNED: "功能集未規劃完整",
 };
 
-export const enumSetLabel = {
-  factoryCategory: "廠別 Category",
-  factoryRegion: "區域 Region",
-  technologyNode: "製程節點",
-} as const;
-
 export function isOpenIssue(status: IssueStatus): boolean {
   return status === "OPEN" || status === "IN_PROGRESS" || status === "BLOCKED";
 }

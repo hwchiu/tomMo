@@ -234,17 +234,27 @@ func parseFactories(file string, idx map[string]int, rows []rawRow, ds *Dataset)
 	seenName := map[string]bool{}
 	seenCode := map[string]bool{}
 	for _, raw := range rows {
+		rawCategory := cell(raw.cells, idx, "category")
+		rawRegion := cell(raw.cells, idx, "region")
 		row := FactoryRow{
 			File: file, Row: raw.line,
 			Code: cell(raw.cells, idx, "code"), Name: cell(raw.cells, idx, "name"),
-			Category: cell(raw.cells, idx, "category"), Region: cell(raw.cells, idx, "region"),
-			Technology: cell(raw.cells, idx, "technology"), PM: cell(raw.cells, idx, "pm"),
+			PM:     cell(raw.cells, idx, "pm"),
 			Status: cell(raw.cells, idx, "status"), Location: cell(raw.cells, idx, "location"),
 			Description: cell(raw.cells, idx, "description"),
 		}
-		if row.Code == "" || row.Name == "" || row.Category == "" || row.Region == "" || row.Technology == "" || row.PM == "" || row.Status == "" {
-			errs = append(errs, rowErr(file, raw.line, "工廠代碼、名稱、類別、區域、製程、PM 與狀態必填"))
+		if row.Code == "" || row.Name == "" || rawCategory == "" || rawRegion == "" || row.PM == "" || row.Status == "" {
+			errs = append(errs, rowErr(file, raw.line, "工廠代碼、名稱、類別、區域、PM 與狀態必填"))
 			continue
+		}
+		var catErr, regErr error
+		row.Category, catErr = domain.NormalizeFactoryCategory(rawCategory)
+		row.Region, regErr = domain.NormalizeFactoryRegion(rawRegion)
+		if catErr != nil {
+			errs = append(errs, rowErr(file, raw.line, catErr.Error()))
+		}
+		if regErr != nil {
+			errs = append(errs, rowErr(file, raw.line, regErr.Error()))
 		}
 		if seenName[row.Name] {
 			errs = append(errs, rowErr(file, raw.line, "工廠「"+row.Name+"」重複"))

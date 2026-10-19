@@ -17,13 +17,6 @@ func BuildBootstrap(db *domain.Database, actorID string, role, username string) 
 	if err != nil {
 		return Bootstrap{}, err
 	}
-	enums := append([]domain.Enumeration(nil), db.Enumerations...)
-	sort.SliceStable(enums, func(i, j int) bool {
-		if enums[i].Set != enums[j].Set {
-			return enums[i].Set < enums[j].Set
-		}
-		return enums[i].Order < enums[j].Order
-	})
 	types := append([]domain.MachineType(nil), db.MachineTypes...)
 	sort.SliceStable(types, func(i, j int) bool { return types[i].Order < types[j].Order })
 	templates := append([]domain.PhaseTemplate(nil), db.PhaseTemplates...)
@@ -34,7 +27,7 @@ func BuildBootstrap(db *domain.Database, actorID string, role, username string) 
 	}
 	return Bootstrap{
 		AsOf: db.AsOf, Role: role, Username: username, Actor: person,
-		People: clonePeople(db.People), Enumerations: enums, MachineTypes: types, PhaseTemplates: opts,
+		People: clonePeople(db.People), MachineTypes: types, PhaseTemplates: opts,
 	}, nil
 }
 
@@ -109,9 +102,8 @@ func BuildFactory(db *domain.Database, id string) (FactoryDetail, error) {
 	detail := FactoryDetail{
 		AsOf: db.AsOf, ID: factory.ID, Code: factory.Code, Name: factory.Name, Location: factory.Location,
 		Description: factory.Description, Status: factory.Status, Category: factory.Category,
-		CategoryLabel: enumLabel(db, "factoryCategory", factory.Category), Region: factory.Region,
-		RegionLabel: enumLabel(db, "factoryRegion", factory.Region), Technology: factory.Technology,
-		TechnologyLabel: enumLabel(db, "technologyNode", factory.Technology), PMID: factory.PMID,
+		CategoryLabel: domain.FactoryCategoryLabel(factory.Category), Region: factory.Region,
+		RegionLabel: domain.FactoryRegionLabel(factory.Region), PMID: factory.PMID,
 		PMName: nameOf(db, factory.PMID), PMDepartment: departmentOf(db, factory.PMID),
 		MachineTotal: totalOf(factoryRollup(db, id)), MachineRollup: factoryRollup(db, id),
 		PlannedStart: factory.PlannedStart, PlannedEnd: factory.PlannedEnd, ActualStart: factory.ActualStart, ActualEnd: factory.ActualEnd,
@@ -699,7 +691,7 @@ func BuildActivity(db *domain.Database, query ListQuery) ActivityList {
 }
 
 func BuildFactories(db *domain.Database) (FactoryList, error) {
-	out := FactoryList{AsOf: db.AsOf, Items: []FactoryBoardRow{}, People: clonePeople(db.People), Enumerations: append([]domain.Enumeration(nil), db.Enumerations...)}
+	out := FactoryList{AsOf: db.AsOf, Items: []FactoryBoardRow{}, People: clonePeople(db.People)}
 	for _, factory := range db.Factories {
 		row, err := boardRow(db, factory.ID)
 		if err != nil {
@@ -769,9 +761,8 @@ func boardRow(db *domain.Database, factoryID string) (FactoryBoardRow, error) {
 	}
 	row := FactoryBoardRow{
 		ID: factory.ID, Code: factory.Code, Name: factory.Name, Location: factory.Location, Status: factory.Status,
-		Category: factory.Category, CategoryLabel: enumLabel(db, "factoryCategory", factory.Category),
-		Region: factory.Region, RegionLabel: enumLabel(db, "factoryRegion", factory.Region),
-		Technology: factory.Technology, TechnologyLabel: enumLabel(db, "technologyNode", factory.Technology),
+		Category: factory.Category, CategoryLabel: domain.FactoryCategoryLabel(factory.Category),
+		Region: factory.Region, RegionLabel: domain.FactoryRegionLabel(factory.Region),
 		PMID: factory.PMID, PMName: nameOf(db, factory.PMID), PMDepartment: departmentOf(db, factory.PMID),
 		MachineTotal: totalOf(factoryRollup(db, factoryID)), MachineRollup: factoryRollup(db, factoryID),
 		CurrentPhaseName: "—", CurrentPhaseStatus: "NOT_STARTED", CurrentOwnerName: "—",
@@ -844,9 +835,8 @@ func buildRow(db *domain.Database, factoryID string, productIDs []string) (Build
 	}
 	row := BuildRow{
 		FactoryID: factoryID, FactoryName: factory.Name, FactoryCode: factory.Code,
-		Category: factory.Category, CategoryLabel: enumLabel(db, "factoryCategory", factory.Category),
-		Region: factory.Region, RegionLabel: enumLabel(db, "factoryRegion", factory.Region),
-		Technology: factory.Technology, TechnologyLabel: enumLabel(db, "technologyNode", factory.Technology),
+		Category: factory.Category, CategoryLabel: domain.FactoryCategoryLabel(factory.Category),
+		Region: factory.Region, RegionLabel: domain.FactoryRegionLabel(factory.Region),
 		Status: factory.Status, Cells: []BuildCell{}, MachineRollup: factoryRollup(db, factoryID),
 		MachineTotal: totalOf(factoryRollup(db, factoryID)),
 	}
@@ -1285,15 +1275,6 @@ func totalOf(lines []MachineLineView) int {
 		raw = append(raw, domain.PlannedLine{Planned: float64(line.Planned)})
 	}
 	return domain.PlannedTotal(raw)
-}
-
-func enumLabel(db *domain.Database, set, code string) string {
-	for _, item := range db.Enumerations {
-		if item.Set == set && item.Code == code {
-			return item.Label
-		}
-	}
-	return code
 }
 
 func nameOf(db *domain.Database, id string) string {

@@ -2,7 +2,6 @@ import type { ReadinessFlag } from "@/domain/readiness";
 import type {
   Activity,
   DeploymentStatus,
-  Enumeration,
   FactoryStatus,
   IssueSeverity,
   IssueStatus,
@@ -71,8 +70,6 @@ export interface FactoryBoardRow {
   categoryLabel: string;
   region: string;
   regionLabel: string;
-  technology: string;
-  technologyLabel: string;
   pmId: string;
   pmName: string;
   pmDepartment: string;
@@ -153,8 +150,6 @@ export interface BuildRow {
   categoryLabel: string;
   region: string;
   regionLabel: string;
-  technology: string;
-  technologyLabel: string;
   status: FactoryStatus;
   phase2: {
     id: string;
@@ -201,8 +196,6 @@ export interface FactoryDetail {
   categoryLabel: string;
   region: string;
   regionLabel: string;
-  technology: string;
-  technologyLabel: string;
   pmId: string;
   pmName: string;
   pmDepartment: string;
@@ -467,13 +460,11 @@ export interface Bootstrap {
   username: string;
   actor: Person;
   people: Person[];
-  enumerations: Enumeration[];
   machineTypes: MachineType[];
   phaseTemplates: Array<{ id: string; name: string; order: number; defaultDurationDays: number }>;
 }
 
 export interface FactoryFormOptions {
   people: Person[];
-  enumerations: Enumeration[];
   templates: Bootstrap["phaseTemplates"];
 }

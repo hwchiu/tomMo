@@ -22,7 +22,7 @@ export function FactoryView({ id }: { id: string }) {
       {(data) => (
         <div>
           <PageHeader
-            kicker={`${data.code} · ${data.categoryLabel} · ${data.regionLabel} · ${data.technologyLabel}`}
+            kicker={`${data.code} · ${data.categoryLabel} · ${data.regionLabel}`}
             title={data.name}
             description={data.description}
             actions={

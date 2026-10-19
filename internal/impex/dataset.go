@@ -46,10 +46,10 @@ type VersionRow struct {
 }
 
 type FactoryRow struct {
-	File, Code, Name, Category, Region, Technology, PM string
-	PlannedStart, PlannedEnd, Status                   string
-	Location, Description, ActualStart, ActualEnd      string
-	Row                                                int
+	File, Code, Name, Category, Region, PM        string
+	PlannedStart, PlannedEnd, Status              string
+	Location, Description, ActualStart, ActualEnd string
+	Row                                           int
 }
 
 type PhaseRow struct {

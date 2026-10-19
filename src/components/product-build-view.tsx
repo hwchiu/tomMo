@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/api";
 import type { BuildCell, BuildRow } from "@/api/types";
+import { factoryCategories, factoryRegions } from "@/domain/factory-attr";
 import { productModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
 import { inFactoryScope } from "@/domain/select";
-import { useApp } from "@/components/shell";
 import { MetaChip, StatusChip } from "@/components/status-chip";
 import { AsyncView, EmptyState, PageHeader, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -18,19 +18,17 @@ import { useLiveQuery } from "@/lib/use-live-query";
 export function ProductBuildView({
   category,
   region,
-  technology,
   onlyExceptions,
 }: {
   category: string;
   region: string;
-  technology: string;
   onlyExceptions: boolean;
 }) {
   const state = useLiveQuery("product-build", () => api.productBuild());
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-[32rem]" />}>
       {(data) => (
-        <Body data={data} category={category} region={region} technology={technology} onlyExceptions={onlyExceptions} />
+        <Body data={data} category={category} region={region} onlyExceptions={onlyExceptions} />
       )}
     </AsyncView>
   );
@@ -40,27 +38,22 @@ function Body({
   data,
   category,
   region,
-  technology,
   onlyExceptions,
 }: {
   data: Awaited<ReturnType<typeof api.productBuild>>;
   category: string;
   region: string;
-  technology: string;
   onlyExceptions: boolean;
 }) {
   const router = useRouter();
-  const app = useApp();
-  const enums = app?.enumerations.filter((item) => item.active) ?? [];
-  const rows = data.rows.filter((row) => inFactoryScope(row, { category, region, technology }));
+  const rows = data.rows.filter((row) => inFactoryScope(row, { category, region }));
   const visible = onlyExceptions ? rows.filter((row) => row.cells.some((cell) => !cell.ready)) : rows;
 
-  function push(next: Partial<{ category: string; region: string; technology: string; exceptions: string }>) {
+  function push(next: Partial<{ category: string; region: string; exceptions: string }>) {
     router.replace(
       withQuery("/product-build", {
         category,
         region,
-        technology,
         exceptions: onlyExceptions ? "1" : "",
         ...next,
       }),
@@ -75,9 +68,8 @@ function Body({
         description="每一格是一座工廠上的一個產品：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出產品建立區間會先被標出來。各產品平行施工，時程重疊不算衝突。"
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-        <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={enums.filter((item) => item.set === "factoryCategory")} />
-        <Select label="區域" value={region} onChange={(value) => push({ region: value })} options={enums.filter((item) => item.set === "factoryRegion")} />
-        <Select label="製程" value={technology} onChange={(value) => push({ technology: value })} options={enums.filter((item) => item.set === "technologyNode")} />
+        <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={factoryCategories} />
+        <Select label="區域" value={region} onChange={(value) => push({ region: value })} options={factoryRegions} />
         <button
           type="button"
           className={cn("h-8 rounded-full px-3", onlyExceptions ? "bg-ink text-white" : "border border-line bg-white")}
@@ -180,7 +172,6 @@ function RowHead({ row }: { row: BuildRow }) {
       <div className="mt-1 flex flex-wrap gap-1">
         <MetaChip>{row.categoryLabel}</MetaChip>
         <MetaChip>{row.regionLabel}</MetaChip>
-        <MetaChip>{row.technologyLabel}</MetaChip>
       </div>
       <div className="mt-2"><StatusChip kind="factory" value={row.status} /></div>
       {row.phase2 ? (
@@ -248,7 +239,7 @@ function Select({
 }: {
   label: string;
   value: string;
-  options: Array<{ code: string; label: string }>;
+  options: ReadonlyArray<{ code: string; label: string }>;
   onChange: (value: string) => void;
 }) {
   return (

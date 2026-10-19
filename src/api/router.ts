@@ -2,7 +2,6 @@ import { ApiError } from "./errors";
 import { getAuth } from "./session";
 import {
   approvePlan,
-  createEnumeration,
   createFactory,
   createTopic,
   createMachineType,
@@ -16,7 +15,6 @@ import {
   resetDb,
   savePlan,
   updateDeployment,
-  updateEnumeration,
   updateFactory,
   updateTopic,
   updateMachineType,
@@ -163,13 +161,9 @@ export function mockRoute<T>({ method, path, body }: Call): T {
     });
     return { asOf: list.asOf, ...pageOf(items, url) } as T;
   }
-  if (method === "POST" && pathname === "/api/v1/enumerations") return createEnumeration(db, actorId, body as never) as T;
   if (method === "POST" && pathname === "/api/v1/machine-types") return createMachineType(db, actorId, body as never) as T;
   if (method === "PATCH" && parts[2] === "machine-types" && parts.length === 4) {
     return updateMachineType(db, actorId, parts[3], body as never) as T;
-  }
-  if (method === "PATCH" && parts[2] === "enumerations" && parts.length === 4) {
-    return updateEnumeration(db, actorId, parts[3], body as never) as T;
   }
   if (method === "GET" && parts[2] === "feature-diff") {
     return { changes: diffVersionFeatures(db, url.searchParams.get("from"), url.searchParams.get("to") ?? "") } as T;

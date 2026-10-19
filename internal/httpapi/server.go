@@ -425,13 +425,6 @@ func (s *Server) dispatch(r *http.Request, path string, principal auth.Principal
 	if method == http.MethodGet && path == "/api/v1/activity" {
 		return s.read(r.Context(), func(db *domain.Database) (any, error) { return views.BuildActivity(db, listQuery(r)), nil })
 	}
-	if method == http.MethodPost && path == "/api/v1/enumerations" {
-		var body store.EnumerationInput
-		if err := decode(r, &body); err != nil {
-			return nil, apierr.New(400, "請求格式不正確")
-		}
-		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.CreateEnumeration(db, actorID, body) })
-	}
 	if method == http.MethodPost && path == "/api/v1/machine-types" {
 		var body store.MachineTypeInput
 		if err := decode(r, &body); err != nil {
@@ -445,13 +438,6 @@ func (s *Server) dispatch(r *http.Request, path string, principal auth.Principal
 			return nil, apierr.New(400, "請求格式不正確")
 		}
 		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.UpdateMachineType(db, actorID, parts[3], body) })
-	}
-	if method == http.MethodPatch && len(parts) == 4 && parts[2] == "enumerations" {
-		var body store.EnumerationPatch
-		if err := decode(r, &body); err != nil {
-			return nil, apierr.New(400, "請求格式不正確")
-		}
-		return s.write(r.Context(), func(db *domain.Database) (any, error) { return store.UpdateEnumeration(db, actorID, parts[3], body) })
 	}
 	if method == http.MethodGet && len(parts) >= 3 && parts[2] == "feature-diff" {
 		return s.read(r.Context(), func(db *domain.Database) (any, error) {

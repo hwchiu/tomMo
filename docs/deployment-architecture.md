@@ -33,7 +33,7 @@ mock 開啟時，編輯存在這個瀏覽器。mock 關閉時，同一個 `src/a
 - 驅動是 `modernc.org/sqlite`（純 Go，`CGO_ENABLED=0`）。
 - 開啟時設定 **WAL**（`journal_mode=WAL`）與 `busy_timeout`。同一個目錄會出現 `app.db-wal` 與 `app.db-shm`，三個檔都留在這顆 PV 上。
 - 連線數維持 1。SQLite 這份檔同時只給一個寫入行程。
-- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫依 `SEED_MODE` 決定內容：`demo` 用與 `fpmctl import` 相同的程式讀取嵌入的 `data/demo/*.csv`；`none` 留下列舉、四個階段模板，以及人員「系統管理員」與「唯讀帳號」。已有資料的 `app.db` 不會被覆蓋。
+- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫依 `SEED_MODE` 決定內容：`demo` 用與 `fpmctl import` 相同的程式讀取嵌入的 `data/demo/*.csv`；`none` 留下四個階段模板，以及人員「系統管理員」與「唯讀帳號」。類別只有 Giga 與 Phase，區域是 HQ、JP、AZ、EU。已有資料的 `app.db` 不會被覆蓋。
 - 機台總數不另存一欄。各部署只存機種的計畫數量，工廠總數是那些列的加總。
 
 ## 備份

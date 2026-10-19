@@ -23,8 +23,8 @@ func TestParseReportsFileAndRow(t *testing.T) {
 	}
 
 	_, rep = ParseFiles(map[string]string{
-		FileFactories: "code,name,category,region,technology,pm,planned_start,planned_end,status\n" +
-			"FAB-HSC,新竹一廠,GIGA,HQ,N3,林品均,2026/06/01,2026-12-31,ON_TRACK\n",
+		FileFactories: "code,name,category,region,pm,planned_start,planned_end,status\n" +
+			"FAB-HSC,新竹一廠,GIGA,HQ,林品均,2026/06/01,2026-12-31,ON_TRACK\n",
 	})
 	if len(rep.Errors) != 1 || rep.Errors[0].File != FileFactories || rep.Errors[0].Row != 2 || !strings.Contains(rep.Errors[0].Message, "YYYY-MM-DD") {
 		t.Fatalf("date %+v", rep.Errors)

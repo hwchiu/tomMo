@@ -65,9 +65,11 @@ See [docs/deployment-architecture.md](docs/deployment-architecture.md). `SEED_MO
 | 值 | 空資料庫會有什麼 |
 | --- | --- |
 | `demo` | 讀取嵌進 binary 的 `data/demo/*.csv`。本機 `go run` 與測試的預設。 |
-| `none` | 列舉、四個階段模板，以及人員「系統管理員」、「唯讀帳號」。Kubernetes manifest 設這個。 |
+| `none` | 四個階段模板，以及人員「系統管理員」、「唯讀帳號」。Kubernetes manifest 設這個。 |
 
 已有資料的資料庫不會被清掉，也不會重灌。`none` 底下按「重設示範資料」會回 `400`「這個環境沒有示範資料可重設」。
+
+工廠類別只有 Giga 與 Phase，區域只有 HQ、JP、AZ、EU。這兩組寫在程式裡，設定頁不能增刪。工廠沒有製程或節點欄位，廠名就是廠。`factories.csv` 必填欄是 `code`、`name`、`category`、`region`、`pm`、`planned_start`、`planned_end`、`status`。舊檔若還有 `technology` 欄，匯入會當成不明欄位而失敗。
 
 帳號用姓名對人。`demo` 把 admin 對到林品均、viewer 對到陳浩宇。`none` 把 admin 對到系統管理員；有設定 `INITIAL_VIEWER_PASSWORD` 時也建立 viewer，對到唯讀帳號。viewer 密碼留空時不建立 viewer 帳號，也不會替它產生隨機密碼。
 
@@ -222,14 +224,14 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 
 | Screen | Path | What it is for |
 | --- | --- | --- |
-| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, overdue issues. Filter and group by 類別 / 區域 / 製程. |
+| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, overdue issues. Filter and group by 類別 / 區域. |
 | 產品建立 | `/product-build` | Factory × product grid. Status, version or 純功能開關, owners, per-factory machine total, and a grand total. |
 | 工廠 | `/factories` | Timeline, PM name and department, machine total, ad-hoc changes, topics, deployments, issues. |
 | 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
 | 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
 | 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
 | 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
-| 設定 | `/settings` | Enumerations and machine types. Hidden from 使用者. `/activity` redirects to `/`. |
+| 設定 | `/settings` | 產品設定 and 機器設定 (EIA-*). Category, region, and 節點 are not edited here. Hidden from 使用者. `/activity` redirects to `/`. |
 
 Default phases, copied onto each new factory and still editable there:
 
@@ -270,7 +272,7 @@ docs/openapi.yaml
 
 ## Go contract
 
-[docs/openapi.yaml](docs/openapi.yaml) is the request and response contract: factories, phases, milestones, issues, products, deployments, plans, feature diff, activity, and enumerations.
+[docs/openapi.yaml](docs/openapi.yaml) is the request and response contract: factories, phases, milestones, issues, products, deployments, plans, feature diff, and activity.
 
 Plan and product-build payloads include `windowState` (`MISSING` | `INSIDE` | `OUTSIDE`) and `windowReasons`. Allowed reasons are only:
 

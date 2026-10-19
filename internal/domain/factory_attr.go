@@ -27,7 +27,7 @@ type FactoryRegion struct {
 	Label string
 }
 
-// FactoryRegions is the fixed region list. It is not edited from 設定.
+// FactoryRegions is the fixed region list. It is not edited from 管理.
 var FactoryRegions = []FactoryRegion{
 	{Code: "HQ", Label: "HQ"},
 	{Code: "JP", Label: "JP"},

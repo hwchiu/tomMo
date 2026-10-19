@@ -165,12 +165,16 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 	s.serveStatic(w, r)
 }
 
-// legacyPageRedirect sends removed screens home. Static hosts still ship a
-// client redirect; this is the response the monolith returns.
+// legacyPageRedirect sends removed screens home, and the old settings URL to
+// 管理. Static hosts still ship a client redirect; this is the response the
+// monolith returns.
 func legacyPageRedirect(w http.ResponseWriter, r *http.Request) bool {
 	switch strings.TrimRight(r.URL.Path, "/") {
 	case "/capabilities", "/activity":
 		http.Redirect(w, r, "/", http.StatusPermanentRedirect)
+		return true
+	case "/settings":
+		http.Redirect(w, r, "/admin", http.StatusPermanentRedirect)
 		return true
 	default:
 		return false

@@ -32,7 +32,6 @@ const NAV = [
   { href: "/factories", label: "工廠", en: "Factory" },
   { href: "/issues", label: "問題", en: "Issue" },
   { href: "/products", label: "產品", en: "Product" },
-  { href: "/settings", label: "設定", en: "Settings" },
   { href: "/admin", label: "管理", en: "Admin" },
 ];
 
@@ -93,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  const nav = NAV.filter((item) => editor || item.href !== "/settings");
+  const nav = NAV.filter((item) => editor || item.href !== "/admin");
 
   return (
     <AppContext.Provider value={boot.data}>

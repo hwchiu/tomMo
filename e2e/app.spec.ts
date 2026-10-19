@@ -91,7 +91,8 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
 
 test("machine type names are English", async ({ page }) => {
   await login(page, "admin", adminPassword);
-  await page.goto("/settings/");
+  await page.goto("/admin/?section=machines");
+  await expect(page.getByRole("heading", { name: "機器設定" })).toBeVisible();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: "新增機種" }) });
   await form.getByLabel("名稱").fill("機種中文");
   await form.getByRole("button", { name: "新增機種" }).click();

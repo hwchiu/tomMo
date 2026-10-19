@@ -7,50 +7,55 @@ import type { ProductSummary } from "@/api/types";
 import { productModeLabel } from "@/domain/labels";
 import type { MachineType, Person, ProductMode } from "@/domain/types";
 import { useApp, useEditor } from "@/components/shell";
-import { AsyncView, Button, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
+import { AsyncView, Button, Field, Panel, Skeleton, controlClass } from "@/components/ui";
 import { toast } from "@/lib/toast";
 import { useLiveQuery } from "@/lib/use-live-query";
 
-export function SettingsView() {
+export function ProductSettingsPanel() {
   const app = useApp();
   const editor = useEditor();
   const [error, setError] = useState<string | null>(null);
-  if (!app) return <Skeleton className="h-64" />;
+  if (!app) return <Skeleton className="h-40" />;
   return (
-    <div>
-      <PageHeader
-        kicker="Settings"
-        title="設定"
-        description="類別只有 Giga 與 Phase，區域是 HQ、JP、AZ、EU，都不在這裡改。工廠沒有節點設定，廠名就是廠。這裡維護產品與機種。"
-      />
+    <>
       <ProductSettings people={app.people} editor={editor} actorId={app.actor.id} onError={setError} />
-      <Panel className="p-4">
-        <h2 className="mb-1 font-semibold">機器設定</h2>
-        <p className="mb-3 text-xs text-muted">機種名稱使用英文，例如 EIA-1。每座工廠、每個產品的計畫機台用這些名稱填，沒有實際到貨數。</p>
-        <ul className="grid gap-3 md:grid-cols-2">
-          {app.machineTypes.map((item) => (
-            <MachineTypeRow key={item.id} item={item} editor={editor} onError={setError} />
-          ))}
-        </ul>
-        {editor ? <form
-          className="mt-4 grid gap-2 border-t border-line pt-3 md:grid-cols-[1fr_auto]"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            void api.createMachineType({
-              name: String(form.get("name") ?? ""),
-            }).then(() => {
-              toast("已新增機種");
-              event.currentTarget.reset();
-            }).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "失敗"));
-          }}
-        >
-          <Field label="名稱"><input name="name" className={controlClass} placeholder="EIA-5" /></Field>
-          <div className="self-end"><Button type="submit">新增機種</Button></div>
-        </form> : null}
-      </Panel>
       {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
-    </div>
+    </>
+  );
+}
+
+export function MachineSettingsPanel() {
+  const app = useApp();
+  const editor = useEditor();
+  const [error, setError] = useState<string | null>(null);
+  if (!app) return <Skeleton className="h-40" />;
+  return (
+    <Panel className="p-4">
+      <h2 className="mb-1 font-semibold">機器設定</h2>
+      <p className="mb-3 text-xs text-muted">機種名稱使用英文，例如 EIA-1。每座工廠、每個產品的計畫機台用這些名稱填，沒有實際到貨數。</p>
+      <ul className="grid gap-3 md:grid-cols-2">
+        {app.machineTypes.map((item) => (
+          <MachineTypeRow key={item.id} item={item} editor={editor} onError={setError} />
+        ))}
+      </ul>
+      {editor ? <form
+        className="mt-4 grid gap-2 border-t border-line pt-3 md:grid-cols-[1fr_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void api.createMachineType({
+            name: String(form.get("name") ?? ""),
+          }).then(() => {
+            toast("已新增機種");
+            event.currentTarget.reset();
+          }).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "失敗"));
+        }}
+      >
+        <Field label="名稱"><input name="name" className={controlClass} placeholder="EIA-5" /></Field>
+        <div className="self-end"><Button type="submit">新增機種</Button></div>
+      </form> : null}
+      {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+    </Panel>
   );
 }
 
@@ -67,7 +72,7 @@ function ProductSettings({
 }) {
   const state = useLiveQuery("settings-products", () => api.products());
   return (
-    <Panel className="mb-4 p-4">
+    <Panel className="p-4">
       <h2 className="mb-1 font-semibold">產品設定</h2>
       <p className="mb-3 text-xs text-muted">新增與修改產品。版本與各廠部署仍在產品頁。這裡沒有刪除。</p>
       <AsyncView state={state} skeleton={<Skeleton className="h-40" />}>

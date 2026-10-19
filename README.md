@@ -69,7 +69,7 @@ See [docs/deployment-architecture.md](docs/deployment-architecture.md). `SEED_MO
 
 已有資料的資料庫不會被清掉，也不會重灌。`none` 底下按「重設示範資料」會回 `400`「這個環境沒有示範資料可重設」。
 
-工廠類別只有 Giga 與 Phase，區域只有 HQ、JP、AZ、EU。這兩組寫在程式裡，設定頁不能增刪。工廠沒有製程或節點欄位，廠名就是廠。`factories.csv` 必填欄是 `code`、`name`、`category`、`region`、`pm`、`planned_start`、`planned_end`、`status`。舊檔若還有 `technology` 欄，匯入會當成不明欄位而失敗。
+工廠類別只有 Giga 與 Phase，區域只有 HQ、JP、AZ、EU。這兩組寫在程式裡，管理頁不能增刪。工廠沒有製程或節點欄位，廠名就是廠。`factories.csv` 必填欄是 `code`、`name`、`category`、`region`、`pm`、`planned_start`、`planned_end`、`status`。舊檔若還有 `technology` 欄，匯入會當成不明欄位而失敗。
 
 帳號用姓名對人。`demo` 把 admin 對到林品均、viewer 對到陳浩宇。`none` 把 admin 對到系統管理員；有設定 `INITIAL_VIEWER_PASSWORD` 時也建立 viewer，對到唯讀帳號。viewer 密碼留空時不建立 viewer 帳號，也不會替它產生隨機密碼。
 
@@ -230,8 +230,7 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 | 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
 | 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
 | 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
-| 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
-| 設定 | `/settings` | 產品設定 and 機器設定 (EIA-*). Category, region, and 節點 are not edited here. Hidden from 使用者. `/activity` redirects to `/`. |
+| 管理 | `/admin` | 人員, 產品設定, and 機器設定 (EIA-*). One section at a time. Category, region, and 節點 are not edited here. Hidden from 使用者. `/settings` redirects to `/admin`. |
 
 Default phases, copied onto each new factory and still editable there:
 
@@ -242,7 +241,7 @@ Default phases, copied onto each new factory and still editable there:
 
 Seeded products: 運算 Compute and 儲存 Storage are versioned. 資料 Data, 開發 Developer, and 監控 Monitoring are feature-flag only: a factory plan lists each feature as enabled or disabled, and 異動功能 is whatever differs from that feature's default.
 
-Machine counts are planned quantities per machine type (EIA-1, EIA-2, and any English name added in 設定). Each factory × product plan stores the breakdown. Screens show the computed total. There is no actual or delivered machine count. A factory page rolls the planned quantities up by type across its products.
+Machine counts are planned quantities per machine type (EIA-1, EIA-2, and any English name added in 管理). Each factory × product plan stores the breakdown. Screens show the computed total. There is no actual or delivered machine count. A factory page rolls the planned quantities up by type across its products.
 
 ## Rules that the screens follow
 

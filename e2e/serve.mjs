@@ -8,18 +8,22 @@ import { adminPassword, port, viewerPassword } from "./passwords.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const dataDir = await mkdtemp(path.join(tmpdir(), "fpm-e2e-"));
 const base = `http://127.0.0.1:${port}`;
+// Import on a side port. Playwright treats the public port's /healthz as ready,
+// so that port must stay down until the demo server is the one listening.
+const bootstrapPort = String(Number(port) + 1);
+const bootstrapBase = `http://127.0.0.1:${bootstrapPort}`;
 
 function redact(text) {
   return String(text ?? "").split(adminPassword).join("[redacted]").split(viewerPassword).join("[redacted]");
 }
 
-function start(seed) {
+function start(seed, listenPort) {
   return spawn(path.join(root, "bin", "fpm"), [], {
     cwd: root,
     env: {
       ...process.env,
       DATA_DIR: dataDir,
-      PORT: port,
+      PORT: listenPort,
       SEED_MODE: seed,
       INITIAL_ADMIN_PASSWORD: adminPassword,
       INITIAL_VIEWER_PASSWORD: viewerPassword,
@@ -31,10 +35,10 @@ function start(seed) {
   });
 }
 
-async function waitHealthy() {
+async function waitHealthy(url) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
-      const response = await fetch(`${base}/healthz`);
+      const response = await fetch(`${url}/healthz`);
       if (response.ok) return;
     } catch {
       /* process is still binding the port */
@@ -65,10 +69,10 @@ async function shutdown() {
 }
 
 try {
-  const bootstrap = start("none");
-  await waitHealthy();
+  const bootstrap = start("none", bootstrapPort);
+  await waitHealthy(bootstrapBase);
   const imported = spawnSync(path.join(root, "bin", "fpmctl"), [
-    "import", "--dir", "data/demo", "--base", base, "--user", "admin", "--password", adminPassword,
+    "import", "--dir", "data/demo", "--base", bootstrapBase, "--user", "admin", "--password", adminPassword,
   ], { cwd: root, encoding: "utf8" });
   await stop(bootstrap);
   if (imported.status !== 0) {
@@ -76,8 +80,8 @@ try {
     console.error(redact(imported.stderr));
     throw new Error(`fpmctl import exited ${imported.status}`);
   }
-  server = start("demo");
-  await waitHealthy();
+  server = start("demo", port);
+  await waitHealthy(base);
 } catch (error) {
   console.error(redact(error instanceof Error ? error.stack : error));
   await shutdown();

@@ -1,5 +1,5 @@
 # Demo JSON is generated from data/demo/*.csv by the same importer the server uses.
-FROM golang:1.22-bookworm AS fixture
+FROM golang:1.26-bookworm AS fixture
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -18,7 +18,7 @@ ENV NEXT_PUBLIC_BASE_PATH=
 RUN npm run build
 
 # Go monolith. The export replaces the placeholder in web/dist before compile.
-FROM golang:1.22-bookworm AS build
+FROM golang:1.26-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

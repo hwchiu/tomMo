@@ -134,6 +134,28 @@ go run ./cmd/fpmctl fixture -out src/mocks/demo.json
 
 `npm test` 會自己跑這一步。GitHub Actions 與容器映像也在 `next build` 之前產生它。
 
+## 本地開發與測試
+
+測試資料與正式匯入用同一套 CSV。Go 測試呼叫 `impex.LoadDemo`（嵌入的 `data/demo/*.csv`）。網頁測試先由 `fpmctl fixture` 產生 `src/mocks/demo.json`。端對端測試用暫存的 `DATA_DIR`、`SEED_MODE=none` 啟動真實的 Go binary，再以 `fpmctl import --dir data/demo` 灌入同一批 CSV，然後重啟一次讓 viewer 帳號對上陳浩宇。密碼只從 `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD` 讀取，不會印在日誌或測試輸出。
+
+先裝一次依賴：
+
+```bash
+npm install
+```
+
+常用指令：
+
+| 指令 | 做什麼 |
+| --- | --- |
+| `make test` | Go 單元測試（含 `-race`）與前端 Vitest |
+| `make test-go` | 只跑 `./internal/...` 與 `./cmd/...` |
+| `make test-web` | 產生 demo fixture 後跑 Vitest |
+| `make coverage` | 同上，並印出各函式覆蓋率 |
+| `make e2e` | 建置嵌入前端與 binary，用 Playwright 對真實服務走一遍 |
+
+`make e2e` 會安裝 Chromium。GitHub Actions（`.github/workflows/ci.yml`）跑 Go 測試、前端建置與 Vitest，以及 Playwright；失敗時上傳 `playwright-report`。
+
 ## Public site
 
 `npm run build` writes a static export (`output: 'export'`) to `out/`. GitHub Actions (`.github/workflows/pages.yml`) publishes that folder on every push to `main`, and also when the workflow is run by hand. Pull requests only check that the export builds.

@@ -631,6 +631,39 @@ func rebuildFactoriesWithoutTechnology(tx *sql.Tx) error {
 	return err
 }
 
+// deleteAllRows clears every application table. Each statement is a constant
+// so the table name is never concatenated from a variable.
+func deleteAllRows(tx *sql.Tx) error {
+	statements := []string{
+		`DELETE FROM activity`,
+		`DELETE FROM topics`,
+		`DELETE FROM issues`,
+		`DELETE FROM plan_revisions`,
+		`DELETE FROM plans`,
+		`DELETE FROM feature_configs`,
+		`DELETE FROM phase_links`,
+		`DELETE FROM machine_quantities`,
+		`DELETE FROM deployments`,
+		`DELETE FROM version_features`,
+		`DELETE FROM features`,
+		`DELETE FROM product_versions`,
+		`DELETE FROM products`,
+		`DELETE FROM milestones`,
+		`DELETE FROM phases`,
+		`DELETE FROM factories`,
+		`DELETE FROM phase_templates`,
+		`DELETE FROM people`,
+		`DELETE FROM machine_types`,
+		`DELETE FROM meta`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Store) persist(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -640,14 +673,8 @@ func (s *Store) persist(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback()
-	for _, table := range []string{
-		"activity", "topics", "issues", "plan_revisions", "plans", "feature_configs", "phase_links",
-		"machine_quantities", "deployments", "version_features", "features", "product_versions", "products",
-		"milestones", "phases", "factories", "phase_templates", "people", "machine_types", "meta",
-	} {
-		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
-			return err
-		}
+	if err := deleteAllRows(tx); err != nil {
+		return err
 	}
 	db := &s.db
 	domain.Normalize(db)

@@ -56,11 +56,26 @@ func TestLoginAndSession(t *testing.T) {
 		t.Fatal("tampered")
 	}
 
+	var roleCookie *http.Cookie
+	for _, cookie := range res.Cookies() {
+		if cookie.Name == RoleCookieName {
+			roleCookie = cookie
+		}
+	}
+	if roleCookie == nil || roleCookie.Value != "editor" || roleCookie.HttpOnly {
+		t.Fatalf("role cookie %+v", roleCookie)
+	}
+
 	cleared := httptest.NewRecorder()
 	auth.ClearSession(cleared)
-	c := cleared.Result().Cookies()[0]
-	if c.MaxAge >= 0 || c.Value != "" {
-		t.Fatalf("clear %+v", c)
+	clearedCookies := cleared.Result().Cookies()
+	if len(clearedCookies) != 2 {
+		t.Fatalf("clear count %d", len(clearedCookies))
+	}
+	for _, c := range clearedCookies {
+		if c.MaxAge >= 0 || c.Value != "" {
+			t.Fatalf("clear %+v", c)
+		}
 	}
 }
 

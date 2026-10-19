@@ -9,6 +9,7 @@ import type { Bootstrap } from "@/api/types";
 import { accountRoleLabel } from "@/domain/labels";
 import { cn } from "@/lib/cn";
 import { useLiveQuery } from "@/lib/use-live-query";
+import { forgetNavRole, readNavRole, rememberNavRole, useNavRole, type NavRole } from "@/lib/nav-role";
 import { invalidate } from "@/api/live";
 
 const AppContext = createContext<Bootstrap | null>(null);
@@ -18,7 +19,10 @@ export function useApp(): Bootstrap | null {
 }
 
 export function useEditor(): boolean {
-  return useApp()?.role === "editor";
+  const app = useApp();
+  const remembered = useNavRole();
+  const role = app?.role === "editor" || app?.role === "viewer" ? app.role : remembered;
+  return role === "editor";
 }
 
 export function WhenEditor({ children }: { children: ReactNode }) {
@@ -55,12 +59,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   });
   const [toast, setToast] = useState<string | null>(null);
   const fault = useSyncExternalStore(subscribeFault, getFault, getFaultServer);
-  const editor = boot.data?.role === "editor";
+  const remembered = useNavRole();
+  const role: NavRole | null = boot.data?.role === "editor" || boot.data?.role === "viewer" ? boot.data.role : remembered;
+  const editor = role === "editor";
 
   useEffect(() => {
     if (login) return;
     if (useMock && !getAuth()) router.replace("/login");
   }, [login, pathname, router]);
+
+  useEffect(() => {
+    if (boot.data?.role === "editor" || boot.data?.role === "viewer") rememberNavRole(boot.data.role);
+  }, [boot.data?.role]);
 
   useEffect(() => {
     const onToast = (event: Event) => {
@@ -87,20 +97,21 @@ export function AppShell({ children }: { children: ReactNode }) {
     } catch {
       /* session may already be gone */
     }
+    forgetNavRole();
     logoutDemo();
     invalidate();
     router.replace("/login");
   }
 
-  const nav = NAV.filter((item) => editor || item.href !== "/admin");
+  const nav = role == null ? null : NAV.filter((item) => editor || item.href !== "/admin");
 
   return (
     <AppContext.Provider value={boot.data}>
       <div className="min-h-screen md:pl-[228px]">
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[228px] flex-col bg-ink text-slate-200 md:flex">
           <Brand />
-          <nav className="flex flex-1 flex-col gap-0.5 px-3">
-            {nav.map((item) => (
+          <nav className="flex flex-1 flex-col gap-0.5 px-3" aria-busy={nav == null}>
+            {nav == null ? NAV.map((item) => <span key={item.href} className="mx-0 my-0.5 h-9 rounded-md bg-white/10" aria-hidden />) : nav.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} />
             ))}
           </nav>
@@ -152,8 +163,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               </button>
             </div>
           </div>
-          <div className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden">
-            {nav.map((item) => (
+          <div className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden" aria-busy={nav == null}>
+            {nav == null ? NAV.map((item) => <span key={item.href} className="h-6 w-16 shrink-0 rounded-full bg-slate-100" aria-hidden />) : nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -228,5 +239,7 @@ function NavLink({ item, pathname }: { item: (typeof NAV)[number]; pathname: str
 export async function signIn(username: string, password: string): Promise<void> {
   if (useMock) loginDemo(username, password);
   await api.login({ username, password });
+  const role = getAuth()?.role ?? readNavRole();
+  if (role === "editor" || role === "viewer") rememberNavRole(role);
   invalidate();
 }

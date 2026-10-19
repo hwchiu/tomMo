@@ -107,6 +107,30 @@ test("delivery status filters 對外 and issues omit priority", async ({ page })
   await expect(page.getByLabel("產品").locator("option", { hasText: "其他" })).toHaveCount(1);
 });
 
+test("editor nav includes 管理 before bootstrap returns", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await page.route("**/api/v1/bootstrap", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.continue();
+  });
+  await page.reload();
+  await expect(page.locator("aside").getByRole("link", { name: "管理" })).toBeVisible({ timeout: 2000 });
+  await page.unroute("**/api/v1/bootstrap");
+});
+
+test("viewer nav never shows 管理", async ({ page }) => {
+  await login(page, "viewer", viewerPassword);
+  await expect(page.locator("aside").getByRole("link", { name: "管理" })).toHaveCount(0);
+  await page.route("**/api/v1/bootstrap", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
+  await page.reload();
+  await expect(page.locator("aside").getByRole("link", { name: "管理" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "總覽" }).first()).toBeVisible();
+  await expect(page.locator("aside").getByRole("link", { name: "管理" })).toHaveCount(0);
+});
+
 test("machine type names are English", async ({ page }) => {
   await login(page, "admin", adminPassword);
   await page.goto("/admin/?section=machines");

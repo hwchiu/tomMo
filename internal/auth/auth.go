@@ -15,7 +15,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const CookieName = "fpm_session"
+const (
+	CookieName = "fpm_session"
+	// RoleCookieName is readable by the page so the nav can show 管理 before
+	// the bootstrap payload returns. It is not a credential; the session cookie
+	// still decides what the API allows.
+	RoleCookieName = "fpm_role"
+)
 
 // Principal is the signed-in account.
 type Principal struct {
@@ -133,13 +139,23 @@ func (a *LocalAuth) writeSession(w http.ResponseWriter, p Principal, secure bool
 		Name: CookieName, Value: token, Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, Secure: secure, MaxAge: 7 * 24 * 3600,
 	})
+	role := p.Role
+	if role != "editor" && role != "viewer" {
+		role = "viewer"
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: RoleCookieName, Value: role, Path: "/", HttpOnly: false,
+		SameSite: http.SameSiteLaxMode, Secure: secure, MaxAge: 7 * 24 * 3600,
+	})
 }
 
 func (a *LocalAuth) clearSession(w http.ResponseWriter, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name: CookieName, Value: "", Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, Secure: secure, MaxAge: -1, Expires: time.Unix(0, 0),
-	})
+	for _, name := range []string{CookieName, RoleCookieName} {
+		http.SetCookie(w, &http.Cookie{
+			Name: name, Value: "", Path: "/", HttpOnly: name == CookieName,
+			SameSite: http.SameSiteLaxMode, Secure: secure, MaxAge: -1, Expires: time.Unix(0, 0),
+		})
+	}
 }
 
 func (a *LocalAuth) parse(token string) (Principal, bool) {

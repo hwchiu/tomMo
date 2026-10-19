@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"fpm/internal/auth"
 )
 
 // serveStatic serves the embedded Next export. A path that was not generated
@@ -16,9 +18,13 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if name, ok := staticFile(s.static, r.URL.Path); ok {
+		if strings.HasSuffix(name, ".html") {
+			s.ensureRoleCookie(w, r)
+		}
 		http.ServeFileFS(w, r, s.static, name)
 		return
 	}
+	s.ensureRoleCookie(w, r)
 	data, err := fs.ReadFile(s.static, "404.html")
 	if err != nil {
 		http.NotFound(w, r)
@@ -48,6 +54,26 @@ func staticFile(fsys fs.FS, urlPath string) (string, bool) {
 		return index, true
 	}
 	return "", false
+}
+
+// ensureRoleCookie copies the signed-in role onto a readable cookie so the
+// nav does not wait for bootstrap. Existing sessions pick it up on the next HTML load.
+func (s *Server) ensureRoleCookie(w http.ResponseWriter, r *http.Request) {
+	sessionAuth := s.auth
+	if s.local != nil {
+		sessionAuth = s.local.WithRequest(r)
+	}
+	principal, ok := sessionAuth.PrincipalFromRequest(r)
+	if !ok || (principal.Role != "editor" && principal.Role != "viewer") {
+		return
+	}
+	if current, err := r.Cookie(auth.RoleCookieName); err == nil && current.Value == principal.Role {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: auth.RoleCookieName, Value: principal.Role, Path: "/", HttpOnly: false,
+		SameSite: http.SameSiteLaxMode, Secure: auth.RequestIsHTTPS(r), MaxAge: 7 * 24 * 3600,
+	})
 }
 
 func fileExists(fsys fs.FS, name string) bool {

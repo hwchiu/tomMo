@@ -50,15 +50,22 @@ func cookieHeader(t *testing.T, rec *httptest.ResponseRecorder) string {
 	t.Helper()
 	res := rec.Result()
 	defer res.Body.Close()
-	cookies := res.Cookies()
-	if len(cookies) == 0 {
-		t.Fatal("expected session cookie")
+	var session, role *http.Cookie
+	for _, cookie := range res.Cookies() {
+		switch cookie.Name {
+		case "fpm_session":
+			session = cookie
+		case "fpm_role":
+			role = cookie
+		}
 	}
-	c := cookies[0]
-	if c.Name != "fpm_session" || !c.HttpOnly || c.Path != "/" {
-		t.Fatalf("cookie = %#v", c)
+	if session == nil || !session.HttpOnly || session.Path != "/" {
+		t.Fatalf("session cookie = %#v", session)
 	}
-	return c.Name + "=" + c.Value
+	if role == nil || role.HttpOnly || (role.Value != "editor" && role.Value != "viewer") {
+		t.Fatalf("role cookie = %#v", role)
+	}
+	return session.Name + "=" + session.Value
 }
 
 func TestAuthAndMachineTotals(t *testing.T) {

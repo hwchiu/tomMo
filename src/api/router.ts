@@ -27,7 +27,6 @@ import {
   updateProduct,
 } from "./store";
 import {
-  buildActivity,
   buildBootstrap,
   buildCapabilities,
   buildDeployment,
@@ -151,17 +150,6 @@ export function mockRoute<T>({ method, path, body }: Call): T {
   }
   if (method === "POST" && parts[2] === "factories" && parts[4] === "products" && parts[6] === "plan" && parts[7] === "approve") {
     return approvePlan(db, actorId, parts[3], parts[5]) as T;
-  }
-  if (method === "GET" && pathname === "/api/v1/activity") {
-    const list = buildActivity(db);
-    const entityType = url.searchParams.get("entityType") ?? "";
-    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
-    const items = list.items.filter((item) => {
-      if (entityType && item.entityType !== entityType) return false;
-      if (q && !item.summary.toLowerCase().includes(q)) return false;
-      return true;
-    });
-    return { asOf: list.asOf, ...pageOf(items, url) } as T;
   }
   if (method === "POST" && pathname === "/api/v1/enumerations") return createEnumeration(db, actorId, body as never) as T;
   if (method === "POST" && pathname === "/api/v1/machine-types") return createMachineType(db, actorId, body as never) as T;

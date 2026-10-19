@@ -178,7 +178,7 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 | 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
 | 能力矩陣 | `/capabilities` | Factory × product rows, features grouped by product. Grey / green / red against the baseline, adhoc badge, filters. |
 | 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
-| 活動 / 設定 | `/activity`, `/settings` | Change history, and enumerations. 設定 is hidden from 使用者. |
+| 設定 | `/settings` | Enumerations and machine types. Hidden from 使用者. `/activity` redirects to 總覽. |
 
 Default phases, copied onto each new factory and still editable there:
 
@@ -219,7 +219,7 @@ docs/openapi.yaml
 
 ## Go contract
 
-[docs/openapi.yaml](docs/openapi.yaml) is the request and response contract: factories, phases, milestones, issues, products, deployments, plans, feature diff, activity, and enumerations.
+[docs/openapi.yaml](docs/openapi.yaml) is the request and response contract: factories, phases, milestones, issues, products, deployments, plans, feature diff, the activity audit log, and enumerations. The web app does not show the activity feed.
 
 Plan and product-build payloads include `windowState` (`MISSING` | `INSIDE` | `OUTSIDE`) and `windowReasons`. Allowed reasons are only:
 

@@ -703,10 +703,14 @@ paths:
   /api/v1/activity:
     get:
       tags: [portfolio]
+      summary: Audit trail
+      description: |
+        Append-only activity history for administrators and auditors.
+        The web app does not render this feed. Writes still record it.
       operationId: listActivity
       responses:
         "200":
-          description: Append-only activity
+          description: Append-only activity history
   /api/v1/machine-types:
     post:
       tags: [session]

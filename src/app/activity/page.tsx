@@ -1,5 +1,12 @@
-import { ActivityView } from "@/components/activity-settings";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Page() {
-  return <ActivityView />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
+  return <p className="text-sm text-muted">回到總覽…</p>;
 }

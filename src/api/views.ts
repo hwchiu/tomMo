@@ -459,10 +459,6 @@ export function buildDeployment(db: Database, id: string): DeploymentPage {
   };
 }
 
-export function buildActivity(db: Database): { asOf: string; items: ActivityItem[] } {
-  return { asOf: db.asOf, items: activityItems(db) };
-}
-
 export function buildFactories(db: Database) {
   return { asOf: db.asOf, items: db.factories.map((factory) => boardRow(db, factory.id)), people: db.people, enumerations: db.enumerations };
 }

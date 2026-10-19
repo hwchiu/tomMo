@@ -123,10 +123,6 @@ function Editor({ data }: { data: IssuePage }) {
           toast("問題已更新");
         }}
       />
-      <Panel className="mt-4 p-4">
-        <h2 className="mb-2 font-semibold">活動</h2>
-        <ul className="space-y-1 text-sm">{data.activity.map((item) => <li key={item.id}>{item.actorName}：{item.summary}</li>)}</ul>
-      </Panel>
     </div>
   );
 }

@@ -59,7 +59,6 @@ export function FactoryView({ id }: { id: string }) {
               ["#plans", "施工計畫"],
               ["#deployments", "部署"],
               ["#issues", "問題"],
-              ["#activity", "活動"],
             ].map(([href, label]) => (
               <a key={href} href={href} className="rounded-full border border-line bg-white px-3 py-1">{label}</a>
             ))}
@@ -248,19 +247,6 @@ export function FactoryView({ id }: { id: string }) {
               ))}
             </Panel>
           </div>
-          <Panel id="activity" className="mt-4 p-4">
-            <h2 className="mb-3 font-semibold">活動紀錄</h2>
-            {data.activity.length === 0 ? <p className="text-sm text-muted">還沒有變更。</p> : (
-              <ul className="space-y-2 text-sm">
-                {data.activity.map((item) => (
-                  <li key={item.id}>
-                    <span className="text-xs text-muted">{item.createdAt.slice(0, 16).replace("T", " ")} · {item.actorName}</span>
-                    <div>{item.summary}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
         </div>
       )}
     </AsyncView>

@@ -9,6 +9,19 @@ async function login(page: Page, username: string, password: string) {
   await expect(page.getByRole("link", { name: "總覽" }).first()).toBeVisible();
 }
 
+test("the activity screen redirects home", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await expect(page.locator("aside").getByRole("link", { name: /活動/ })).toHaveCount(0);
+  await page.goto("/activity/");
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+  await expect(page.getByRole("heading", { name: "活動紀錄" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "總覽" }).first()).toBeVisible();
+  await page.locator("aside").getByRole("link", { name: /^工廠/ }).click();
+  await page.getByRole("link", { name: "新竹一廠", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "活動紀錄" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "活動", exact: true })).toHaveCount(0);
+});
+
 test("rejects a wrong password and hides the demo hint", async ({ page }) => {
   await page.goto("/login/");
   await expect(page.getByText("示範帳號")).toHaveCount(0);

@@ -17,7 +17,6 @@ export { useMock };
 import { invalidate } from "./live";
 import { setActorId, setFault, type FaultMode } from "./session";
 import type {
-  ActivityItem,
   Bootstrap,
   CapabilityMatrix,
   DeploymentPage,
@@ -100,7 +99,6 @@ export const api = {
     apiRequest<{ id: string }>(`/api/v1/factories/${factoryId}/products/${productId}/plan/approve`, { method: "POST" }),
   featureDiff: (from: string | null, to: string) =>
     apiRequest<{ changes: FeatureChange[] }>(`/api/v1/feature-diff?from=${encodeURIComponent(from ?? "")}&to=${encodeURIComponent(to)}`),
-  activity: () => apiRequest<{ asOf: string; items: ActivityItem[] }>("/api/v1/activity"),
   createEnumeration: (body: { set: Enumeration["set"]; code: string; label: string; description: string }) =>
     apiRequest<{ id: string }>("/api/v1/enumerations", { method: "POST", body }),
   updateEnumeration: (id: string, body: { label: string; description: string; active: boolean }) =>

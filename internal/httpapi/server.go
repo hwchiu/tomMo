@@ -160,7 +160,7 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 // client redirect; this is the response the monolith returns.
 func legacyPageRedirect(w http.ResponseWriter, r *http.Request) bool {
 	switch strings.TrimRight(r.URL.Path, "/") {
-	case "/capabilities":
+	case "/capabilities", "/activity":
 		http.Redirect(w, r, "/", http.StatusPermanentRedirect)
 		return true
 	default:

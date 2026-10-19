@@ -185,9 +185,9 @@ func TestAuthAndMachineTotals(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesRedirectsHome(t *testing.T) {
+func TestRemovedPagesRedirectHome(t *testing.T) {
 	srv := testServer(t)
-	for _, path := range []string{"/capabilities", "/capabilities/"} {
+	for _, path := range []string{"/capabilities", "/capabilities/", "/activity", "/activity/"} {
 		rec := do(srv, http.MethodGet, path, "", nil)
 		if rec.Code != http.StatusPermanentRedirect {
 			t.Fatalf("%s status %d", path, rec.Code)

@@ -177,7 +177,7 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 | 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
 | 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
 | 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
-| 活動 / 設定 | `/activity`, `/settings` | Change history, and enumerations. 設定 is hidden from 使用者. |
+| 設定 | `/settings` | Enumerations and machine types. Hidden from 使用者. `/activity` redirects to `/`. |
 
 Default phases, copied onto each new factory and still editable there:
 

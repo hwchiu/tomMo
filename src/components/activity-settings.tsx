@@ -6,41 +6,8 @@ import { enumSetLabel } from "@/domain/labels";
 import type { Enumeration } from "@/domain/types";
 import type { MachineType } from "@/domain/types";
 import { useApp, useEditor } from "@/components/shell";
-import { AsyncView, Button, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
-import { formatWhen } from "@/domain/dates";
+import { Button, Field, PageHeader, Panel, Skeleton, controlClass } from "@/components/ui";
 import { toast } from "@/lib/toast";
-import { useLiveQuery } from "@/lib/use-live-query";
-
-export function ActivityView() {
-  const state = useLiveQuery("activity", () => api.activity());
-  const [kind, setKind] = useState("");
-  return (
-    <AsyncView state={state} skeleton={<Skeleton className="h-80" />}>
-      {(data) => {
-        const items = data.items.filter((item) => !kind || item.entityType === kind);
-        return (
-          <div>
-            <PageHeader kicker="Activity" title="活動紀錄" description="狀態、版本、功能開關與施工計畫的變更都會留在這裡。這是工廠與產品共用的軌跡。" />
-            <select className="mb-3 h-8 rounded-md border border-line bg-white px-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value)}>
-              <option value="">全部類型</option>
-              {["FACTORY", "PHASE", "MILESTONE", "ISSUE", "DEPLOYMENT", "FEATURE", "PLAN", "PRODUCT", "ENUM", "MACHINE"].map((item) => <option key={item}>{item}</option>)}
-            </select>
-            {items.length === 0 ? <p className="text-sm text-muted">沒有這個類型的紀錄。</p> : (
-              <ol className="space-y-2">
-                {items.map((item) => (
-                  <li key={item.id} className="rounded-lg border border-line bg-panel px-3 py-2 text-sm">
-                    <div className="text-xs text-muted">{formatWhen(item.createdAt)} · {item.actorName} · {item.entityType} · {item.action}</div>
-                    <div>{item.summary}</div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        );
-      }}
-    </AsyncView>
-  );
-}
 
 export function SettingsView() {
   const app = useApp();

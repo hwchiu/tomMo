@@ -43,12 +43,13 @@ type Config struct {
 
 // Server is the monolith: JSON API plus the embedded static export.
 type Server struct {
-	store        *store.Store
-	auth         auth.AuthProvider
-	local        *auth.LocalAuth
-	static       fs.FS
-	log          *slog.Logger
-	showDemoHint bool
+	store         *store.Store
+	auth          auth.AuthProvider
+	local         *auth.LocalAuth
+	static        fs.FS
+	log           *slog.Logger
+	showDemoHint  bool
+	loginFailures failureWindow
 }
 
 func New(cfg Config) (*Server, error) {
@@ -126,14 +127,15 @@ func New(cfg Config) (*Server, error) {
 			}
 		}
 	}
-	// The hint only ever shows the public demo credentials, and only while they still work.
-	demo := cfg.AdminUsername == "admin" && st.PasswordMatches("admin", "admin")
-	return &Server{store: st, auth: local, local: local, static: sub, log: logger, showDemoHint: demo}, nil
+	// The server never advertises a demo password. The static mock turns the
+	// username hint on by itself.
+	return &Server{store: st, auth: local, local: local, static: sub, log: logger, showDemoHint: false}, nil
 }
 
 func (s *Server) Close() error { return s.store.Close() }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	setSecurityHeaders(w, r)
 	start := time.Now()
 	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 	defer func() {
@@ -202,6 +204,10 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"showDemoHint": s.showDemoHint})
 		return
 	}
+	if method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions && !sameSiteMutation(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"message": "不允許的來源"})
+		return
+	}
 	if method == http.MethodPost && path == "/api/v1/login" {
 		var body struct {
 			Username string `json:"username"`
@@ -215,8 +221,14 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 			s.writeErr(w, apierr.New(400, "請輸入帳號與密碼"))
 			return
 		}
+		key := clientKey(r, body.Username)
+		if s.loginFailures.blocked(key, time.Now()) {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": "嘗試次數過多，請稍後再試"})
+			return
+		}
 		p, err := sessionAuth.Login(r.Context(), body.Username, body.Password)
 		if err != nil {
+			s.loginFailures.add(key, time.Now())
 			s.writeErr(w, err)
 			return
 		}
@@ -229,6 +241,11 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "請先登入"})
 			return
 		}
+		if s.local != nil {
+			if cookie, err := r.Cookie(auth.CookieName); err == nil {
+				s.local.Revoke(cookie.Value)
+			}
+		}
 		sessionAuth.ClearSession(w)
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
@@ -236,6 +253,9 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "請先登入"})
 		return
+	}
+	if s.local != nil {
+		s.local.RefreshIfStale(w, r, principal, auth.RequestIsHTTPS(r))
 	}
 	if method != http.MethodGet && principal.Role != "editor" {
 		writeJSON(w, http.StatusForbidden, map[string]string{"message": "使用者只能閱讀"})

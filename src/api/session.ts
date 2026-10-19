@@ -12,10 +12,14 @@ export interface SessionAuth {
   personId: string;
 }
 
-/** Demo accounts for the static mock. Person ids come from the CSV import, so login matches by name. */
-const DEMO_ACCOUNTS: Array<{ username: string; password: string; role: AccountRole; personName: string }> = [
-  { username: "admin", password: "admin", role: "editor", personName: "林品均" },
-  { username: "viewer", password: "viewer", role: "viewer", personName: "陳浩宇" },
+/**
+ * Static GitHub Pages demo. Usernames map to directory people; no password is
+ * stored in source. Any non-empty password is accepted so the login form still
+ * works without embedding demo credentials.
+ */
+const DEMO_ACCOUNTS: Array<{ username: string; role: AccountRole; personName: string }> = [
+  { username: "admin", role: "editor", personName: "林品均" },
+  { username: "viewer", role: "viewer", personName: "陳浩宇" },
 ];
 
 let auth: SessionAuth | null = null;
@@ -57,7 +61,8 @@ export function getActorId(): string {
 
 export function loginDemo(username: string, password: string): SessionAuth {
   hydrateSession();
-  const found = DEMO_ACCOUNTS.find((account) => account.username === username && account.password === password);
+  if (password.trim() === "") throw new Error("帳號或密碼不正確");
+  const found = DEMO_ACCOUNTS.find((account) => account.username === username);
   if (!found) throw new Error("帳號或密碼不正確");
   const person = getDb().people.find((item) => item.name === found.personName);
   if (!person) throw new Error(`找不到人員「${found.personName}」`);

@@ -16,26 +16,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestLoginConfigFollowsDefaultPasswords(t *testing.T) {
+func TestLoginConfigDoesNotAdvertiseDemoPassword(t *testing.T) {
 	srv := testServer(t)
 	rec := do(srv, http.MethodGet, "/api/v1/login-config", "", nil)
-	if rec.Code != 200 || !bytes.Contains(rec.Body.Bytes(), []byte(`"showDemoHint":true`)) {
-		t.Fatalf("default hint %d %s", rec.Code, rec.Body.String())
-	}
-
-	custom, err := New(Config{
-		DataDir: t.TempDir(), SessionSecret: "test-secret",
-		AdminUsername: "admin", AdminPassword: "not-the-default",
-		ViewerUsername: "viewer", ViewerPassword: "viewer",
-		BcryptCost: bcrypt.MinCost,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = custom.Close() })
-	hidden := do(custom, http.MethodGet, "/api/v1/login-config", "", nil)
-	if hidden.Code != 200 || !bytes.Contains(hidden.Body.Bytes(), []byte(`"showDemoHint":false`)) {
-		t.Fatalf("custom hint %d %s", hidden.Code, hidden.Body.String())
+	if rec.Code != 200 || !bytes.Contains(rec.Body.Bytes(), []byte(`"showDemoHint":false`)) {
+		t.Fatalf("hint %d %s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -31,6 +31,13 @@ func TestParseReportsFileAndRow(t *testing.T) {
 	}
 
 	_, rep = ParseFiles(map[string]string{
+		FileMachineTypes: "name,active\nEIA-1,true\n機種A,true\neia-1,true\n",
+	})
+	if len(rep.Errors) != 2 || rep.Errors[0].File != FileMachineTypes || rep.Errors[0].Row != 3 || rep.Errors[0].Message != "機種名稱只能使用英文、數字與 - _ . 空格" || rep.Errors[1].Row != 4 || !strings.Contains(rep.Errors[1].Message, "重複") {
+		t.Fatalf("machine type %+v", rep.Errors)
+	}
+
+	_, rep = ParseFiles(map[string]string{
 		FilePlans: "factory,product,status,feature_changes\n新竹一廠,運算產品 Compute,SUBMITTED,液冷支援=maybe\n",
 	})
 	if len(rep.Errors) != 1 || rep.Errors[0].Row != 2 || !strings.Contains(rep.Errors[0].Message, "on 或 off") {

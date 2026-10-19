@@ -91,7 +91,7 @@ test("editor and viewer walk the imported factory", async ({ page }) => {
 
 test("machine type names are English", async ({ page }) => {
   await login(page, "admin", adminPassword);
-  await page.goto("/admin/");
+  await page.goto("/settings/");
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: "新增機種" }) });
   await form.getByLabel("名稱").fill("機種中文");
   await form.getByRole("button", { name: "新增機種" }).click();
@@ -99,5 +99,5 @@ test("machine type names are English", async ({ page }) => {
   await form.getByLabel("名稱").fill("EIA-9");
   await form.getByRole("button", { name: "新增機種" }).click();
   await expect(page.getByText("已新增機種")).toBeVisible();
-  await expect(page.getByDisplayValue("EIA-9")).toBeVisible();
+  await expect.poll(async () => page.locator("input").evaluateAll((nodes) => nodes.map((node) => (node as HTMLInputElement).value))).toContain("EIA-9");
 });

@@ -167,6 +167,10 @@ func TestMutationErrors(t *testing.T) {
 			_, err := CreateMachineType(db, actor, MachineTypeInput{Name: "機種Z"})
 			return err
 		}},
+		{"machine taken", 400, domain.MachineTypeNameTaken, func(db *domain.Database) error {
+			_, err := CreateMachineType(db, actor, MachineTypeInput{Name: "eia-1"})
+			return err
+		}},
 		{"bad plan intent", 400, "請選擇草稿或送出", func(db *domain.Database) error {
 			_, err := SavePlan(db, actor, hsc, compute, PlanInput{Intent: "approve"})
 			return err

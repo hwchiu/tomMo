@@ -43,6 +43,7 @@ if [[ ! -d "$RUNTIME_DIR" || ! -w "$RUNTIME_DIR" ]]; then
   RUNTIME_DIR="/tmp"
 fi
 PID_FILE="${RUNTIME_DIR}/fpm-kind-${CLUSTER_NAME}.port-forward.pid"
+NGROK_PID_FILE="${RUNTIME_DIR}/fpm-kind-${CLUSTER_NAME}.ngrok.pid"
 PREV_CONTEXT=""
 
 need() {
@@ -107,7 +108,41 @@ stop_our_forward() {
   kill -9 "$old" 2>/dev/null || true
 }
 
+stop_ngrok() {
+  local old cmd i
+  if [[ ! -f "$NGROK_PID_FILE" ]]; then
+    return 0
+  fi
+  old="$(cat "$NGROK_PID_FILE" 2>/dev/null || true)"
+  rm -f "$NGROK_PID_FILE"
+  if [[ -z "$old" ]]; then
+    return 0
+  fi
+  if ! kill -0 "$old" 2>/dev/null; then
+    return 0
+  fi
+  cmd="$(ps -p "$old" -o command= 2>/dev/null || true)"
+  case "$cmd" in
+    *ngrok*) ;;
+    *)
+      echo "pid ${old} 不是本腳本的 ngrok，略過。" >&2
+      return 0
+      ;;
+  esac
+  kill "$old" 2>/dev/null || true
+  for ((i=0; i<25; i++)); do
+    if ! kill -0 "$old" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  kill -9 "$old" 2>/dev/null || true
+}
+
 trap restore_context EXIT
+
+stop_ngrok
+stop_our_forward
 
 need docker
 need kind
@@ -118,7 +153,6 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 PREV_CONTEXT="$(kubectl config current-context 2>/dev/null || true)"
-stop_our_forward
 if cluster_exists; then
   kind delete cluster --name "$CLUSTER_NAME"
   echo "已刪除 kind 叢集 ${CLUSTER_NAME}。"

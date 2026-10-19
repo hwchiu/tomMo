@@ -150,10 +150,13 @@ make kind-up
 | `IMAGE_TAG` | git 短 SHA；工作目錄有改動時加上 `-dirty` | 映像標籤。同標籤重跑也會 rollout restart，讓 kind 載入的新映像生效 |
 | `SEED_DEMO` | `0` | 設為 `1` 時用 `fpmctl import --dir data/demo` 匯入展示資料。需要本機 Go。密碼從 Secret 讀進 `FPM_PASSWORD`，不會印出 |
 | `PORT_FORWARD` | `0` | 設為 `1` 時在背景把服務轉到本機。pid 寫在 `${XDG_RUNTIME_DIR:-/tmp}/fpm-kind-<叢集>.port-forward.pid`。重跑會換掉自己上次的轉送；埠被其他程式占用就略過 |
-| `LOCAL_PORT` | `8080` | port-forward 的本機埠 |
+| `LOCAL_PORT` | `8080` | port-forward 的本機埠，也是 ngrok 轉送的本機埠 |
+| `NGROK` | `0` | 設為 `1`（或 `--ngrok`）時，若本機已安裝 ngrok 且已執行 `ngrok config add-authtoken`，啟動 `ngrok http $LOCAL_PORT --url $NGROK_URL`，讓其他人用公開網址操作。同時會維持本機 port-forward。找不到 ngrok、尚未登入或網址綁不上時只警告，安裝本身仍算成功。pid 寫在 `${XDG_RUNTIME_DIR:-/tmp}/fpm-kind-<叢集>.ngrok.pid`。`make kind-down` 會停掉這個行程 |
+| `NGROK_URL` | `https://matted-travel-factual.ngrok-free.dev` | ngrok 保留網址。腳本不寫入 authtoken |
 
 ```bash
 SEED_DEMO=1 PORT_FORWARD=1 make kind-up
+NGROK=1 make kind-up
 ```
 
 結束時若服務連得到，會檢查 `admin` 與 `viewer` 都能登入，只看 HTTP 狀態，不印密碼。密碼用下面的指令自己看（macOS 若 `base64 -d` 失敗，改用 `base64 -D`）：

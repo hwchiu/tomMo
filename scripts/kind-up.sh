@@ -6,14 +6,16 @@ CLUSTER_NAME="${CLUSTER_NAME:-tommo}"
 LOCAL_PORT="${LOCAL_PORT:-8080}"
 SEED_DEMO="${SEED_DEMO:-0}"
 PORT_FORWARD="${PORT_FORWARD:-0}"
+NGROK="${NGROK:-0}"
+NGROK_URL="${NGROK_URL:-https://matted-travel-factual.ngrok-free.dev}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 
 usage() {
   cat <<'EOF'
-用法：scripts/kind-up.sh [--seed-demo] [--port-forward] [--cluster 名稱] [--port 埠] [--image-tag 標籤]
+用法：scripts/kind-up.sh [--seed-demo] [--port-forward] [--ngrok] [--cluster 名稱] [--port 埠] [--image-tag 標籤]
 
 建立或更新 kind 叢集並部署廠務協調台。可以重複執行。
-環境變數：CLUSTER_NAME（預設 tommo）、IMAGE_TAG、SEED_DEMO=1、PORT_FORWARD=1、LOCAL_PORT（預設 8080）。
+環境變數：CLUSTER_NAME（預設 tommo）、IMAGE_TAG、SEED_DEMO=1、PORT_FORWARD=1、LOCAL_PORT（預設 8080）、NGROK=1、NGROK_URL。
 EOF
 }
 
@@ -21,6 +23,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --seed-demo) SEED_DEMO=1; shift ;;
     --port-forward) PORT_FORWARD=1; shift ;;
+    --ngrok) NGROK=1; shift ;;
     --cluster)
       if [[ $# -lt 2 ]]; then
         echo "缺少 --cluster 的名稱。" >&2
@@ -62,6 +65,18 @@ if [[ ! "$LOCAL_PORT" =~ ^[0-9]+$ ]] || (( LOCAL_PORT < 1 || LOCAL_PORT > 65535 
   echo "LOCAL_PORT 不是有效的埠：${LOCAL_PORT}" >&2
   exit 1
 fi
+if [[ "$NGROK" != "0" && "$NGROK" != "1" ]]; then
+  echo "NGROK 只能是 0 或 1：${NGROK}" >&2
+  exit 1
+fi
+if [[ ! "$NGROK_URL" =~ ^https://[A-Za-z0-9.-]+/?$ ]]; then
+  echo "NGROK_URL 需為 https 網址：${NGROK_URL}" >&2
+  exit 1
+fi
+NGROK_URL="${NGROK_URL%/}"
+if [[ "$NGROK" == "1" ]]; then
+  PORT_FORWARD=1
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTEXT="kind-${CLUSTER_NAME}"
@@ -71,6 +86,9 @@ if [[ ! -d "$RUNTIME_DIR" || ! -w "$RUNTIME_DIR" ]]; then
 fi
 PID_FILE="${RUNTIME_DIR}/fpm-kind-${CLUSTER_NAME}.port-forward.pid"
 LOG_FILE="${RUNTIME_DIR}/fpm-kind-${CLUSTER_NAME}.port-forward.log"
+NGROK_PID_FILE="${RUNTIME_DIR}/fpm-kind-${CLUSTER_NAME}.ngrok.pid"
+NGROK_LOG_FILE="${RUNTIME_DIR}/fpm-kind-${CLUSTER_NAME}.ngrok.log"
+NGROK_STARTED=0
 PREV_CONTEXT=""
 WORK=""
 LOGIN_BODY=""
@@ -156,6 +174,83 @@ stop_our_forward() {
     sleep 0.2
   done
   kill -9 "$old" 2>/dev/null || true
+}
+
+stop_ngrok() {
+  local old cmd i
+  if [[ ! -f "$NGROK_PID_FILE" ]]; then
+    return 0
+  fi
+  old="$(cat "$NGROK_PID_FILE" 2>/dev/null || true)"
+  rm -f "$NGROK_PID_FILE"
+  if [[ -z "$old" ]]; then
+    return 0
+  fi
+  if ! kill -0 "$old" 2>/dev/null; then
+    return 0
+  fi
+  cmd="$(ps -p "$old" -o command= 2>/dev/null || true)"
+  case "$cmd" in
+    *ngrok*) ;;
+    *)
+      echo "pid ${old} 不是本腳本的 ngrok，略過。" >&2
+      return 0
+      ;;
+  esac
+  kill "$old" 2>/dev/null || true
+  for ((i=0; i<25; i++)); do
+    if ! kill -0 "$old" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  kill -9 "$old" 2>/dev/null || true
+}
+
+start_ngrok() {
+  local pid i
+  if [[ "$NGROK" != "1" ]]; then
+    return 0
+  fi
+  if ! command -v ngrok >/dev/null 2>&1; then
+    echo "找不到 ngrok，略過公開網址。安裝後請先執行 ngrok config add-authtoken。" >&2
+    return 0
+  fi
+  stop_ngrok
+  if ! curl_health "$LOCAL_PORT"; then
+    echo "本機埠 ${LOCAL_PORT} 沒有這個服務，略過 ngrok。" >&2
+    return 0
+  fi
+  : > "$NGROK_LOG_FILE"
+  chmod 600 "$NGROK_LOG_FILE" || true
+  nohup ngrok http "$LOCAL_PORT" --url "$NGROK_URL" >"$NGROK_LOG_FILE" 2>&1 &
+  pid=$!
+  echo "$pid" > "$NGROK_PID_FILE"
+  disown "$pid" 2>/dev/null || true
+  for ((i=0; i<20; i++)); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$NGROK_PID_FILE"
+      echo "ngrok 沒有維持執行。請確認已執行 ngrok config add-authtoken。略過公開網址。" >&2
+      return 0
+    fi
+    if grep -E -q 'started tunnel|started tunnel session' "$NGROK_LOG_FILE" 2>/dev/null; then
+      NGROK_STARTED=1
+      return 0
+    fi
+    if grep -E -q 'ERR_NGROK|authentication failed|authtoken is|failed to start' "$NGROK_LOG_FILE" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      rm -f "$NGROK_PID_FILE"
+      echo "ngrok 尚未登入或無法綁定網址。請先執行 ngrok config add-authtoken。略過公開網址。" >&2
+      return 0
+    fi
+    sleep 1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    NGROK_STARTED=1
+    return 0
+  fi
+  rm -f "$NGROK_PID_FILE"
+  echo "ngrok 沒有維持執行。略過公開網址。" >&2
 }
 
 curl_health() {
@@ -396,6 +491,8 @@ if [[ "$TEMP_FORWARD" == "1" ]]; then
   TEMP_FORWARD=0
 fi
 
+start_ngrok
+
 echo
 echo "叢集：${CLUSTER_NAME}（kubectl context：${CONTEXT}）"
 echo "映像：fpm:${IMAGE_TAG}"
@@ -405,6 +502,9 @@ else
   echo "服務在叢集內。轉到本機："
   echo "  kubectl --context ${CONTEXT} -n default port-forward svc/fpm ${LOCAL_PORT}:80"
   echo "網址：http://127.0.0.1:${LOCAL_PORT}/"
+fi
+if [[ "$NGROK_STARTED" == "1" ]]; then
+  echo "公開網址：${NGROK_URL}"
 fi
 echo "登入帳號：admin、viewer"
 echo "取得密碼（此腳本不會印出密碼）："

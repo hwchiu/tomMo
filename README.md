@@ -189,12 +189,22 @@ npm install
 | 指令 | 做什麼 |
 | --- | --- |
 | `make test` | Go 單元測試（含 `-race`）與前端 Vitest |
+| `make test-all` | `scripts/test.sh`：同上，並在 `RUN_E2E=1` 時跑 Playwright |
+| `make test-ci` | 對齊 GitHub Actions：race 與覆蓋率、Vitest、`NEXT_PUBLIC_USE_MOCK=1` 的靜態匯出。`RUN_E2E=1` 時再跑 Playwright |
 | `make test-go` | 只跑 `./internal/...` 與 `./cmd/...` |
 | `make test-web` | 產生 demo fixture 後跑 Vitest |
 | `make coverage` | 同上，並印出各函式覆蓋率 |
 | `make e2e` | 建置嵌入前端與 binary，用 Playwright 對真實服務走一遍 |
 | `make kind-up` | 建立或更新本機 kind 叢集並部署服務 |
 | `make kind-down` | 刪除 `CLUSTER_NAME` 這個 kind 叢集 |
+
+`scripts/test.sh` 可以重複執行。它會把本機的 Go 1.26（`/opt/homebrew/opt/go@1.26/bin`）放進 `PATH`，印出進度，失敗時以非零狀態結束，不會印出密碼。
+
+```bash
+make test-all
+RUN_E2E=1 make test-all
+make test-ci
+```
 
 `make e2e` 會安裝 Chromium。GitHub Actions（`.github/workflows/ci.yml`）跑 Go 測試、前端建置與 Vitest、Playwright。Playwright 失敗時上傳 `playwright-report`。本機 kind 用 `make kind-up`，可以重複執行，結束時檢查 admin 與 viewer 都能登入。
 

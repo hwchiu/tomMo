@@ -176,7 +176,6 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 | 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
 | 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
 | 產品 | `/products` | Name is the identifier. No code field. Versioned or 純功能開關. |
-| 能力矩陣 | `/capabilities` | Factory × product rows, features grouped by product. Grey / green / red against the baseline, adhoc badge, filters. |
 | 管理 | `/admin` | People directory: 姓名 and 部門. Manual rows are editable by 編輯者. |
 | 活動 / 設定 | `/activity`, `/settings` | Change history, and enumerations. 設定 is hidden from 使用者. |
 
@@ -268,4 +267,4 @@ The data layer switches with a build flag:
 - GitHub Pages leaves `NEXT_PUBLIC_USE_MOCK` unset, so the browser keeps the mock in `localStorage` and the site stays under `/tomMo-`.
 - The container image sets `NEXT_PUBLIC_USE_MOCK=0` and an empty `NEXT_PUBLIC_BASE_PATH`. The same client then calls `fetch('/api/...')` with the session cookie.
 
-Filters and the capability matrix still run in the browser. The API is the source of truth for the deployed site. Window checks, feature baseline, and machine totals live in Go as well as TypeScript, with the same cases (`2.10` vs `2.3`, a feature turned on against a default of off, a missing window, a window past Phase 2, two overlapping windows that are both inside).
+Filters still run in the browser. The API is the source of truth for the deployed site. `/capabilities` redirects to `/`. Window checks, feature baseline, and machine totals live in Go as well as TypeScript, with the same cases (`2.10` vs `2.3`, a feature turned on against a default of off, a missing window, a window past Phase 2, two overlapping windows that are both inside).

@@ -150,7 +150,22 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 		s.serveAPI(w, r)
 		return
 	}
+	if legacyPageRedirect(w, r) {
+		return
+	}
 	s.serveStatic(w, r)
+}
+
+// legacyPageRedirect sends removed screens home. Static hosts still ship a
+// client redirect; this is the response the monolith returns.
+func legacyPageRedirect(w http.ResponseWriter, r *http.Request) bool {
+	switch strings.TrimRight(r.URL.Path, "/") {
+	case "/capabilities":
+		http.Redirect(w, r, "/", http.StatusPermanentRedirect)
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {

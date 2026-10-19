@@ -19,7 +19,6 @@ import { setActorId, setFault, type FaultMode } from "./session";
 import type {
   ActivityItem,
   Bootstrap,
-  CapabilityMatrix,
   DeploymentPage,
   FactoryBoardRow,
   FactoryDetail,
@@ -90,7 +89,6 @@ export const api = {
   login: (body: { username: string; password: string }) => apiRequest<{ ok: boolean }>("/api/v1/login", { method: "POST", body }),
   loginConfig: () => apiRequest<{ showDemoHint: boolean }>("/api/v1/login-config"),
   logout: () => apiRequest<{ ok: boolean }>("/api/v1/logout", { method: "POST", body: {} }),
-  capabilities: () => apiRequest<CapabilityMatrix>("/api/v1/capabilities"),
   deployment: (id: string) => apiRequest<DeploymentPage>(`/api/v1/deployments/${id}`),
   updateDeployment: (id: string, body: DeploymentBody) => apiRequest<{ id: string }>(`/api/v1/deployments/${id}`, { method: "PATCH", body }),
   plan: (factoryId: string, productId: string) => apiRequest<PlanPage>(`/api/v1/factories/${factoryId}/products/${productId}/plan`),

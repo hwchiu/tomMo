@@ -185,6 +185,19 @@ func TestAuthAndMachineTotals(t *testing.T) {
 	}
 }
 
+func TestCapabilitiesRedirectsHome(t *testing.T) {
+	srv := testServer(t)
+	for _, path := range []string{"/capabilities", "/capabilities/"} {
+		rec := do(srv, http.MethodGet, path, "", nil)
+		if rec.Code != http.StatusPermanentRedirect {
+			t.Fatalf("%s status %d", path, rec.Code)
+		}
+		if loc := rec.Header().Get("Location"); loc != "/" {
+			t.Fatalf("%s location %q", path, loc)
+		}
+	}
+}
+
 type demoRef struct {
 	hsc, compute, storage, phase, actor string
 }

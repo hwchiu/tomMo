@@ -1,4 +1,4 @@
-.PHONY: test test-go test-web e2e coverage fixture web-dist
+.PHONY: test test-go test-web e2e coverage fixture web-dist kind-up kind-down
 
 GO_TEST_PKGS := ./internal/... ./cmd/...
 
@@ -26,3 +26,9 @@ e2e: web-dist
 	go build -o bin/fpmctl ./cmd/fpmctl
 	npx playwright install chromium
 	npx playwright test
+
+kind-up:
+	bash scripts/kind-up.sh
+
+kind-down:
+	bash scripts/kind-down.sh

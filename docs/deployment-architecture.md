@@ -33,7 +33,7 @@ mock 開啟時，編輯存在這個瀏覽器。mock 關閉時，同一個 `src/a
 - 驅動是 `modernc.org/sqlite`（純 Go，`CGO_ENABLED=0`）。
 - 開啟時設定 **WAL**（`journal_mode=WAL`）與 `busy_timeout`。同一個目錄會出現 `app.db-wal` 與 `app.db-shm`，三個檔都留在這顆 PV 上。
 - 連線數維持 1。SQLite 這份檔同時只給一個寫入行程。
-- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫依 `SEED_MODE` 決定內容：`demo` 用與 `fpmctl import` 相同的程式讀取嵌入的 `data/demo/*.csv`；`none` 只留下列舉、四個階段模板，以及人員「系統管理員」。已有資料的 `app.db` 不會被覆蓋。
+- 結構在 `internal/store/schema.sql`，以 `go:embed` 放進 binary，**行程啟動時**執行。空資料庫依 `SEED_MODE` 決定內容：`demo` 用與 `fpmctl import` 相同的程式讀取嵌入的 `data/demo/*.csv`；`none` 留下列舉、四個階段模板，以及人員「系統管理員」與「唯讀帳號」。已有資料的 `app.db` 不會被覆蓋。
 - 機台總數不另存一欄。各部署只存機種的計畫數量，工廠總數是那些列的加總。
 
 ## 備份
@@ -69,7 +69,7 @@ distroless 執行映像裡沒有 shell，也沒有 `sqlite3`。備份用上面�
 | `LOG_INITIAL_PASSWORDS` | 開發用：把產生的密碼印到 log | 關 |
 | `SEED_MODE` | 空資料庫要灌 `demo` 或留 `none`。正式 manifest 是 `none`。行程未設定時是 `demo`，方便本機 `go run`。 | 行程 `demo`，Kubernetes `none` |
 
-帳號用姓名對到人員目錄，不記固定 id。`SEED_MODE=demo` 時編輯者是林品均、使用者是陳浩宇。`SEED_MODE=none` 只建立編輯者，對到「系統管理員」，不建立 viewer 帳號。密碼以 bcrypt 存在 `accounts`。初始密碼只在帳號第一次建立時寫入，之後不會被環境變數覆寫。人員名稱還在時，每次啟動會依目前的 `SEED_MODE` 重新對上；名稱不在目錄裡時，既有帳號維持原來的人員。
+帳號用姓名對到人員目錄，不記固定 id。`SEED_MODE=demo` 時編輯者是林品均、使用者是陳浩宇。`SEED_MODE=none` 時編輯者對到「系統管理員」；有設定 `INITIAL_VIEWER_PASSWORD` 時建立使用者，對到「唯讀帳號」。viewer 密碼留空時不建立 viewer 帳號。密碼以 bcrypt 存在 `accounts`。初始密碼只在帳號第一次建立時寫入，之後不會被環境變數覆寫。人員名稱還在時，每次啟動會依目前的 `SEED_MODE` 重新對上；名稱不在目錄裡時，既有帳號維持原來的人員。較早建立、目錄裡還沒有「唯讀帳號」的資料庫，會在這次啟動補上該人員再建立帳號。
 
 Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-Forwarded-Proto: https` 時加 Secure。編輯者可寫入；使用者的非 GET API 回 `403 {"message":"使用者只能閱讀"}`。未登入回 `401 {"message":"請先登入"}`。
 
@@ -77,7 +77,7 @@ Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-For
 
 ## 初始密碼
 
-第一次啟動（帳號還不存在）時，編輯者與使用者的密碼依序取自：
+第一次啟動（帳號還不存在）時，編輯者的密碼依序取自下列來源。使用者在 `SEED_MODE=demo` 時同樣處理；在 `SEED_MODE=none` 時，只有設定了密碼才會建立 viewer 帳號，留空則略過，不會產生隨機的 viewer 密碼：
 
 1. `INITIAL_ADMIN_PASSWORD` / `INITIAL_VIEWER_PASSWORD`
 2. `INITIAL_ADMIN_PASSWORD_FILE` / `INITIAL_VIEWER_PASSWORD_FILE`（掛載的 secret 檔路徑，去掉結尾換行）
@@ -85,7 +85,7 @@ Cookie 名稱 `fpm_session`，HttpOnly、SameSite=Lax。只有在 TLS 或 `X-For
 
 只在帳號不存在時使用；帳號已存在就不會覆寫密碼，之後改 Secret 也不會改到已存的密碼。
 
-都沒設定時，伺服器產生隨機密碼（192 bits），寫到 `$DATA_DIR/initial-credentials.txt`（權限 0600），log 只記錄檔案路徑，不印密碼。只有本機開發明確設定 `LOG_INITIAL_PASSWORDS=true` 才會把產生的密碼印到 log。本機想用固定的 `admin` / `admin`、`viewer` / `viewer`，啟動時設 `DEV_DEFAULT_PASSWORDS=true`（僅限開發）。
+都沒設定時，伺服器為這次會建立的帳號產生隨機密碼（192 bits），寫到 `$DATA_DIR/initial-credentials.txt`（權限 0600），log 只記錄檔案路徑，不印密碼。`SEED_MODE=none` 且 viewer 密碼留空時只會產生編輯者的密碼。只有本機開發明確設定 `LOG_INITIAL_PASSWORDS=true` 才會把產生的密碼印到 log。本機想用固定的 `admin` / `admin`、`viewer` / `viewer`，啟動時設 `DEV_DEFAULT_PASSWORDS=true`（僅限開發）。
 
 登入頁的示範帳號提示只在 `admin` 的密碼仍是公開的 `admin` 時出現，不會顯示 Secret 或產生的密碼。
 

@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,6 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"fpm/internal/domain"
+	"fpm/internal/impex"
+	"fpm/internal/store"
+	"fpm/internal/views"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -96,5 +102,124 @@ func TestExistingPasswordNotOverwritten(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, CredentialsFileName)); !os.IsNotExist(err) {
 		t.Fatal("no password should be generated for existing accounts")
+	}
+}
+
+func TestNoneModeViewerPasswordLogsIn(t *testing.T) {
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	const adminPassword = "none-admin-secret"
+	const viewerPassword = "none-viewer-secret"
+	cfg := Config{
+		DataDir: dir, SessionSecret: "s", AdminUsername: "admin", AdminPassword: adminPassword,
+		ViewerUsername: "viewer", ViewerPassword: viewerPassword, BcryptCost: bcrypt.MinCost,
+		SeedMode: store.SeedNone, Logger: slog.New(slog.NewJSONHandler(&buf, nil)),
+	}
+	srv, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	login(t, srv, "admin", adminPassword)
+	viewer := login(t, srv, "viewer", viewerPassword)
+	if rec := do(srv, http.MethodPost, "/api/v1/login", "", map[string]string{"username": "viewer", "password": "wrong-password"}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong password status %d", rec.Code)
+	}
+	boot := do(srv, http.MethodGet, "/api/v1/bootstrap", viewer, nil)
+	var session views.Bootstrap
+	if err := json.Unmarshal(boot.Body.Bytes(), &session); err != nil {
+		t.Fatal(err)
+	}
+	if session.Role != "viewer" || session.Actor.Name != impex.EmptyViewerName || session.Actor.ID != "u_viewer" {
+		t.Fatalf("viewer actor %s %s %s", session.Role, session.Actor.ID, session.Actor.Name)
+	}
+	if strings.Contains(buf.String(), adminPassword) || strings.Contains(buf.String(), viewerPassword) {
+		t.Fatal("configured password leaked to log")
+	}
+	_ = srv.Close()
+
+	cfg.AdminPassword = "rotated-admin"
+	cfg.ViewerPassword = "rotated-viewer"
+	srv, err = New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	login(t, srv, "admin", adminPassword)
+	login(t, srv, "viewer", viewerPassword)
+	if rec := do(srv, http.MethodPost, "/api/v1/login", "", map[string]string{"username": "viewer", "password": "rotated-viewer"}); rec.Code == http.StatusOK {
+		t.Fatal("existing viewer password was overwritten")
+	}
+}
+
+func TestNoneModeSkipsViewerWhenPasswordUnset(t *testing.T) {
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	const adminPassword = "none-admin-only"
+	srv, err := New(Config{
+		DataDir: dir, SessionSecret: "s", AdminUsername: "admin", AdminPassword: adminPassword,
+		ViewerUsername: "viewer", ViewerPassword: "", BcryptCost: bcrypt.MinCost,
+		SeedMode: store.SeedNone, Logger: slog.New(slog.NewJSONHandler(&buf, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	login(t, srv, "admin", adminPassword)
+	if rec := do(srv, http.MethodPost, "/api/v1/login", "", map[string]string{"username": "viewer", "password": "viewer"}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unset viewer status %d", rec.Code)
+	}
+	if strings.Contains(buf.String(), adminPassword) {
+		t.Fatal("admin password leaked to log")
+	}
+	_ = srv.Close()
+
+	st, err := store.OpenWith(dir, store.SeedNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	_, _, _, _, ok, err := st.FindAccount(context.Background(), "viewer")
+	if err != nil || ok {
+		t.Fatalf("viewer account exists %v %v", ok, err)
+	}
+}
+
+func TestNoneModeViewerHealsMissingPerson(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.OpenWith(dir, store.SeedNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Write(func(db *domain.Database) error {
+		kept := make([]domain.Person, 0, len(db.People))
+		for _, person := range db.People {
+			if person.Name != impex.EmptyViewerName {
+				kept = append(kept, person)
+			}
+		}
+		db.People = kept
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+
+	const viewerPassword = "healed-viewer-secret"
+	srv, err := New(Config{
+		DataDir: dir, SessionSecret: "s", AdminUsername: "admin", AdminPassword: "healed-admin-secret",
+		ViewerUsername: "viewer", ViewerPassword: viewerPassword, BcryptCost: bcrypt.MinCost,
+		SeedMode: store.SeedNone,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	viewer := login(t, srv, "viewer", viewerPassword)
+	boot := do(srv, http.MethodGet, "/api/v1/bootstrap", viewer, nil)
+	var session views.Bootstrap
+	if err := json.Unmarshal(boot.Body.Bytes(), &session); err != nil {
+		t.Fatal(err)
+	}
+	if session.Actor.Name != impex.EmptyViewerName || session.Actor.ID != "u_viewer" {
+		t.Fatalf("healed actor %s %s", session.Actor.ID, session.Actor.Name)
 	}
 }

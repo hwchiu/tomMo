@@ -23,8 +23,9 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		Handler:           s,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 16,
 	}
 	errCh := make(chan error, 1)
 	go func() {

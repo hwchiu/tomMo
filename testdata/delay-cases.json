@@ -1,0 +1,1236 @@
+{
+  "catalog": [
+    {
+      "code": "PHASE2_DATES_MISSING",
+      "label": "第二階段日期未設定",
+      "explanation": "這座廠沒有第二階段，或是計畫開始、結束日還沒填。算待補，不算已經遲到。"
+    },
+    {
+      "code": "PLAN_NOT_SUBMITTED",
+      "label": "施工計畫未提交",
+      "explanation": "計畫仍是未提交。第二階段已開始（或狀態已在進行）算延遲；開始日在 14 天內算待補；更遠則不列。"
+    },
+    {
+      "code": "PLAN_NOT_APPROVED",
+      "label": "計畫未核准",
+      "explanation": "計畫已提交但尚未核准。時間判斷與施工計畫未提交相同，不和未提交重複計算。"
+    },
+    {
+      "code": "VERSION_MISSING",
+      "label": "未指定提供版本",
+      "explanation": "有版本的產品已提出計畫，卻沒有指定提供版本。階段已開始算延遲，否則算待補。"
+    },
+    {
+      "code": "FEATURE_UNPLANNED",
+      "label": "功能開關未定",
+      "explanation": "純功能開關產品已提出計畫，卻還沒為每個功能選擇開或關。階段已開始算延遲，否則算待補。"
+    },
+    {
+      "code": "WINDOW_MISSING",
+      "label": "施工時窗未填",
+      "explanation": "已提交或已核准的計畫少了施工開始或結束日。未提交的計畫不另列這項。階段已開始算延遲，否則算待補。"
+    },
+    {
+      "code": "WINDOW_STARTS_BEFORE",
+      "label": "施工時窗早於第二階段",
+      "explanation": "施工開始日早於第二階段開始日。這是時程不符，算待補，不計遲到天數。"
+    },
+    {
+      "code": "WINDOW_ENDS_AFTER",
+      "label": "施工時窗晚於第二階段",
+      "explanation": "施工結束日晚於第二階段結束日。這是時程不符，算待補，不計遲到天數。"
+    },
+    {
+      "code": "CONSTRUCTION_OVERDUE",
+      "label": "已過預計完工日尚未完成",
+      "explanation": "施工結束日早於基準日，部署狀態還不是已驗收。遲到天數是基準日減結束日。"
+    },
+    {
+      "code": "ISSUE_OVERDUE",
+      "label": "有逾期未解問題",
+      "explanation": "這座廠或這個產品有未結案問題（待處理、處理中、受阻），到期日早於基準日。沒有指定產品的問題會計入每一格。"
+    }
+  ],
+  "cases": [
+    {
+      "name": "quiet approved cell has no reasons",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": []
+    },
+    {
+      "name": "missing phase dates are a gap owned by the phase owner",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "",
+        "phaseEnd": "",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PHASE2_DATES_MISSING",
+          "label": "第二階段日期未設定",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_phase",
+          "ownerRole": "pm"
+        }
+      ]
+    },
+    {
+      "name": "missing phase with a submitted plan does not invent a window mismatch",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "",
+        "phaseEnd": "",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-12-01",
+        "windowEnd": "2027-03-15",
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PHASE2_DATES_MISSING",
+          "label": "第二階段日期未設定",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_phase",
+          "ownerRole": "pm"
+        }
+      ]
+    },
+    {
+      "name": "plan not submitted 15 days before start is omitted",
+      "input": {
+        "asOf": "2026-10-03",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": []
+    },
+    {
+      "name": "plan not submitted 14 days before start is a gap",
+      "input": {
+        "asOf": "2026-10-04",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "plan not submitted the day before start is a gap",
+      "input": {
+        "asOf": "2026-10-17",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "plan not submitted on the phase start day is late zero days",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": 0,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "plan not submitted the day after start is one day late",
+      "input": {
+        "asOf": "2026-10-19",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": 1,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "submitted plan is unapproved and does not also count as not submitted",
+      "input": {
+        "asOf": "2026-10-21",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_APPROVED",
+          "label": "計畫未核准",
+          "kind": "late",
+          "daysLate": 3,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "in-progress phase before its start date is already late without a day count",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-11-07",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "IN_PROGRESS",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": null,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "phase already ended makes a missing plan late from the start date",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-06-01",
+        "phaseEnd": "2026-09-01",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": 139,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "empty primary owner falls back to the factory PM",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": 0,
+          "ownerPersonId": "u_pm",
+          "ownerRole": "pm"
+        }
+      ]
+    },
+    {
+      "name": "version missing before the phase is a gap and the unapproved plan is still out of horizon",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-11-17",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": "2026-11-17",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "VERSION_MISSING",
+          "label": "未指定提供版本",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "version missing after the phase starts counts the same days as the phase",
+      "input": {
+        "asOf": "2026-10-20",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_APPROVED",
+          "label": "計畫未核准",
+          "kind": "late",
+          "daysLate": 2,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        },
+        {
+          "code": "VERSION_MISSING",
+          "label": "未指定提供版本",
+          "kind": "late",
+          "daysLate": 2,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "feature switches unset before the phase are a gap",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-11-27",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "FEATURE_ONLY",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": false,
+        "windowStart": "2026-11-27",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "FEATURE_UNPLANNED",
+          "label": "功能開關未定",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "feature switches unset after the phase starts are late",
+      "input": {
+        "asOf": "2026-10-23",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "FEATURE_ONLY",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": false,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "FEATURE_UNPLANNED",
+          "label": "功能開關未定",
+          "kind": "late",
+          "daysLate": 5,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "an unsubmitted feature plan does not also say the switches are unset",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "FEATURE_ONLY",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": false,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": 0,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "a complete feature plan has no feature reason",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "FEATURE_ONLY",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": []
+    },
+    {
+      "name": "missing window on an approved plan is late and owned by the secondary owner",
+      "input": {
+        "asOf": "2026-10-23",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "WINDOW_MISSING",
+          "label": "施工時窗未填",
+          "kind": "late",
+          "daysLate": 5,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        }
+      ]
+    },
+    {
+      "name": "missing window is not added to an unsubmitted plan",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "NOT_SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_SUBMITTED",
+          "label": "施工計畫未提交",
+          "kind": "late",
+          "daysLate": 0,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        }
+      ]
+    },
+    {
+      "name": "missing window before the phase is a gap",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-11-27",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "PLANNED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "WINDOW_MISSING",
+          "label": "施工時窗未填",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        }
+      ]
+    },
+    {
+      "name": "empty secondary owner of a missing window falls back to the PM",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": null,
+        "windowEnd": null,
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "WINDOW_MISSING",
+          "label": "施工時窗未填",
+          "kind": "late",
+          "daysLate": 0,
+          "ownerPersonId": "u_pm",
+          "ownerRole": "pm"
+        }
+      ]
+    },
+    {
+      "name": "window starting before the phase is a gap",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-07-01",
+        "phaseEnd": "2026-10-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-06-10",
+        "windowEnd": "2026-10-20",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "WINDOW_STARTS_BEFORE",
+          "label": "施工時窗早於第二階段",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        }
+      ]
+    },
+    {
+      "name": "window ending after the phase is a gap",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-06-16",
+        "phaseEnd": "2026-11-30",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-08-01",
+        "windowEnd": "2026-12-20",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "WINDOW_ENDS_AFTER",
+          "label": "施工時窗晚於第二階段",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        }
+      ]
+    },
+    {
+      "name": "a window can start before and end after",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-07-01",
+        "phaseEnd": "2026-10-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-06-10",
+        "windowEnd": "2026-11-15",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "WINDOW_STARTS_BEFORE",
+          "label": "施工時窗早於第二階段",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        },
+        {
+          "code": "WINDOW_ENDS_AFTER",
+          "label": "施工時窗晚於第二階段",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        }
+      ]
+    },
+    {
+      "name": "window equal to the phase is not a mismatch",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-07-01",
+        "phaseEnd": "2026-10-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-07-01",
+        "windowEnd": "2026-10-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": []
+    },
+    {
+      "name": "construction ending on the as-of date is not overdue",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-06-01",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-06-01",
+        "windowEnd": "2026-10-18",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": []
+    },
+    {
+      "name": "construction ending the day before is one day late",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-06-01",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-06-01",
+        "windowEnd": "2026-10-17",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": [
+        {
+          "code": "CONSTRUCTION_OVERDUE",
+          "label": "已過預計完工日尚未完成",
+          "kind": "late",
+          "daysLate": 1,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        }
+      ]
+    },
+    {
+      "name": "accepted deployment is not construction overdue",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-06-01",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-06-01",
+        "windowEnd": "2026-10-17",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": []
+      },
+      "expect": []
+    },
+    {
+      "name": "issue due on the as-of date is not overdue",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": "prod",
+            "status": "OPEN",
+            "dueDate": "2026-10-18",
+            "ownerId": "u_issue"
+          }
+        ]
+      },
+      "expect": []
+    },
+    {
+      "name": "open issue due the day before is one day late",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": "prod",
+            "status": "OPEN",
+            "dueDate": "2026-10-17",
+            "ownerId": "u_issue"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "code": "ISSUE_OVERDUE",
+          "label": "有逾期未解問題",
+          "kind": "late",
+          "daysLate": 1,
+          "ownerPersonId": "u_issue",
+          "ownerRole": "issue"
+        }
+      ]
+    },
+    {
+      "name": "blocked and in-progress issues count, and the later one wins",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": "prod",
+            "status": "BLOCKED",
+            "dueDate": "2026-10-16",
+            "ownerId": "u_early"
+          },
+          {
+            "productId": "prod",
+            "status": "IN_PROGRESS",
+            "dueDate": "2026-10-13",
+            "ownerId": "u_later"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "code": "ISSUE_OVERDUE",
+          "label": "有逾期未解問題",
+          "kind": "late",
+          "daysLate": 5,
+          "ownerPersonId": "u_later",
+          "ownerRole": "issue"
+        }
+      ]
+    },
+    {
+      "name": "an issue for another product is ignored",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": "other",
+            "status": "OPEN",
+            "dueDate": "2026-10-01",
+            "ownerId": "u_issue"
+          }
+        ]
+      },
+      "expect": []
+    },
+    {
+      "name": "a factory issue with no product applies to this cell",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": null,
+            "status": "OPEN",
+            "dueDate": "2026-10-16",
+            "ownerId": "u_issue"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "code": "ISSUE_OVERDUE",
+          "label": "有逾期未解問題",
+          "kind": "late",
+          "daysLate": 2,
+          "ownerPersonId": "u_issue",
+          "ownerRole": "issue"
+        }
+      ]
+    },
+    {
+      "name": "resolved and closed issues are not overdue",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-10-18",
+        "phaseEnd": "2026-12-31",
+        "phaseStatus": "NOT_STARTED",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "APPROVED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": true,
+        "featurePlanComplete": true,
+        "windowStart": "2026-10-18",
+        "windowEnd": "2026-12-31",
+        "deploymentStatus": "ACCEPTED",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": "prod",
+            "status": "RESOLVED",
+            "dueDate": "2026-09-01",
+            "ownerId": "u_issue"
+          },
+          {
+            "productId": "prod",
+            "status": "CLOSED",
+            "dueDate": "2026-09-01",
+            "ownerId": "u_issue"
+          }
+        ]
+      },
+      "expect": []
+    },
+    {
+      "name": "several reasons stay in catalog order",
+      "input": {
+        "asOf": "2026-10-18",
+        "phaseStart": "2026-07-01",
+        "phaseEnd": "2026-10-31",
+        "phaseStatus": "AT_RISK",
+        "phaseOwnerId": "u_phase",
+        "factoryPmId": "u_pm",
+        "planStatus": "SUBMITTED",
+        "mode": "VERSIONED",
+        "hasProvidedVersion": false,
+        "featurePlanComplete": true,
+        "windowStart": "2026-06-10",
+        "windowEnd": "2026-09-15",
+        "deploymentStatus": "IN_PROGRESS",
+        "secondaryOwnerId": "u_secondary",
+        "primaryOwnerId": "u_primary",
+        "productId": "prod",
+        "issues": [
+          {
+            "productId": "prod",
+            "status": "OPEN",
+            "dueDate": "2026-10-10",
+            "ownerId": "u_issue"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "code": "PLAN_NOT_APPROVED",
+          "label": "計畫未核准",
+          "kind": "late",
+          "daysLate": 109,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        },
+        {
+          "code": "VERSION_MISSING",
+          "label": "未指定提供版本",
+          "kind": "late",
+          "daysLate": 109,
+          "ownerPersonId": "u_primary",
+          "ownerRole": "primary"
+        },
+        {
+          "code": "WINDOW_STARTS_BEFORE",
+          "label": "施工時窗早於第二階段",
+          "kind": "gap",
+          "daysLate": null,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        },
+        {
+          "code": "CONSTRUCTION_OVERDUE",
+          "label": "已過預計完工日尚未完成",
+          "kind": "late",
+          "daysLate": 33,
+          "ownerPersonId": "u_secondary",
+          "ownerRole": "secondary"
+        },
+        {
+          "code": "ISSUE_OVERDUE",
+          "label": "有逾期未解問題",
+          "kind": "late",
+          "daysLate": 8,
+          "ownerPersonId": "u_issue",
+          "ownerRole": "issue"
+        }
+      ]
+    }
+  ]
+}

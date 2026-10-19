@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -913,12 +914,15 @@ func buildRow(db *domain.Database, factoryID string, productIDs []string) (Build
 			SecondaryOwnerName: secondary, Machines: lines, PlannedTotal: totalOf(lines),
 			WindowStart: start, WindowEnd: end, WindowState: window.State, WindowReasons: window.Reasons,
 			Ready: ready.Ready, Flags: flagStrings(ready.Flags),
+			Reasons: delayViews(db, cellDelay(db, factory, product, phase2, plan, deployment)),
 		}
 		if cell.Ready {
 			row.ReadyCount++
 		}
 		row.Cells = append(row.Cells, cell)
 	}
+	row.LateCount, row.GapCount = delayCellCounts(row.Cells)
+	row.ReasonCounts = reasonCounts(row.Cells)
 	return row, nil
 }
 
@@ -928,7 +932,7 @@ func exceptions(db *domain.Database) []ExceptionItem {
 		if factory.Status == "DELAYED" {
 			items = append(items, ExceptionItem{
 				ID: "ex-fac-" + factory.ID, Rank: 0, Tone: "danger", Title: factory.Name + "延遲",
-				Detail: "工廠整體狀態是延遲，先看產品建立的未提報計畫與超出時程。", Href: "/factories/" + factory.ID, FactoryName: factory.Name,
+				Detail: "工廠整體狀態是延遲。各產品的延遲理由在產品交付狀況。", Href: "/factories/" + factory.ID, FactoryName: factory.Name,
 			})
 		} else if factory.Status == "AT_RISK" {
 			items = append(items, ExceptionItem{
@@ -947,7 +951,7 @@ func exceptions(db *domain.Database) []ExceptionItem {
 			if phase.FactoryID != factory.ID {
 				continue
 			}
-			if phase.Status != "COMPLETED" && phase.PlannedEnd < db.AsOf {
+			if phase.Status != "COMPLETED" && phase.PlannedEnd != "" && phase.PlannedEnd < db.AsOf {
 				items = append(items, ExceptionItem{
 					ID: "ex-phase-" + phase.ID, Rank: 4, Tone: "danger",
 					Title:  factory.Name + " · " + phase.Name + "已過計畫結束日",
@@ -958,44 +962,33 @@ func exceptions(db *domain.Database) []ExceptionItem {
 		}
 		for _, product := range db.Products {
 			plan := findPlan(db, factory.ID, product.ID)
-			check := construction(plan, phase2)
-			if plan == nil || plan.Status == "NOT_SUBMITTED" {
-				active := phase2 != nil && (phase2.Status == "IN_PROGRESS" || phase2.Status == "AT_RISK" || phase2.Status == "DELAYED")
-				rank := 8
-				tone := "info"
-				if active {
-					rank = 2
-					tone = "warning"
+			var deployment *domain.ProductDeployment
+			for i := range db.Deployments {
+				if db.Deployments[i].FactoryID == factory.ID && db.Deployments[i].ProductID == product.ID {
+					deployment = &db.Deployments[i]
+					break
 				}
-				detail := "產品團隊尚未送出提供版本、異動功能與施工時程。"
-				if product.Mode == "FEATURE_ONLY" {
-					detail = "產品團隊尚未送出功能開關與施工時程。"
-				}
-				items = append(items, ExceptionItem{
-					ID: "ex-plan-" + factory.ID + "-" + product.ID, Rank: rank, Tone: tone,
-					Title: factory.Name + " · " + product.Name + "計畫未提報", Detail: detail,
-					Href: "/factories/" + factory.ID + "/plans/" + product.ID, FactoryName: factory.Name,
-				})
 			}
-			if check.State == domain.WindowOutside {
-				start, end := "—", "—"
-				if plan != nil && plan.ConstructionStart != nil {
-					start = *plan.ConstructionStart
-				}
-				if plan != nil && plan.ConstructionEnd != nil {
-					end = *plan.ConstructionEnd
-				}
-				pStart, pEnd := "—", "—"
-				if phase2 != nil {
-					pStart, pEnd = phase2.PlannedStart, phase2.PlannedEnd
-				}
-				items = append(items, ExceptionItem{
-					ID: "ex-win-" + factory.ID + "-" + product.ID, Rank: 2, Tone: "danger",
-					Title:  factory.Name + " · " + product.Name + "施工時程超出產品建立",
-					Detail: start + " – " + end + "，階段 " + pStart + " – " + pEnd + "。平行施工的重疊不算衝突。",
-					Href:   "/factories/" + factory.ID + "/plans/" + product.ID, FactoryName: factory.Name,
-				})
+			reasons := cellDelay(db, factory, product, phase2, plan, deployment)
+			if len(reasons) == 0 {
+				continue
 			}
+			late := false
+			for _, reason := range reasons {
+				if reason.Kind == domain.DelayKindLate {
+					late = true
+				}
+			}
+			rank, tone, suffix := 8, "warning", "待補"
+			if late {
+				rank, tone, suffix = 2, "danger", "延遲"
+			}
+			items = append(items, ExceptionItem{
+				ID: "ex-delay-" + factory.ID + "-" + product.ID, Rank: rank, Tone: tone,
+				Title: factory.Name + " · " + product.Name + suffix, Detail: formatDelayDetail(db, reasons),
+				Href: "/factories/" + factory.ID + "/plans/" + product.ID, FactoryName: factory.Name,
+				Reasons: delayViews(db, reasons),
+			})
 		}
 	}
 	for _, issue := range db.Issues {
@@ -1027,7 +1020,114 @@ func exceptions(db *domain.Database) []ExceptionItem {
 		}
 		return titleCollator.CompareString(items[i].Title, items[j].Title) < 0
 	})
+	for i := range items {
+		if items[i].Reasons == nil {
+			items[i].Reasons = []DelayReasonView{}
+		}
+	}
 	return items
+}
+
+func cellDelay(db *domain.Database, factory domain.Factory, product domain.Product, phase2 *domain.Phase, plan *domain.ProductFactoryPlan, deployment *domain.ProductDeployment) []domain.DelayReason {
+	in := domain.DelayInput{
+		AsOf: db.AsOf, FactoryPMID: factory.PMID, PlanStatus: "NOT_SUBMITTED", Mode: product.Mode,
+		FeaturePlanComplete: true, DeploymentStatus: "PLANNED", PrimaryOwnerID: product.PrimaryOwnerID, ProductID: product.ID,
+	}
+	if phase2 != nil {
+		in.PhaseStart = phase2.PlannedStart
+		in.PhaseEnd = phase2.PlannedEnd
+		in.PhaseStatus = phase2.Status
+		in.PhaseOwnerID = phase2.OwnerID
+	}
+	var planned []domain.PlannedFeature
+	if plan != nil {
+		in.PlanStatus = plan.Status
+		in.HasProvidedVersion = plan.ProvidedVersionID != nil && *plan.ProvidedVersionID != ""
+		in.WindowStart = plan.ConstructionStart
+		in.WindowEnd = plan.ConstructionEnd
+		planned = plan.PlannedFeatures
+	}
+	if product.Mode == "FEATURE_ONLY" {
+		in.FeaturePlanComplete = domain.IsFeaturePlanComplete(featureIDs(db, product.ID), planned)
+	}
+	if deployment != nil {
+		in.DeploymentStatus = deployment.Status
+		in.SecondaryOwnerID = deployment.SecondaryOwnerID
+	}
+	for _, issue := range db.Issues {
+		if issue.FactoryID != factory.ID {
+			continue
+		}
+		in.Issues = append(in.Issues, domain.DelayIssue{
+			ProductID: issue.ProductID, Status: issue.Status, DueDate: issue.DueDate, OwnerID: issue.OwnerID,
+		})
+	}
+	return domain.DelayReasons(in)
+}
+
+func delayViews(db *domain.Database, reasons []domain.DelayReason) []DelayReasonView {
+	out := make([]DelayReasonView, 0, len(reasons))
+	for _, reason := range reasons {
+		out = append(out, DelayReasonView{DelayReason: reason, OwnerName: nameOf(db, reason.OwnerPersonID)})
+	}
+	return out
+}
+
+func formatDelayDetail(db *domain.Database, reasons []domain.DelayReason) string {
+	parts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		piece := reason.Label
+		if reason.DaysLate != nil {
+			piece += fmt.Sprintf("（晚 %d 天）", *reason.DaysLate)
+		}
+		piece += " · " + domain.OwnerRoleLabel(reason.OwnerRole) + " " + nameOf(db, reason.OwnerPersonID)
+		parts = append(parts, piece)
+	}
+	return strings.Join(parts, "；")
+}
+
+func delayCellCounts(cells []BuildCell) (late, gap int) {
+	for _, cell := range cells {
+		isLate, isGap := false, false
+		for _, reason := range cell.Reasons {
+			if reason.Kind == domain.DelayKindLate {
+				isLate = true
+			} else {
+				isGap = true
+			}
+		}
+		if isLate {
+			late++
+		} else if isGap {
+			gap++
+		}
+	}
+	return late, gap
+}
+
+func reasonCounts(cells []BuildCell) []ReasonCount {
+	counts := map[string]int{}
+	labels := map[string]string{}
+	for _, cell := range cells {
+		seen := map[string]bool{}
+		for _, reason := range cell.Reasons {
+			if seen[reason.Code] {
+				continue
+			}
+			seen[reason.Code] = true
+			counts[reason.Code]++
+			labels[reason.Code] = reason.Label
+		}
+	}
+	out := []ReasonCount{}
+	for _, code := range domain.DelayCodes {
+		n := counts[string(code)]
+		if n == 0 {
+			continue
+		}
+		out = append(out, ReasonCount{Code: string(code), Label: labels[string(code)], Count: n})
+	}
+	return out
 }
 
 func milestoneRows(db *domain.Database) []MilestoneRow {

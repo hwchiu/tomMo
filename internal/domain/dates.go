@@ -22,3 +22,13 @@ func AddDays(iso string, days int) string {
 	}
 	return t.AddDate(0, 0, days).Format("2006-01-02")
 }
+
+// DayDiff is the number of calendar days from earlier to later (later − earlier).
+func DayDiff(later, earlier string) int {
+	a, errA := time.Parse("2006-01-02", later)
+	b, errB := time.Parse("2006-01-02", earlier)
+	if errA != nil || errB != nil {
+		return 0
+	}
+	return int(a.Sub(b) / (24 * time.Hour))
+}

@@ -16,7 +16,7 @@ factory,name,owner,planned_start,planned_end,status,order,actual_start,actual_en
 台南四廠,開發者進駐 Developer Onboarding,吳佩蓉,2026-08-16,2026-11-15,IN_PROGRESS,3,2026-08-18,,
 台南四廠,開始營運 Operations Start,黃詩涵,2026-11-16,2026-12-31,NOT_STARTED,4,,,
 熊本一廠,硬體導入 Hardware Onboarding,周宜安,2026-08-01,2026-11-14,AT_RISK,1,2026-08-20,,海運機櫃到港不穩。
-熊本一廠,產品建立 Product Build,林品均,2026-11-15,2027-04-30,NOT_STARTED,2,,,
+熊本一廠,產品建立 Product Build,林品均,,,NOT_STARTED,2,,,產品建立的開始與結束日尚未排定。
 熊本一廠,開發者進駐 Developer Onboarding,吳佩蓉,2027-05-01,2027-07-15,NOT_STARTED,3,,,
 熊本一廠,開始營運 Operations Start,林品均,2027-07-16,2027-09-01,NOT_STARTED,4,,,
 新竹二廠,硬體導入 Hardware Onboarding,蔡明哲,2025-06-02,2025-09-15,COMPLETED,1,2025-06-03,2025-09-10,

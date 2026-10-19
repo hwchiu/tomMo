@@ -24,14 +24,26 @@ type ActivityItem struct {
 	CreatedAt  string `json:"createdAt"`
 }
 
+type DelayReasonView struct {
+	domain.DelayReason
+	OwnerName string `json:"ownerName"`
+}
+
+type ReasonCount struct {
+	Code  string `json:"code"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
 type ExceptionItem struct {
-	ID          string `json:"id"`
-	Rank        int    `json:"rank"`
-	Tone        string `json:"tone"`
-	Title       string `json:"title"`
-	Detail      string `json:"detail"`
-	Href        string `json:"href"`
-	FactoryName string `json:"factoryName"`
+	ID          string            `json:"id"`
+	Rank        int               `json:"rank"`
+	Tone        string            `json:"tone"`
+	Title       string            `json:"title"`
+	Detail      string            `json:"detail"`
+	Href        string            `json:"href"`
+	FactoryName string            `json:"factoryName"`
+	Reasons     []DelayReasonView `json:"reasons"`
 }
 
 type PhaseBar struct {
@@ -142,6 +154,7 @@ type BuildCell struct {
 	WindowReasons      []domain.WindowReason `json:"windowReasons"`
 	Ready              bool                  `json:"ready"`
 	Flags              []string              `json:"flags"`
+	Reasons            []DelayReasonView     `json:"reasons"`
 }
 
 type BuildRow struct {
@@ -158,6 +171,9 @@ type BuildRow struct {
 	Phase2          *Phase2           `json:"phase2"`
 	Cells           []BuildCell       `json:"cells"`
 	ReadyCount      int               `json:"readyCount"`
+	LateCount       int               `json:"lateCount"`
+	GapCount        int               `json:"gapCount"`
+	ReasonCounts    []ReasonCount     `json:"reasonCounts"`
 	MachineTotal    int               `json:"machineTotal"`
 	MachineRollup   []MachineLineView `json:"machineRollup"`
 }

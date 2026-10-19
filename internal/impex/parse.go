@@ -289,9 +289,9 @@ func parsePhases(file string, idx map[string]int, rows []rawRow, ds *Dataset) []
 		}
 		seen[key] = true
 		var errDate []RowError
-		row.PlannedStart, errDate = parseDate(file, raw.line, cell(raw.cells, idx, "planned_start"), "計畫開始", true)
+		row.PlannedStart, errDate = parseDate(file, raw.line, cell(raw.cells, idx, "planned_start"), "計畫開始", false)
 		errs = append(errs, errDate...)
-		row.PlannedEnd, errDate = parseDate(file, raw.line, cell(raw.cells, idx, "planned_end"), "計畫結束", true)
+		row.PlannedEnd, errDate = parseDate(file, raw.line, cell(raw.cells, idx, "planned_end"), "計畫結束", false)
 		errs = append(errs, errDate...)
 		row.ActualStart, errDate = parseDate(file, raw.line, cell(raw.cells, idx, "actual_start"), "實際開始", false)
 		errs = append(errs, errDate...)

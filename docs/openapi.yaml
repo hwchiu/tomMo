@@ -13,6 +13,11 @@ info:
     judged one product at a time against Phase 2 (產品建立). Overlapping windows
     between products are parallel work and are not conflicts. Only a missing
     window, or a window that starts before or ends after Phase 2, is flagged.
+
+    The 產品交付狀況 screen (`/api/v1/product-build`) adds `reasons` on each
+    cell. `kind` is `late` (延遲, already past `asOf`) or `gap` (待補). `daysLate`
+    is a calendar count when the reason is late against a date, otherwise null.
+    The same reasons appear on overview exceptions for that cell.
 servers:
   - url: http://localhost:8080
     description: Go service
@@ -262,14 +267,17 @@ paths:
   /api/v1/product-build:
     get:
       tags: [plans]
-      summary: Factory by product matrix for Phase 2
+      summary: 產品交付狀況 — factory by product matrix
       description: |
         Each cell includes deployment status, plan status, a version when the
-        product is VERSIONED, owners,
-        machine counts, and a construction-window check against that factory's
-        Phase 2 dates. `windowState` is `MISSING`, `INSIDE`, or `OUTSIDE`.
+        product is VERSIONED, owners, machine counts, a construction-window
+        check against that factory's Phase 2 dates, and `reasons`.
+        `windowState` is `MISSING`, `INSIDE`, or `OUTSIDE`.
         There is no overlap or conflict field. Parallel windows stay `INSIDE`
-        when each one fits Phase 2.
+        when each one fits Phase 2. `reasons` use the delay taxonomy: `late`
+        is already past `asOf`, `gap` is missing or mismatched information that
+        is not late yet. Factory rows include `lateCount`, `gapCount`, and
+        `reasonCounts`.
       operationId: getProductBuild
       responses:
         "200":
@@ -288,6 +296,17 @@ paths:
                       type: object
                       properties:
                         factoryId: { type: string }
+                        lateCount: { type: integer }
+                        gapCount: { type: integer }
+                        reasonCounts:
+                          type: array
+                          items:
+                            type: object
+                            required: [code, label, count]
+                            properties:
+                              code: { type: string }
+                              label: { type: string }
+                              count: { type: integer }
                         cells:
                           type: array
                           items: { $ref: "#/components/schemas/BuildCell" }
@@ -902,6 +921,10 @@ components:
         detail: { type: string }
         href: { type: string }
         factoryName: { type: string }
+        reasons:
+          type: array
+          description: Delay reasons when this exception comes from a factory × product cell. Empty for factory status, phase, and issue rows.
+          items: { $ref: "#/components/schemas/DelayReason" }
     FactoryBoard:
       type: object
       properties:
@@ -1086,6 +1109,33 @@ components:
           items:
             type: string
             enum: [PLAN_MISSING, PLAN_NOT_APPROVED, WINDOW_MISSING, WINDOW_OUTSIDE, VERSION_MISSING, FEATURE_UNPLANNED]
+        reasons:
+          type: array
+          items: { $ref: "#/components/schemas/DelayReason" }
+    DelayReason:
+      type: object
+      required: [code, label, explanation, kind, daysLate, ownerPersonId, ownerRole, ownerName]
+      properties:
+        code:
+          type: string
+          enum:
+            - PHASE2_DATES_MISSING
+            - PLAN_NOT_SUBMITTED
+            - PLAN_NOT_APPROVED
+            - VERSION_MISSING
+            - FEATURE_UNPLANNED
+            - WINDOW_MISSING
+            - WINDOW_STARTS_BEFORE
+            - WINDOW_ENDS_AFTER
+            - CONSTRUCTION_OVERDUE
+            - ISSUE_OVERDUE
+        label: { type: string, description: zh-TW label }
+        explanation: { type: string }
+        kind: { type: string, enum: [late, gap], description: late is 延遲. gap is 待補. }
+        daysLate: { type: integer, nullable: true, description: Calendar days late. Null when the reason has no day count. 0 means the phase started on the as-of date. }
+        ownerPersonId: { type: string }
+        ownerRole: { type: string, enum: [primary, secondary, pm, issue] }
+        ownerName: { type: string }
     PlanPage:
       type: object
       properties:

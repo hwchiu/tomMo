@@ -1,3 +1,4 @@
+import type { DelayReason } from "@/domain/delay";
 import type { ReadinessFlag } from "@/domain/readiness";
 import type {
   Activity,
@@ -41,6 +42,16 @@ export interface ActivityItem {
   createdAt: string;
 }
 
+export interface DelayReasonView extends DelayReason {
+  ownerName: string;
+}
+
+export interface ReasonCount {
+  code: string;
+  label: string;
+  count: number;
+}
+
 export interface ExceptionItem {
   id: string;
   rank: number;
@@ -49,6 +60,7 @@ export interface ExceptionItem {
   detail: string;
   href: string;
   factoryName: string;
+  reasons: DelayReasonView[];
 }
 
 export interface PhaseBar {
@@ -144,6 +156,7 @@ export interface BuildCell {
   windowReasons: WindowReason[];
   ready: boolean;
   flags: ReadinessFlag[];
+  reasons: DelayReasonView[];
 }
 
 export interface BuildRow {
@@ -166,6 +179,9 @@ export interface BuildRow {
   } | null;
   cells: BuildCell[];
   readyCount: number;
+  lateCount: number;
+  gapCount: number;
+  reasonCounts: ReasonCount[];
   machineTotal: number;
   machineRollup: MachineLineView[];
 }

@@ -418,6 +418,7 @@ function RangeBar({
   label: string;
   forceInside?: boolean;
 }) {
+  if (!start || !end) return null;
   const left = scale.x(start);
   const width = Math.max(scale.x(end) - left, 0.6);
   const inside = forceInside || width > 11;

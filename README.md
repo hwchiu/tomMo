@@ -1,6 +1,6 @@
 # 廠務協調台
 
-P0 coordination workspace for several factories moving through the same four phases. The screen that matters most is **產品建立 (Phase 2)**: each factory × product cell shows the deployment, the product team's plan, and whether that plan is ready for **開發者進駐**.
+P0 coordination workspace for several factories moving through the same four phases. The screen that matters most is **產品交付狀況**: each factory × product cell shows the deployment, the product team's plan, and why that cell is **延遲** or **待補**. Phase 2 itself is still named 產品建立.
 
 The GitHub Pages build keeps an in-browser mock. The Go binary in this repo serves the same JSON API from SQLite and embeds that frontend. See [docs/deployment-architecture.md](docs/deployment-architecture.md).
 
@@ -170,8 +170,8 @@ The static export calls `fetch('/api/...')` with credentials when `NEXT_PUBLIC_U
 
 | Screen | Path | What it is for |
 | --- | --- | --- |
-| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: missing plans, windows outside Phase 2, overdue issues. Filter and group by 類別 / 區域 / 製程. |
-| 產品建立 | `/product-build` | Factory × product grid. Status, version or 純功能開關, owners, per-factory machine total, and a grand total. |
+| 總覽 | `/` | Month-scale timeline of every factory, then exceptions: delivery delay reasons, overdue phases, overdue issues. Filter and group by 類別 / 區域 / 製程. |
+| 產品交付狀況 | `/product-build` | Factory × product grid. Each 延遲 or 待補 cell lists its reasons, days late, and owner. Filter by reason. The route stays `/product-build`. |
 | 工廠 | `/factories` | Timeline, PM name and department, machine total, ad-hoc changes, topics, deployments, issues. |
 | 施工計畫 | `/factories/{id}/plans/{productId}` | Optional version plus 特殊異動 (feature override or free text). Feature-only plans set each feature on or off. |
 | 問題 | `/issues` | Blockers tied to a factory, phase, or product. |
@@ -197,10 +197,25 @@ Machine counts are planned quantities per machine type (機種A, 機種B, and an
 - **One factory, its own phases.** Templates are only a starting copy. Dates, owners, names, and extra phases belong to that factory.
 - **Version is optional per product.** `VERSIONED` plans choose a release. `FEATURE_ONLY` plans set every feature on or off. The change list is the features whose planned state differs from `defaultEnabled`.
 - **Versions compare numerically.** `2.10.0` is newer than `2.3.0`. A `v` prefix is ignored. Feature-flag products do not have versions.
-- **Capability is the planned feature set.** A cell is on, off, or not planned yet. Versioned rows derive that from the provided version and its feature changes.
+- **Capability is the planned feature set.** A cell is on, off, or not planned yet. Versioned rows derive that from the provided version and its feature changes. A feature-only CSV row lists only the switches it decided. A switch that is left out stays unplanned, and a submitted plan with a missing switch is 功能開關未定.
 - **Construction windows may overlap.** Products build in parallel. A window is flagged only when it is missing, or when it starts before or ends after that factory's Phase 2 dates. There is no overlap conflict.
 
 The window check lives in `src/domain/windows.ts` and is covered by `src/domain/windows.test.ts`. Readiness (`src/domain/readiness.ts`) requires an approved plan and a window inside Phase 2. A versioned product also needs a provided version. A feature-flag product needs a planned state for every feature. An outside window can be submitted and approved; it just does not count as ready.
+
+**產品交付狀況** uses a separate delay taxonomy (`src/domain/delay.ts` and `internal/domain/delay.go`). A factory's stored status (進度正常 / 有風險 / 延遲 / 已完成) is not computed from these reasons. Comparison uses the dataset as-of date. `end < asOf` is late; the as-of day itself is not late. Horizon for an unsubmitted or unapproved plan is 14 days.
+
+| Code | 標籤 | 規則 |
+| --- | --- | --- |
+| `PHASE2_DATES_MISSING` | 第二階段日期未設定 | 沒有第二階段，或開始／結束日是空的。待補。負責人是階段負責人，否則廠務 PM。 |
+| `PLAN_NOT_SUBMITTED` | 施工計畫未提交 | 計畫未提交，且第二階段已開始，或開始日在 14 天內。已開始算延遲，14 天內算待補。產品主責。 |
+| `PLAN_NOT_APPROVED` | 計畫未核准 | 狀態是已提交（不含未提交）。時間判斷同上。產品主責。 |
+| `VERSION_MISSING` | 未指定提供版本 | 有版本的產品，計畫已提出但沒有提供版本。已開始算延遲，否則待補。產品主責。 |
+| `FEATURE_UNPLANNED` | 功能開關未定 | 純功能開關產品，計畫已提出但還沒為每個功能選擇開或關。時間判斷同版本。產品主責。 |
+| `WINDOW_MISSING` | 施工時窗未填 | 已提交或已核准，但施工開始或結束日是空的。未提交不另列。已開始算延遲，否則待補。工廠副責，否則廠務 PM。 |
+| `WINDOW_STARTS_BEFORE` | 施工時窗早於第二階段 | 施工開始早於第二階段開始。待補，不計天數。工廠副責。 |
+| `WINDOW_ENDS_AFTER` | 施工時窗晚於第二階段 | 施工結束晚於第二階段結束。待補，不計天數。工廠副責。 |
+| `CONSTRUCTION_OVERDUE` | 已過預計完工日尚未完成 | 施工結束早於基準日，部署還不是已驗收。延遲。工廠副責。 |
+| `ISSUE_OVERDUE` | 有逾期未解問題 | 未結案（待處理、處理中、受阻）且到期日早於基準日。沒指定產品的問題計入該廠每一格。延遲，取最長天數。問題負責人。 |
 
 ## Layout
 

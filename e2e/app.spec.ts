@@ -9,6 +9,21 @@ async function login(page: Page, username: string, password: string) {
   await expect(page.getByRole("link", { name: "總覽" }).first()).toBeVisible();
 }
 
+test("a delayed delivery cell shows its reason", async ({ page }) => {
+  await login(page, "admin", adminPassword);
+  await page.locator("aside").getByRole("link", { name: /產品交付狀況/ }).click();
+  await expect(page).toHaveURL(/\/product-build\/?$/);
+  await expect(page.getByRole("heading", { name: "產品交付狀況" })).toBeVisible();
+  await expect(page.locator("#delay-legend").getByText("施工計畫未提交")).toBeVisible();
+  const cell = page.locator("[data-delay-cell='新竹一廠:開發產品 Developer']");
+  await cell.scrollIntoViewIfNeeded();
+  await expect(cell.getByText("施工計畫未提交")).toBeVisible();
+  await expect(cell.getByText("延遲", { exact: true }).first()).toBeVisible();
+  await page.getByLabel("延遲理由").selectOption({ label: "施工計畫未提交" });
+  await expect(page).toHaveURL(/reason=PLAN_NOT_SUBMITTED/);
+  await expect(cell.getByText("施工計畫未提交")).toBeVisible();
+});
+
 test("rejects a wrong password and hides the demo hint", async ({ page }) => {
   await page.goto("/login/");
   await expect(page.getByText("示範帳號")).toHaveCount(0);

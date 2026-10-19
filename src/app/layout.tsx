@@ -8,7 +8,7 @@ const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
   title: "廠務協調台",
-  description: "多廠建廠協調。產品建立、施工計畫與能力矩陣。",
+  description: "多廠建廠協調。產品交付狀況、施工計畫與能力矩陣。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

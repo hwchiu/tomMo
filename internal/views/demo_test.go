@@ -61,6 +61,25 @@ func TestDemoViews(t *testing.T) {
 	if !storageOutside {
 		t.Fatal("expected an outside construction window")
 	}
+	seen := map[string]bool{}
+	for _, row := range build.Rows {
+		if row.ReasonCounts == nil {
+			t.Fatalf("nil reason counts for %s", row.FactoryName)
+		}
+		for _, cell := range row.Cells {
+			for _, reason := range cell.Reasons {
+				seen[reason.Code] = true
+				if reason.Label == "" || reason.OwnerPersonID == "" || reason.OwnerName == "" || (reason.Kind != "late" && reason.Kind != "gap") {
+					t.Fatalf("incomplete reason %+v", reason)
+				}
+			}
+		}
+	}
+	for _, code := range domain.DelayCodes {
+		if !seen[string(code)] {
+			t.Errorf("demo data never produces %s", code)
+		}
+	}
 
 	detail, err := BuildFactory(&db, hsc.ID)
 	if err != nil {

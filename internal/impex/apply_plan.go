@@ -84,16 +84,22 @@ func (w *world) ensureDeployment(factoryID, productID, secondaryID string) int {
 }
 
 func (w *world) desiredFeatures(product domain.Product, row PlanRow) []domain.PlannedFeature {
-	if product.Mode != "FEATURE_ONLY" || (row.Status == "NOT_SUBMITTED" && len(row.FeatureChanges) == 0) {
+	if product.Mode != "FEATURE_ONLY" || len(row.FeatureChanges) == 0 {
 		return []domain.PlannedFeature{}
 	}
-	enabled := map[string]bool{}
-	for _, change := range row.FeatureChanges {
-		enabled[change.Name] = change.Enabled
-	}
-	out := make([]domain.PlannedFeature, 0)
+	byName := map[string]domain.FeatureDefinition{}
 	for _, feature := range w.featuresOf(product.ID) {
-		out = append(out, domain.PlannedFeature{FeatureID: feature.ID, Enabled: enabled[feature.Name]})
+		byName[feature.Name] = feature
+	}
+	out := make([]domain.PlannedFeature, 0, len(row.FeatureChanges))
+	seen := map[string]bool{}
+	for _, change := range row.FeatureChanges {
+		feature, ok := byName[change.Name]
+		if !ok || seen[feature.ID] {
+			continue
+		}
+		seen[feature.ID] = true
+		out = append(out, domain.PlannedFeature{FeatureID: feature.ID, Enabled: change.Enabled})
 	}
 	return out
 }

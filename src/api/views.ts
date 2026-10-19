@@ -1,6 +1,7 @@
 import { capabilityCell, isFeaturePlanComplete } from "@/domain/features";
 import { plannedTotal } from "@/domain/machines";
 import { compareSemver } from "@/domain/semver";
+import { delayCatalog, delayReasons, ownerRoleLabel, type DelayInput, type DelayReason } from "@/domain/delay";
 import { cellReadiness } from "@/domain/readiness";
 import type { AccountRole, AdHocChange, Database, Person } from "@/domain/types";
 import { evaluateConstructionWindow } from "@/domain/windows";
@@ -10,6 +11,8 @@ import type {
   Bootstrap,
   BuildCell,
   BuildRow,
+  DelayReasonView,
+  ReasonCount,
   CapabilityMatrix,
   DeploymentPage,
   FactoryBoardRow,
@@ -584,6 +587,7 @@ function buildRow(db: Database, factoryId: string, productIds: string[]): BuildR
       windowReasons: window.reasons,
       ready: readiness.ready,
       flags: readiness.flags,
+      reasons: presentReasons(db, cellDelay(db, factory, product, phase2, plan ?? null, deployment ?? null)),
     };
   });
   return {
@@ -602,8 +606,87 @@ function buildRow(db: Database, factoryId: string, productIds: string[]): BuildR
       : null,
     cells,
     readyCount: cells.filter((cell) => cell.ready).length,
+    ...delaySummary(cells),
     machineRollup: factoryRollup(db, factoryId),
     machineTotal: plannedTotal(factoryRollup(db, factoryId)),
+  };
+}
+
+function cellDelay(
+  db: Database,
+  factory: Database["factories"][number],
+  product: Database["products"][number],
+  phase2: Database["phases"][number] | null,
+  plan: Database["plans"][number] | null,
+  deployment: Database["deployments"][number] | null,
+): DelayReason[] {
+  const featureIds = db.features.filter((feature) => feature.productId === product.id).map((feature) => feature.id);
+  const input: DelayInput = {
+    asOf: db.asOf,
+    phaseStart: phase2?.plannedStart ?? "",
+    phaseEnd: phase2?.plannedEnd ?? "",
+    phaseStatus: phase2?.status ?? "",
+    phaseOwnerId: phase2?.ownerId ?? "",
+    factoryPmId: factory.pmId,
+    planStatus: plan?.status ?? "NOT_SUBMITTED",
+    mode: product.mode,
+    hasProvidedVersion: Boolean(plan?.providedVersionId),
+    featurePlanComplete: product.mode === "FEATURE_ONLY" ? isFeaturePlanComplete(featureIds, plan?.plannedFeatures ?? []) : true,
+    windowStart: plan?.constructionStart ?? null,
+    windowEnd: plan?.constructionEnd ?? null,
+    deploymentStatus: deployment?.status ?? "PLANNED",
+    secondaryOwnerId: deployment?.secondaryOwnerId ?? "",
+    primaryOwnerId: product.primaryOwnerId,
+    productId: product.id,
+    issues: db.issues
+      .filter((issue) => issue.factoryId === factory.id)
+      .map((issue) => ({
+        productId: issue.productId,
+        status: issue.status,
+        dueDate: issue.dueDate,
+        ownerId: issue.ownerId,
+      })),
+  };
+  return delayReasons(input);
+}
+
+function presentReasons(db: Database, reasons: DelayReason[]): DelayReasonView[] {
+  return reasons.map((reason) => ({ ...reason, ownerName: nameOf(db, reason.ownerPersonId) }));
+}
+
+function formatDelayDetail(reasons: DelayReasonView[]): string {
+  return reasons
+    .map((reason) => {
+      const days = reason.daysLate != null ? `（晚 ${reason.daysLate} 天）` : "";
+      return `${reason.label}${days} · ${ownerRoleLabel(reason.ownerRole)} ${reason.ownerName}`;
+    })
+    .join("；");
+}
+
+function delaySummary(cells: BuildCell[]): { lateCount: number; gapCount: number; reasonCounts: ReasonCount[] } {
+  let lateCount = 0;
+  let gapCount = 0;
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const cell of cells) {
+    const late = cell.reasons.some((reason) => reason.kind === "late");
+    const gap = cell.reasons.some((reason) => reason.kind === "gap");
+    if (late) lateCount += 1;
+    else if (gap) gapCount += 1;
+    const seen = new Set<string>();
+    for (const reason of cell.reasons) {
+      if (seen.has(reason.code)) continue;
+      seen.add(reason.code);
+      const prev = counts.get(reason.code);
+      counts.set(reason.code, { label: reason.label, count: (prev?.count ?? 0) + 1 });
+    }
+  }
+  return {
+    lateCount,
+    gapCount,
+    reasonCounts: delayCatalog.flatMap((item) => {
+      const row = counts.get(item.code);
+      return row ? [{ code: item.code, label: row.label, count: row.count }] : [];
+    }),
   };
 }
 
@@ -616,9 +699,10 @@ function exceptions(db: Database) {
         rank: 0,
         tone: "danger",
         title: `${factory.name}延遲`,
-        detail: "工廠整體狀態是延遲，先看產品建立的未提報計畫與超出時程。",
+        detail: "工廠整體狀態是延遲。各產品的延遲理由在產品交付狀況。",
         href: `/factories/${factory.id}`,
         factoryName: factory.name,
+        reasons: [],
       });
     } else if (factory.status === "AT_RISK") {
       items.push({
@@ -629,11 +713,12 @@ function exceptions(db: Database) {
         detail: factory.description,
         href: `/factories/${factory.id}`,
         factoryName: factory.name,
+        reasons: [],
       });
     }
     const phase2 = db.phases.find((phase) => phase.factoryId === factory.id && phase.order === 2);
     for (const phase of db.phases.filter((phase) => phase.factoryId === factory.id)) {
-      if (phase.status !== "COMPLETED" && phase.plannedEnd < db.asOf) {
+      if (phase.status !== "COMPLETED" && phase.plannedEnd && phase.plannedEnd < db.asOf) {
         items.push({
           id: `ex-phase-${phase.id}`,
           rank: 4,
@@ -642,40 +727,26 @@ function exceptions(db: Database) {
           detail: `計畫結束 ${phase.plannedEnd}，狀態仍是未完成。`,
           href: `/factories/${factory.id}#timeline`,
           factoryName: factory.name,
+          reasons: [],
         });
       }
     }
     for (const product of db.products) {
-      const plan = db.plans.find((item) => item.factoryId === factory.id && item.productId === product.id);
-      const check = evaluateConstructionWindow(
-        { start: plan?.constructionStart ?? null, end: plan?.constructionEnd ?? null },
-        phase2 ? { start: phase2.plannedStart, end: phase2.plannedEnd } : null,
-      );
-      if (!plan || plan.status === "NOT_SUBMITTED") {
-        const active = phase2 && (phase2.status === "IN_PROGRESS" || phase2.status === "AT_RISK" || phase2.status === "DELAYED");
-        items.push({
-          id: `ex-plan-${factory.id}-${product.id}`,
-          rank: active ? 2 : 8,
-          tone: active ? "warning" : "info",
-          title: `${factory.name} · ${product.name}計畫未提報`,
-          detail: product.mode === "FEATURE_ONLY"
-            ? "產品團隊尚未送出功能開關與施工時程。"
-            : "產品團隊尚未送出提供版本、異動功能與施工時程。",
-          href: `/factories/${factory.id}/plans/${product.id}`,
-          factoryName: factory.name,
-        });
-      }
-      if (check.state === "OUTSIDE") {
-        items.push({
-          id: `ex-win-${factory.id}-${product.id}`,
-          rank: 2,
-          tone: "danger",
-          title: `${factory.name} · ${product.name}施工時程超出產品建立`,
-          detail: `${plan?.constructionStart ?? "—"} – ${plan?.constructionEnd ?? "—"}，階段 ${phase2?.plannedStart ?? "—"} – ${phase2?.plannedEnd ?? "—"}。平行施工的重疊不算衝突。`,
-          href: `/factories/${factory.id}/plans/${product.id}`,
-          factoryName: factory.name,
-        });
-      }
+      const plan = db.plans.find((item) => item.factoryId === factory.id && item.productId === product.id) ?? null;
+      const deployment = db.deployments.find((item) => item.factoryId === factory.id && item.productId === product.id) ?? null;
+      const reasons = presentReasons(db, cellDelay(db, factory, product, phase2 ?? null, plan, deployment));
+      if (reasons.length === 0) continue;
+      const late = reasons.some((reason) => reason.kind === "late");
+      items.push({
+        id: `ex-delay-${factory.id}-${product.id}`,
+        rank: late ? 2 : 8,
+        tone: late ? "danger" : "warning",
+        title: `${factory.name} · ${product.name}${late ? "延遲" : "待補"}`,
+        detail: formatDelayDetail(reasons),
+        href: `/factories/${factory.id}/plans/${product.id}`,
+        factoryName: factory.name,
+        reasons,
+      });
     }
   }
   for (const issue of db.issues) {
@@ -690,6 +761,7 @@ function exceptions(db: Database) {
       detail: `到期 ${issue.dueDate}，負責人 ${nameOf(db, issue.ownerId)}。`,
       href: `/issues/${issue.id}`,
       factoryName: factory.name,
+      reasons: [],
     });
   }
   return items.sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title, "zh-Hant"));

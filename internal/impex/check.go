@@ -108,19 +108,9 @@ func check(db *domain.Database, ds Dataset) Report {
 			rep.Errors = append(rep.Errors, rowErr(row.File, row.Row, "純功能開關的產品不能指定版本"))
 		}
 		names := features[row.Product]
-		listed := map[string]bool{}
 		for _, change := range row.FeatureChanges {
 			if names == nil || !names[change.Name] {
 				rep.Errors = append(rep.Errors, rowErr(row.File, row.Row, "找不到功能「"+change.Name+"」"))
-			}
-			listed[change.Name] = true
-		}
-		if mode == "FEATURE_ONLY" && (row.Status != "NOT_SUBMITTED" || len(row.FeatureChanges) > 0) {
-			for name := range names {
-				if !listed[name] {
-					rep.Errors = append(rep.Errors, rowErr(row.File, row.Row, "純功能開關的計畫必須列出每一個功能"))
-					break
-				}
 			}
 		}
 	}

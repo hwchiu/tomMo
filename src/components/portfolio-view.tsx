@@ -109,8 +109,8 @@ function PortfolioBody({
       <PageHeader
         kicker="Portfolio"
         title="組合總覽"
-        description="例外先看。工廠依類別、區域、製程節點篩選；產品建立的未提報計畫與超出時程會排進同一條佇列。就緒看計畫狀態與功能或版本是否齊。施工窗彼此重疊不算衝突。"
-        actions={<TextLink href="/product-build">打開產品建立矩陣</TextLink>}
+        description="例外先看。工廠依類別、區域、製程節點篩選。產品交付狀況的延遲與待補理由會排進同一條佇列，並標出遲到天數與負責人。施工窗彼此重疊不算衝突。"
+        actions={<TextLink href="/product-build">打開產品交付狀況</TextLink>}
       />
       <Panel className="mb-4 p-4">
         <h2 className="mb-1 text-lg font-semibold">全廠時程</h2>
@@ -164,6 +164,15 @@ function PortfolioBody({
                       {item.title}
                     </span>
                     <span className="mt-0.5 block text-xs text-muted">{item.detail}</span>
+                    {item.reasons.length > 0 ? (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {item.reasons.map((reason) => (
+                          <span key={reason.code} title={reason.explanation} className="rounded bg-white px-1.5 py-0.5 text-[10px] ring-1 ring-line">
+                            {reason.label}{reason.daysLate != null ? ` · 晚 ${reason.daysLate} 天` : ""}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="text-xs text-muted">{item.factoryName}</span>
                 </Link>

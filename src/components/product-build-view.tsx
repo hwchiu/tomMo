@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/api";
-import type { BuildCell, BuildRow } from "@/api/types";
+import type { BuildCell, BuildRow, DelayReasonView } from "@/api/types";
+import { delayCatalog, ownerRoleLabel } from "@/domain/delay";
 import { productModeLabel, readinessFlagLabel, windowReasonLabel } from "@/domain/labels";
 import { inFactoryScope } from "@/domain/select";
 import { useApp } from "@/components/shell";
@@ -20,17 +21,26 @@ export function ProductBuildView({
   region,
   technology,
   onlyExceptions,
+  reason,
 }: {
   category: string;
   region: string;
   technology: string;
   onlyExceptions: boolean;
+  reason: string;
 }) {
   const state = useLiveQuery("product-build", () => api.productBuild());
   return (
     <AsyncView state={state} skeleton={<Skeleton className="h-[32rem]" />}>
       {(data) => (
-        <Body data={data} category={category} region={region} technology={technology} onlyExceptions={onlyExceptions} />
+        <Body
+          data={data}
+          category={category}
+          region={region}
+          technology={technology}
+          onlyExceptions={onlyExceptions}
+          reason={reason}
+        />
       )}
     </AsyncView>
   );
@@ -42,26 +52,35 @@ function Body({
   region,
   technology,
   onlyExceptions,
+  reason,
 }: {
   data: Awaited<ReturnType<typeof api.productBuild>>;
   category: string;
   region: string;
   technology: string;
   onlyExceptions: boolean;
+  reason: string;
 }) {
   const router = useRouter();
   const app = useApp();
   const enums = app?.enumerations.filter((item) => item.active) ?? [];
+  const knownReason = delayCatalog.some((item) => item.code === reason);
+  const activeReason = knownReason ? reason : "";
   const rows = data.rows.filter((row) => inFactoryScope(row, { category, region, technology }));
-  const visible = onlyExceptions ? rows.filter((row) => row.cells.some((cell) => !cell.ready)) : rows;
+  const visible = rows.filter((row) => {
+    if (onlyExceptions && row.cells.every((cell) => cell.ready)) return false;
+    if (activeReason && !row.cells.some((cell) => cell.reasons.some((item) => item.code === activeReason))) return false;
+    return true;
+  });
 
-  function push(next: Partial<{ category: string; region: string; technology: string; exceptions: string }>) {
+  function push(next: Partial<{ category: string; region: string; technology: string; exceptions: string; reason: string }>) {
     router.replace(
       withQuery("/product-build", {
         category,
         region,
         technology,
         exceptions: onlyExceptions ? "1" : "",
+        reason: activeReason,
         ...next,
       }),
     );
@@ -70,14 +89,28 @@ function Body({
   return (
     <div>
       <PageHeader
-        kicker="Phase 2 · 產品建立"
-        title="工廠 × 產品"
-        description="每一格是一座工廠上的一個產品：部署狀態、版本或功能開關、主責與副責、機台數，以及計畫是否就緒。未提報與超出產品建立區間會先被標出來。各產品平行施工，時程重疊不算衝突。"
+        kicker="產品交付狀況"
+        title="產品交付狀況"
+        description="每一格是一座工廠上的一個產品。延遲是相對基準日已經遲到；待補是資料還沒齊、或時程與第二階段不符，但還沒遲到。格子上列出理由、遲到天數與負責人。各產品平行施工，時程重疊不算衝突。第二階段的名稱仍是產品建立。"
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Select label="類別" value={category} onChange={(value) => push({ category: value })} options={enums.filter((item) => item.set === "factoryCategory")} />
         <Select label="區域" value={region} onChange={(value) => push({ region: value })} options={enums.filter((item) => item.set === "factoryRegion")} />
         <Select label="製程" value={technology} onChange={(value) => push({ technology: value })} options={enums.filter((item) => item.set === "technologyNode")} />
+        <label className="flex items-center gap-1 text-muted">
+          理由
+          <select
+            aria-label="延遲理由"
+            className="h-8 max-w-[16rem] rounded-md border border-line bg-white px-2 text-sm text-ink"
+            value={activeReason}
+            onChange={(event) => push({ reason: event.target.value })}
+          >
+            <option value="">全部</option>
+            {delayCatalog.map((item) => (
+              <option key={item.code} value={item.code}>{item.label}</option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           className={cn("h-8 rounded-full px-3", onlyExceptions ? "bg-ink text-white" : "border border-line bg-white")}
@@ -86,13 +119,24 @@ function Body({
           只看未就緒
         </button>
         <span className="text-muted">基準日 {data.asOf}</span>
+        {activeReason ? <span className="text-muted">篩選可分享：網址已帶理由</span> : null}
       </div>
-      <div className="mb-3 flex flex-wrap gap-2 text-[11px] text-muted">
-        <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-800">就緒：已核准、時程在階段內、版本或功能集已規劃</span>
-        <span className="rounded bg-amber-50 px-2 py-1 text-amber-900">未提報</span>
-        <span className="rounded bg-rose-50 px-2 py-1 text-rose-800">超出產品建立</span>
-        <span>重疊：允許，不標示</span>
-      </div>
+      <section id="delay-legend" className="mb-3 grid gap-2 sm:grid-cols-2">
+        {delayCatalog.map((item) => (
+          <button
+            key={item.code}
+            type="button"
+            className={cn(
+              "rounded-lg border px-3 py-2 text-left text-[11px] leading-5",
+              activeReason === item.code ? "border-ink bg-slate-50" : "border-line bg-white",
+            )}
+            onClick={() => push({ reason: activeReason === item.code ? "" : item.code })}
+          >
+            <div className="font-medium text-ink">{item.label}</div>
+            <div className="text-muted">{item.explanation}</div>
+          </button>
+        ))}
+      </section>
       {visible.length === 0 ? (
         <EmptyState title="沒有要看的工廠" body="沒有符合篩選的列。清除篩選後會看到全部工廠。" action={<button type="button" className="text-sm text-accent" onClick={() => router.replace("/product-build")}>清除篩選</button>} />
       ) : (
@@ -128,7 +172,12 @@ function Body({
                     </td>
                     {row.cells.map((cell) => (
                       <td key={cell.productId} className="border-b border-line p-2 align-top">
-                        <Cell cell={cell} />
+                        <Cell
+                          cell={cell}
+                          factoryName={row.factoryName}
+                          productName={data.products.find((product) => product.id === cell.productId)?.name ?? ""}
+                          dimmed={Boolean(activeReason) && !cell.reasons.some((item) => item.code === activeReason)}
+                        />
                       </td>
                     ))}
                   </tr>
@@ -159,7 +208,12 @@ function Body({
                   {row.cells.map((cell) => (
                     <div key={cell.productId}>
                       <div className="mb-1 text-xs font-medium text-muted">{data.products.find((product) => product.id === cell.productId)?.name}</div>
-                      <Cell cell={cell} />
+                      <Cell
+                        cell={cell}
+                        factoryName={row.factoryName}
+                        productName={data.products.find((product) => product.id === cell.productId)?.name ?? ""}
+                        dimmed={Boolean(activeReason) && !cell.reasons.some((item) => item.code === activeReason)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -173,6 +227,9 @@ function Body({
 }
 
 function RowHead({ row }: { row: BuildRow }) {
+  const phaseDates = row.phase2?.plannedStart && row.phase2.plannedEnd
+    ? `${row.phase2.plannedStart.slice(5)} – ${row.phase2.plannedEnd.slice(5)}`
+    : "日期未設定";
   return (
     <div>
       <Link href={`/factories/${row.factoryId}#timeline`} className="font-semibold hover:underline">{row.factoryName}</Link>
@@ -185,35 +242,64 @@ function RowHead({ row }: { row: BuildRow }) {
       <div className="mt-2"><StatusChip kind="factory" value={row.status} /></div>
       {row.phase2 ? (
         <p className="mt-2 text-[11px] text-muted">
-          產品建立 {row.phase2.plannedStart.slice(5)} – {row.phase2.plannedEnd.slice(5)} · <StatusChip kind="phase" value={row.phase2.status} />
+          產品建立 {phaseDates} · <StatusChip kind="phase" value={row.phase2.status} />
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-2 text-[11px] text-muted">第二階段日期未設定</p>
+      )}
       <p className="mt-2 text-lg font-semibold tabular-nums">{row.machineTotal}</p>
       <p className="text-[11px] text-muted">計畫機台合計 · <MachineText lines={row.machineRollup} /></p>
       <p className={cn("mt-1 text-xs", row.readyCount === row.cells.length ? "text-emerald-800" : "text-amber-900")}>
         就緒 {row.readyCount}/{row.cells.length}
       </p>
+      <p className="mt-1 text-xs text-rose-800">延遲 {row.lateCount} · 待補 {row.gapCount}</p>
+      {row.reasonCounts.length > 0 ? (
+        <ul className="mt-1 space-y-0.5 text-[11px] text-muted">
+          {row.reasonCounts.map((item) => (
+            <li key={item.code}>{item.label} {item.count}</li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
 
-function Cell({ cell }: { cell: BuildCell }) {
-  const missing = cell.flags.includes("PLAN_MISSING");
+function Cell({
+  cell,
+  factoryName,
+  productName,
+  dimmed,
+}: {
+  cell: BuildCell;
+  factoryName: string;
+  productName: string;
+  dimmed: boolean;
+}) {
+  const late = cell.reasons.some((reason) => reason.kind === "late");
+  const gap = cell.reasons.some((reason) => reason.kind === "gap");
   const outside = cell.windowState === "OUTSIDE";
+  const badge = late ? "延遲" : gap ? "待補" : "";
+  const tip = cell.reasons.map((reason) => `${reason.label}：${reason.explanation}`).join("\n");
   return (
     <Link
       href={cell.planId ? `/factories/${cell.factoryId}/plans/${cell.productId}` : `/factories/${cell.factoryId}`}
+      data-delay-cell={`${factoryName}:${productName}`}
+      title={tip || undefined}
       className={cn(
         "block rounded-lg border p-2 text-xs leading-5",
-        cell.ready && "border-emerald-200 bg-emerald-50/70",
-        missing && "border-amber-300 bg-amber-50",
-        outside && "border-rose-300 bg-rose-50",
-        !cell.ready && !missing && !outside && "border-amber-200 bg-amber-50/40",
+        late && "border-rose-300 bg-rose-50",
+        !late && gap && "border-amber-300 bg-amber-50",
+        !late && !gap && cell.ready && "border-emerald-200 bg-emerald-50/70",
+        !late && !gap && !cell.ready && "border-amber-200 bg-amber-50/40",
+        dimmed && "opacity-40",
       )}
     >
       <div className="mb-1 flex flex-wrap gap-1">
         <StatusChip kind="deployment" value={cell.deploymentStatus} />
         <StatusChip kind="plan" value={cell.planStatus} />
+        {badge ? (
+          <span className={cn("rounded px-1.5 py-0.5 font-medium", late ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-900")}>{badge}</span>
+        ) : null}
       </div>
       {cell.mode === "VERSIONED" ? (
         <>
@@ -231,12 +317,31 @@ function Cell({ cell }: { cell: BuildCell }) {
       <div><MachineText lines={cell.machines} /></div>
       <div>
         時程 {shortDate(cell.windowStart)} – {shortDate(cell.windowEnd)}
-        {outside ? <span className="text-rose-700"> · {cell.windowReasons.map((reason) => windowReasonLabel[reason]).join("、")}</span> : null}
+        {outside ? <span className="text-rose-700"> · {cell.windowReasons.map((item) => windowReasonLabel[item]).join("、")}</span> : null}
       </div>
-      <div className={cell.ready ? "text-emerald-800" : "text-ink"}>
-        {cell.ready ? "計畫就緒" : cell.flags.map((flag) => readinessFlagLabel[flag]).join(" · ")}
-      </div>
+      {cell.reasons.length > 0 ? <ReasonList reasons={cell.reasons} /> : (
+        <div className={cell.ready ? "text-emerald-800" : "text-ink"}>
+          {cell.ready ? "計畫就緒" : cell.flags.map((flag) => readinessFlagLabel[flag]).join(" · ")}
+        </div>
+      )}
     </Link>
+  );
+}
+
+function ReasonList({ reasons }: { reasons: DelayReasonView[] }) {
+  return (
+    <ul className="mt-1 space-y-1">
+      {reasons.map((reason) => (
+        <li key={reason.code} title={reason.explanation}>
+          <span className={reason.kind === "late" ? "font-medium text-rose-800" : "font-medium text-amber-900"}>
+            {reason.kind === "late" ? "延遲" : "待補"}
+          </span>
+          {" "}{reason.label}
+          {reason.daysLate != null ? ` · 晚 ${reason.daysLate} 天` : ""}
+          {" · "}{ownerRoleLabel(reason.ownerRole)} {reason.ownerName}
+        </li>
+      ))}
+    </ul>
   );
 }
 

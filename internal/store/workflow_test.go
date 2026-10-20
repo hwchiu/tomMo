@@ -366,30 +366,41 @@ func TestAccountsAndEmptyReset(t *testing.T) {
 	empty := openMode(t, SeedNone)
 	assertAPI(t, empty.Reset(), 400, "這個環境沒有示範資料可重設")
 	_, err := empty.EnsureAccounts(AccountConfig{
-		AdminUsername: "admin", AdminPassword: "unused", AdminPerson: "沒有這個人", BcryptCost: bcrypt.MinCost,
+		AdminUsername: "admin", AdminPerson: "沒有這個人", BcryptCost: bcrypt.MinCost,
 	})
 	if err == nil || !contains(err.Error(), "找不到人員") {
 		t.Fatalf("missing person %v", err)
 	}
 
 	demo := openDemo(t)
-	password := "stored-secret"
+	randomPassword := func() string {
+		t.Helper()
+		password, err := RandomPassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return password
+	}
+	password := randomPassword()
+	viewerPassword := randomPassword()
+	otherPassword := randomPassword()
 	if _, err := demo.EnsureAccounts(AccountConfig{
 		AdminUsername: "admin", AdminPassword: password, AdminPerson: "林品均",
-		ViewerUsername: "viewer", ViewerPassword: "viewer-secret", ViewerPerson: "陳浩宇",
+		ViewerUsername: "viewer", ViewerPassword: viewerPassword, ViewerPerson: "陳浩宇",
 		BcryptCost: bcrypt.MinCost,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !demo.PasswordMatches("admin", password) || demo.PasswordMatches("admin", "other") || demo.PasswordMatches("missing", password) {
+	if !demo.PasswordMatches("admin", password) || demo.PasswordMatches("admin", otherPassword) || demo.PasswordMatches("missing", password) {
 		t.Fatal("password match")
 	}
+	replacementPassword := randomPassword()
 	if _, err := demo.EnsureAccounts(AccountConfig{
-		AdminUsername: "admin", AdminPassword: "replaced", AdminPerson: "林品均", BcryptCost: bcrypt.MinCost,
+		AdminUsername: "admin", AdminPassword: replacementPassword, AdminPerson: "林品均", BcryptCost: bcrypt.MinCost,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !demo.PasswordMatches("admin", password) || demo.PasswordMatches("admin", "replaced") {
+	if !demo.PasswordMatches("admin", password) || demo.PasswordMatches("admin", replacementPassword) {
 		t.Fatal("existing password was overwritten")
 	}
 	id, _, role, person, ok, err := demo.FindAccount(context.Background(), "admin")

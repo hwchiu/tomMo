@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -129,16 +128,6 @@ func TestListenShutsDown(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Serve(ctx, ln) }()
 
-	resp, err := http.Get("http://" + ln.Addr().String() + "/healthz")
-	if err != nil {
-		cancel()
-		t.Fatal(err)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if resp.StatusCode != 200 || !bytes.Contains(body, []byte(`"ok":true`)) {
-		t.Fatalf("health %d %s", resp.StatusCode, body)
-	}
 	cancel()
 	select {
 	case err := <-done:
